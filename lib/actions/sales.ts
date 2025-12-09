@@ -892,14 +892,16 @@ export async function getTransactionByReferenceNumber(referenceNumber: string) {
 
     // Create unit prices map from batches
     const unitPrices: Record<string, string> = {};
+    const batchMap = new Map();
     for (const batch of batches) {
       unitPrices[batch.meter_type] = batch.unit_price;
+      batchMap.set(batch.id, batch);
     }
 
     // Format meters for receipt
     const formattedMeters = meters.map((meter) => ({
       serialNumber: meter.serial_number,
-      type: saleBatches.meter_type,
+      type: batchMap.get(meter.batch_id)?.meter_type || "Unknown",
       id: meter.meter_id || meter.id,
     }));
 
