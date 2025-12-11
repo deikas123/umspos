@@ -5,11 +5,10 @@ import {
   getMostSellingProduct,
   getEarningsByMeterType,
   getCustomerTypeCounts,
+  getRegionDistribution,
+  getRemainingMetersByType,
+  getAgentInventoryCount,
 } from "@/lib/actions/reports";
-import {
-  useRemainingMetersByType,
-  useAgentInventory,
-} from "@/components/dailyreports/hooks/useReportsData";
 import type { TopSeller } from "../types";
 
 // Define query keys
@@ -18,22 +17,96 @@ const QUERY_KEYS = {
   mostSellingProduct: "mostSellingProduct",
   earnings: "earnings",
   customerTypes: "customerTypes",
+  regionDistribution: "regionDistribution",
+  remainingMetersByType: "remainingMetersByType",
+  agentInventory: "agentInventory",
 } as const;
 
-const GC_TIME = 1000 * 60 * 5; // 5 minutes
-const STALE_TIME = 1000 * 60; // 1 minute
+const GC_TIME = 1000 * 60 * 10; // 10 minutes
+const STALE_TIME = 1000 * 60 * 2; // 2 minutes - increased from 1 minute
 
-export function useReportsData() {
+// Type for initial data from server
+export interface ReportsPageData {
+  remainingMetersByType: Array<{ type: string; remaining_meters: number }>;
+  agentInventory: Array<{ type: string; with_agents: number }>;
+  mostSellingProduct: string;
+  customerTypeData: Array<{ type: string; count: number }>;
+  regionDistribution: Array<{ region: string; count: number }>;
+  earningsByMeterType: Array<{ meter_type: string; total_earnings: number }>;
+  totalEarnings: number;
+}
+
+export function useReportsData(initialData?: ReportsPageData) {
   const { userRole } = useAuth();
-
-  // Use shared hooks for data that's used across multiple pages
-  const remainingMetersQuery = useRemainingMetersByType();
-  const agentInventoryQuery = useAgentInventory();
 
   // Determine if user has reports access (avoid extra query)
   const hasReportsAccess = userRole === "admin" || userRole === "accountant";
+  const hasInitialData = !!initialData;
 
-  // Top sellers query
+  // Remaining meters query - use initialData if available
+  const remainingMetersQuery = useQuery({
+    queryKey: [QUERY_KEYS.remainingMetersByType],
+    queryFn: getRemainingMetersByType,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.remainingMetersByType,
+    refetchOnMount: !hasInitialData,
+  });
+
+  // Agent inventory query - use initialData if available
+  const agentInventoryQuery = useQuery({
+    queryKey: [QUERY_KEYS.agentInventory],
+    queryFn: getAgentInventoryCount,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.agentInventory,
+    refetchOnMount: !hasInitialData,
+  });
+
+  // Most selling product query - use initialData if available
+  const mostSellingProductQuery = useQuery({
+    queryKey: [QUERY_KEYS.mostSellingProduct],
+    queryFn: getMostSellingProduct,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.mostSellingProduct,
+    refetchOnMount: !hasInitialData,
+  });
+
+  // Customer types query - use initialData if available
+  const customerTypesQuery = useQuery({
+    queryKey: [QUERY_KEYS.customerTypes],
+    queryFn: getCustomerTypeCounts,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.customerTypeData,
+    refetchOnMount: !hasInitialData,
+  });
+
+  // Region distribution query - use initialData if available
+  const regionDistributionQuery = useQuery({
+    queryKey: [QUERY_KEYS.regionDistribution],
+    queryFn: getRegionDistribution,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.regionDistribution,
+    refetchOnMount: !hasInitialData,
+  });
+
+  // Earnings query (admin/accountant only) - use initialData if available
+  const earningsQuery = useQuery({
+    queryKey: [QUERY_KEYS.earnings],
+    queryFn: getEarningsByMeterType,
+    enabled: hasReportsAccess,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: hasReportsAccess
+      ? initialData?.earningsByMeterType
+      : undefined,
+    refetchOnMount: !hasInitialData,
+  });
+
+  // Top sellers query (not in initial data, fetches on demand)
   const topSellersQuery = useQuery({
     queryKey: [QUERY_KEYS.topSellers],
     queryFn: async () => {
@@ -59,38 +132,13 @@ export function useReportsData() {
     gcTime: GC_TIME,
   });
 
-  // Most selling product query
-  const mostSellingProductQuery = useQuery({
-    queryKey: [QUERY_KEYS.mostSellingProduct],
-    queryFn: getMostSellingProduct,
-    staleTime: STALE_TIME,
-    gcTime: GC_TIME,
-  });
-
-  // Customer types query
-  const customerTypesQuery = useQuery({
-    queryKey: [QUERY_KEYS.customerTypes],
-    queryFn: getCustomerTypeCounts,
-    staleTime: STALE_TIME,
-    gcTime: GC_TIME,
-  });
-
-  // Earnings query (admin/accountant only) - enabled conditionally
-  const earningsQuery = useQuery({
-    queryKey: [QUERY_KEYS.earnings],
-    queryFn: getEarningsByMeterType,
-    enabled: hasReportsAccess,
-    staleTime: STALE_TIME,
-    gcTime: GC_TIME,
-  });
-
   // Optimized loading check - only check required queries
   const isLoading =
     remainingMetersQuery.isLoading ||
-    topSellersQuery.isLoading ||
     mostSellingProductQuery.isLoading ||
     agentInventoryQuery.isLoading ||
     customerTypesQuery.isLoading ||
+    regionDistributionQuery.isLoading ||
     (hasReportsAccess && earningsQuery.isLoading);
 
   const isFetching =
@@ -99,6 +147,7 @@ export function useReportsData() {
     mostSellingProductQuery.isFetching ||
     agentInventoryQuery.isFetching ||
     customerTypesQuery.isFetching ||
+    regionDistributionQuery.isFetching ||
     (hasReportsAccess && earningsQuery.isFetching);
 
   // Optimized error check
@@ -108,6 +157,7 @@ export function useReportsData() {
     mostSellingProductQuery.error ||
     agentInventoryQuery.error ||
     customerTypesQuery.error ||
+    regionDistributionQuery.error ||
     (hasReportsAccess && earningsQuery.error);
 
   return {
@@ -120,10 +170,13 @@ export function useReportsData() {
         earningsQuery.data?.reduce(
           (sum, item) => sum + item.total_earnings,
           0
-        ) || 0,
+        ) ||
+        initialData?.totalEarnings ||
+        0,
       userRole: userRole || "",
       agentInventory: agentInventoryQuery.data || [],
       customerTypeData: customerTypesQuery.data || [],
+      regionDistribution: regionDistributionQuery.data || [],
     },
     isLoading,
     isFetching,
@@ -138,6 +191,7 @@ export function useReportsData() {
         topSellersQuery.refetch(refetchOptions),
         mostSellingProductQuery.refetch(refetchOptions),
         customerTypesQuery.refetch(refetchOptions),
+        regionDistributionQuery.refetch(refetchOptions),
         remainingMetersQuery.refetch(refetchOptions),
         agentInventoryQuery.refetch(refetchOptions),
       ];

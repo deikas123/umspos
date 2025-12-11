@@ -5,7 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Check, Copy, Pencil } from "lucide-react";
+import { Check, Copy, StickyNote, Calendar } from "lucide-react";
 
 interface SaleDetailsHeaderProps {
   transactionRef: string | null;
@@ -29,54 +29,51 @@ export function SaleDetailsHeader({
   const formattedDate = saleDate
     ? saleDate.toLocaleDateString("en-GB", {
         day: "2-digit",
-        month: "long",
+        month: "short",
         year: "numeric",
       })
     : "N/A";
 
   return (
-    <SheetHeader className='space-y-1 pb-2'>
-      <SheetTitle className='flex items-center gap-2 text-xl'>
-        <span>Sale Details</span>
-        <Badge variant='outline' className='bg-blue-100'>
-          {isRefLoading ? (
-            <span className='animate-pulse'>Loading...</span>
-          ) : (
-            <div className='flex items-center gap-1'>
-              <span>{transactionRef || "No Reference"}</span>
-              {transactionRef && (
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  className='h-5 w-5 ml-1 rounded-full cursor-pointer'
-                  onClick={onCopy}
-                  title='Copy reference number'>
-                  {isCopying ? (
-                    <Check className='h-3 w-3 text-green-600' />
-                  ) : (
-                    <Copy className='h-3 w-3 text-gray-500 hover:text-gray-800' />
-                  )}
-                </Button>
-              )}
-            </div>
-          )}
-        </Badge>
+    <SheetHeader className='border-b border-gray-200 py-2 gap-2'>
+      <div className='flex items-center justify-between'>
+        <SheetTitle className='text-xl font-semibold text-gray-900'>
+          Transaction Details
+        </SheetTitle>
         <Button
-          variant='ghost'
-          size='icon'
+          variant={hasNote ? "default" : "outline"}
+          size='sm'
           onClick={(event) => {
             event.stopPropagation();
             onOpenNoteDialog();
           }}
-          className='h-8 w-8 cursor-pointer'
-          title={hasNote ? "Update note" : "Add note"}>
-          <Pencil
-            className={`h-4 w-4 ${hasNote ? "text-blue-600" : "text-gray-400"}`}
-          />
+          className={`cursor-pointer ${hasNote ? "bg-[#E46020] hover:bg-[#d45518]" : ""}`}
+          title={hasNote ? "View/Edit note" : "Add note"}>
+          <StickyNote className='h-4 w-4 mr-1.5' />
+          {hasNote ? "View Note" : "Add Note"}
         </Button>
-      </SheetTitle>
-      <SheetDescription className='flex items-center gap-2 text-sm'>
-        <span>Sold on {formattedDate}</span>
+      </div>
+      <SheetDescription className='flex items-center gap-3 text-sm text-gray-500'>
+        <span className='flex items-center gap-1.5'>
+          <Calendar className='h-3.5 w-3.5' />
+          {formattedDate}
+        </span>
+        {isRefLoading && (
+          <span className='animate-pulse text-gray-400'>Loading ref...</span>
+        )}
+        {!isRefLoading && transactionRef && (
+          <button
+            onClick={onCopy}
+            className='flex items-center gap-1.5 font-mono text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition-colors cursor-pointer'
+            title='Click to copy'>
+            {transactionRef}
+            {isCopying ? (
+              <Check className='h-3 w-3 text-green-600' />
+            ) : (
+              <Copy className='h-3 w-3 text-gray-400' />
+            )}
+          </button>
+        )}
       </SheetDescription>
     </SheetHeader>
   );

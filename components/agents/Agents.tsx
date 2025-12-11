@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import EditAgentDialog from "./EditAgentDialog";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAgentsData } from "./hooks/useAgentsData";
+import { useAgentsData, type AgentsPageData } from "./hooks/useAgentsData";
 import { Users2 } from "lucide-react";
 import Loader from "@/components/ui/Loader";
 import AgentHistory from "./AgentHistory";
@@ -72,7 +72,11 @@ interface CurrentUser {
   is_active?: boolean | null;
 }
 
-export default function Agents() {
+interface AgentsProps {
+  readonly initialData?: AgentsPageData;
+}
+
+export default function Agents({ initialData }: AgentsProps) {
   const isMobile = useIsMobile();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -91,7 +95,7 @@ export default function Agents() {
     isError,
     error,
     refetch,
-  } = useAgentsData();
+  } = useAgentsData(initialData);
 
   const queryClient = useQueryClient();
 

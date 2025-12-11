@@ -8,7 +8,7 @@ import {
   soldMeters,
   faultyReturns,
   meterPurchaseBatches,
-  userProfiles,
+  betterAuthUser,
   agents,
 } from "../db/schema";
 import type { SaleBatch } from "../db/schema";
@@ -181,6 +181,29 @@ export async function getCustomerTypeCounts(): Promise<
 }
 
 /**
+ * Gets region distribution counts from sales data
+ */
+export async function getRegionDistribution(): Promise<
+  Array<{ region: string; count: number }>
+> {
+  try {
+    const result = await db
+      .select({
+        region: sql<string>`${saleBatches.customer_region}`,
+        count: count().mapWith(Number),
+      })
+      .from(saleBatches)
+      .where(isNotNull(saleBatches.customer_region))
+      .groupBy(saleBatches.customer_region);
+
+    return result.filter((item) => item.region !== null);
+  } catch (error) {
+    console.error("Error fetching region distribution:", error);
+    return [];
+  }
+}
+
+/**
  * Gets faulty meters for reporting
  */
 export async function getFaultyMeters(): Promise<
@@ -256,16 +279,16 @@ export async function getMeterReplacements(): Promise<
       return replacementsData;
     }
 
-    // Fetch user profiles for these IDs
-    const userProfilesData = await db
-      .select({ id: userProfiles.id, name: userProfiles.name })
-      .from(userProfiles)
-      .where(inArray(userProfiles.id, userIds));
+    // Fetch user data from Better Auth user table
+    const usersData = await db
+      .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
+      .from(betterAuthUser)
+      .where(inArray(betterAuthUser.id, userIds));
 
     // Create a map of user IDs to names
     const userMap: Record<string, string> = {};
-    if (userProfilesData) {
-      for (const user of userProfilesData) {
+    if (usersData) {
+      for (const user of usersData) {
         userMap[user.id] = user.name || user.id;
       }
     }
@@ -468,12 +491,12 @@ export async function getPurchaseBatches(): Promise<
       .select({
         ...getTableColumns(meterPurchaseBatches),
         remaining_meters: meterCounts.count,
-        user_name: userProfiles.name,
+        user_name: betterAuthUser.displayName,
       })
       .from(meterPurchaseBatches)
       .leftJoin(
-        userProfiles,
-        eq(meterPurchaseBatches.added_by, userProfiles.id)
+        betterAuthUser,
+        eq(meterPurchaseBatches.added_by, betterAuthUser.id)
       )
       .leftJoin(meterCounts, eq(meterPurchaseBatches.id, meterCounts.batch_id))
       .orderBy(desc(meterPurchaseBatches.created_at));
@@ -802,5 +825,90 @@ export async function getInventorySummary(): Promise<{
   } catch (error) {
     console.error("Error fetching inventory summary:", error);
     throw error;
+  }
+}
+
+/**
+ * Consolidated function to fetch all Reports page data in a single call
+ * This reduces multiple POST requests to a single server-side fetch
+ */
+export async function getReportsPageData() {
+  try {
+    // Run all queries in parallel for maximum efficiency
+    const [
+      remainingMetersByType,
+      agentInventoryData,
+      mostSellingProduct,
+      customerTypeCounts,
+      regionDistributionData,
+      earningsByMeterType,
+    ] = await Promise.all([
+      getRemainingMetersByType(),
+      getAgentInventoryCount(),
+      getMostSellingProduct(),
+      getCustomerTypeCounts(),
+      getRegionDistribution(),
+      getEarningsByMeterType(),
+    ]);
+
+    return {
+      remainingMetersByType,
+      agentInventory: agentInventoryData,
+      mostSellingProduct,
+      customerTypeData: customerTypeCounts,
+      regionDistribution: regionDistributionData,
+      earningsByMeterType,
+      totalEarnings: earningsByMeterType.reduce(
+        (sum, item) => sum + item.total_earnings,
+        0
+      ),
+    };
+  } catch (error) {
+    console.error("Error fetching reports page data:", error);
+    return {
+      remainingMetersByType: [],
+      agentInventory: [],
+      mostSellingProduct: "",
+      customerTypeData: [],
+      regionDistribution: [],
+      earningsByMeterType: [],
+      totalEarnings: 0,
+    };
+  }
+}
+
+/**
+ * Consolidated function to fetch all Daily Reports page data in a single call
+ * This reduces multiple POST requests to a single server-side fetch
+ */
+export async function getDailyReportsPageData() {
+  try {
+    // Run all queries in parallel for maximum efficiency
+    const [
+      todaySales,
+      yesterdaySales,
+      remainingMetersByType,
+      agentInventoryData,
+    ] = await Promise.all([
+      getDetailedSalesToday(),
+      getDetailedSalesYesterday(),
+      getRemainingMetersByType(),
+      getAgentInventoryCount(),
+    ]);
+
+    return {
+      todaySales,
+      yesterdaySales,
+      remainingMetersByType,
+      agentInventory: agentInventoryData,
+    };
+  } catch (error) {
+    console.error("Error fetching daily reports page data:", error);
+    return {
+      todaySales: [],
+      yesterdaySales: [],
+      remainingMetersByType: [],
+      agentInventory: [],
+    };
   }
 }

@@ -13,21 +13,20 @@ export default function QueryProvider({
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Cache data for 5 minutes in memory
-            gcTime: 1000 * 60 * 5,
-            // Consider data stale after 30 seconds (will refetch in background)
-            staleTime: 1000 * 30,
-            // TEMPORARILY DISABLED - Testing if this causes the spam
+            // Cache data for 10 minutes in memory (increased from 5)
+            gcTime: 1000 * 60 * 10,
+            // Consider data stale after 2 minutes (increased from 30 seconds)
+            // This significantly reduces background refetches
+            staleTime: 1000 * 60 * 2,
+            // Disable automatic refetches to reduce POST requests
             refetchOnWindowFocus: false,
+            refetchOnMount: false,
+            refetchOnReconnect: false,
             // Retry failed requests once (network issues)
             retry: 1,
             // Retry delay (exponential backoff)
             retryDelay: (attemptIndex) =>
               Math.min(1000 * 2 ** attemptIndex, 30000),
-            // CRITICAL FIX: Only refetch if data is stale, not on every mount
-            refetchOnMount: false,
-            // Prevent unnecessary refetches when data is still fresh
-            refetchOnReconnect: false,
           },
           mutations: {
             // Retry mutations once on failure

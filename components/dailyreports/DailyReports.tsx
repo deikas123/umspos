@@ -122,7 +122,7 @@ export default function DailyReports({
     }
 
     return filtered;
-  }, [salesData.todaySales, searchUser, selectedType, selectedDateRange]);
+  }, [salesData.todaySales, searchUser, selectedType]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);

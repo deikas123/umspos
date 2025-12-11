@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useUsersData } from "./hooks/useUsersData";
+import { useUsersData, type UsersPageData } from "./hooks/useUsersData";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +57,11 @@ import { Label } from "@/components/ui/label";
 import { changePassword, adminChangePassword } from "@/lib/actions/users";
 import { useQueryClient } from "@tanstack/react-query";
 
-export default function UsersPage() {
+interface UsersProps {
+  readonly initialData?: UsersPageData;
+}
+
+export default function UsersPage({ initialData }: UsersProps) {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [newName, setNewName] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,7 +87,7 @@ export default function UsersPage() {
     error,
     updateUser,
     refetch,
-  } = useUsersData(showDeactivated);
+  } = useUsersData(showDeactivated, initialData);
 
   const handleUpdateName = async () => {
     if (!editingUser || !newName.trim()) {
@@ -130,7 +134,7 @@ export default function UsersPage() {
       toast.success(
         `User ${newStatus ? "activated" : "deactivated"} successfully`
       );
-      
+
       await refetch({ throwOnError: true });
     } catch (error) {
       toast.error("Failed to update user status");

@@ -38,7 +38,29 @@ export const faultyMeterStatusEnum = pgEnum("faulty_meter_status", [
   "unrepairable",
 ]);
 
-// User Profiles Table
+// Better Auth User Table (primary user table)
+export const betterAuthUser = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("emailVerified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  role: text("role"),
+  banned: boolean("banned"),
+  banReason: text("banReason"),
+  banExpires: timestamp("banExpires"),
+  isAnonymous: boolean("isAnonymous"),
+  phoneNumber: text("phoneNumber").unique(),
+  phoneNumberVerified: boolean("phoneNumberVerified"),
+  twoFactorEnabled: boolean("twoFactorEnabled"),
+  displayName: text("displayName"),
+  appRole: text("appRole").default("user"),
+  isActive: boolean("isActive").default(true),
+});
+
+// Legacy User Profiles Table (kept for reference, being phased out)
 export const userProfiles = pgTable("user_profiles", {
   id: uuid("id").primaryKey(),
   name: text("name"),
@@ -107,6 +129,7 @@ export const saleBatches = pgTable("sale_batches", {
   destination: text("destination").notNull(),
   recipient: text("recipient").notNull(),
   customer_type: text("customer_type"),
+  customer_region: text("customer_region"),
   customer_county: text("customer_county"),
   customer_contact: text("customer_contact"),
   sale_date: timestamp("sale_date").defaultNow(),
@@ -127,6 +150,7 @@ export const salesTransactions = pgTable("sales_transactions", {
   destination: text("destination").notNull(),
   recipient: text("recipient").notNull(),
   customer_type: text("customer_type"),
+  customer_region: text("customer_region"),
   customer_county: text("customer_county"),
   customer_contact: text("customer_contact"),
   reference_number: text("reference_number").unique().notNull(),
@@ -143,6 +167,7 @@ export const soldMeters = pgTable("sold_meters", {
   destination: text("destination").notNull(),
   recipient: text("recipient").notNull(),
   customer_type: text("customer_type"),
+  customer_region: text("customer_region"),
   customer_county: text("customer_county"),
   customer_contact: text("customer_contact"),
   unit_price: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),

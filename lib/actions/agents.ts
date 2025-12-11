@@ -540,3 +540,22 @@ export async function getAgentTransactions(
     };
   }
 }
+
+/**
+ * Consolidated function to fetch all Agents page data in a single call
+ * This reduces multiple POST requests to a single server-side fetch
+ */
+export async function getAgentsPageData() {
+  try {
+    const agentsList = await getAgentsList();
+
+    return {
+      agents: agentsList,
+    };
+  } catch (error) {
+    console.error("Error fetching agents page data:", error);
+    return {
+      agents: [],
+    };
+  }
+}

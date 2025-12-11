@@ -1,9 +1,39 @@
 "use server";
 
 import { db } from "../db";
-import { notifications, userProfiles } from "../db/schema";
+import { notifications } from "../db/schema";
 import { eq, lt, count, desc, sql, arrayContains } from "drizzle-orm";
 import type { Notification } from "../db/schema";
+
+/**
+ * Typed metadata for notifications
+ * Ensures type safety for notification payloads
+ */
+export type NotificationMetadata = {
+  // Sale-related metadata
+  batchId?: string | number;
+  meterType?: string;
+  batchAmount?: number;
+  destination?: string;
+  recipient?: string;
+  totalPrice?: string | number;
+  unitPrice?: string | number;
+  customerType?: string;
+  customerCounty?: string;
+  customerContact?: string;
+  // Agent-related metadata
+  agentId?: string;
+  agentName?: string;
+  meterCount?: number;
+  // Return-related metadata
+  returnedBy?: string;
+  returnReason?: string;
+  // Generic metadata
+  serialNumber?: string;
+  userId?: string;
+  userName?: string;
+  [key: string]: unknown; // Allow additional properties for flexibility
+};
 
 /**
  * Creates a new notification in the system
@@ -16,7 +46,7 @@ export async function createNotification({
 }: {
   type: string;
   message: string;
-  metadata?: any;
+  metadata?: NotificationMetadata;
   createdBy: string;
 }): Promise<Notification> {
   try {

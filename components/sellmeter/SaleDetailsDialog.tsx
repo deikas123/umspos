@@ -26,8 +26,10 @@ import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
 import { CalendarDate, getLocalTimeZone, today } from "@internationalized/date";
 import {
-  KENYA_COUNTIES,
+  KENYA_REGION_NAMES,
   CUSTOMER_TYPES,
+  getCountiesForRegion,
+  type KenyaRegion,
   type KenyaCounty,
   type CustomerType,
 } from "@/lib/constants/locationData";
@@ -41,7 +43,8 @@ interface SaleDetails {
   recipient: string;
   unitPrices: UnitPrices;
   customerType: CustomerType;
-  customerCounty: KenyaCounty;
+  customerRegion: KenyaRegion;
+  customerCounty: string;
   customerContact: string;
   saleDate: CalendarDate;
 }
@@ -77,11 +80,18 @@ const SaleDetailsDialog = ({
     recipient: initialData?.recipient || "",
     unitPrices: initialData?.unitPrices || {},
     customerType: initialData?.customerType || "walk in",
+    customerRegion: initialData?.customerRegion || "Nairobi",
     customerCounty: initialData?.customerCounty || "Nairobi",
     customerContact: initialData?.customerContact || "",
   });
 
+  const [openRegionCombobox, setOpenRegionCombobox] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
+
+  // Get counties based on selected region
+  const availableCounties = useMemo(() => {
+    return getCountiesForRegion(formData.customerRegion);
+  }, [formData.customerRegion]);
 
   useEffect(() => {
     if (isOpen && initialData) {
@@ -90,6 +100,7 @@ const SaleDetailsDialog = ({
         recipient: initialData.recipient,
         unitPrices: initialData.unitPrices,
         customerType: initialData.customerType,
+        customerRegion: initialData.customerRegion,
         customerCounty: initialData.customerCounty,
         customerContact: initialData.customerContact,
       });
@@ -205,6 +216,67 @@ const SaleDetailsDialog = ({
             </div>
 
             <div className='space-y-2 w-full'>
+              <label className='text-sm font-medium'>Region</label>
+              <Popover
+                open={openRegionCombobox}
+                onOpenChange={setOpenRegionCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant='outline'
+                    aria-expanded={openRegionCombobox}
+                    className='w-full justify-between bg-white border-2 border-gray-200 hover:border-primary transition-colors font-medium cursor-pointer'>
+                    {formData.customerRegion || "Select region..."}
+                    <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className='w-[calc(100%-2rem)] p-0'
+                  align='start'>
+                  <Command className='w-full'>
+                    <CommandInput
+                      placeholder='Search region...'
+                      className='h-9 border-none focus:ring-0'
+                    />
+                    <CommandList className='max-h-[300px] overflow-y-auto scroll-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400 scrollbar-track-transparent'>
+                      <CommandEmpty>No region found.</CommandEmpty>
+                      <CommandGroup>
+                        {KENYA_REGION_NAMES.map((region) => (
+                          <CommandItem
+                            key={region}
+                            value={region}
+                            onSelect={(currentValue) => {
+                              const selectedRegion =
+                                currentValue as KenyaRegion;
+                              const regionCounties =
+                                getCountiesForRegion(selectedRegion);
+                              setFormData((prev) => ({
+                                ...prev,
+                                customerRegion: selectedRegion,
+                                // Reset county to first county in the region
+                                customerCounty: regionCounties[0] || "",
+                              }));
+                              setOpenRegionCombobox(false);
+                            }}
+                            className='hover:bg-primary/10 cursor-pointer font-medium'>
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.customerRegion === region
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            {region}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className='space-y-2 w-full'>
               <label className='text-sm font-medium'>County</label>
               <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                 <PopoverTrigger asChild>
@@ -217,7 +289,7 @@ const SaleDetailsDialog = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className='w-[calc(100%-2rem)] p-0'
+                  className='w-full p-0'
                   align='start'>
                   <Command className='w-full'>
                     <CommandInput
@@ -227,14 +299,14 @@ const SaleDetailsDialog = ({
                     <CommandList className='max-h-[300px] overflow-y-auto scroll-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400 scrollbar-track-transparent'>
                       <CommandEmpty>No county found.</CommandEmpty>
                       <CommandGroup>
-                        {KENYA_COUNTIES.map((county) => (
+                        {availableCounties.map((county) => (
                           <CommandItem
                             key={county}
                             value={county}
                             onSelect={(currentValue) => {
                               setFormData((prev) => ({
                                 ...prev,
-                                customerCounty: currentValue as KenyaCounty,
+                                customerCounty: currentValue,
                               }));
                               setOpenCombobox(false);
                             }}

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/utils/supabase/server";
+import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -14,18 +14,26 @@ export async function POST(request: Request) {
     );
   }
 
-  // Create Supabase client using @supabase/ssr
-  const supabase = await createClient();
+  try {
+    // Sign in with Better Auth
+    const result = await auth.api.signInEmail({
+      headers: request.headers,
+      body: {
+        email,
+        password,
+      },
+    });
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+    if (!result?.user) {
+      return NextResponse.json({ error: "Sign in failed" }, { status: 400 });
+    }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    // Return success - let the client handle navigation
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || "Sign in failed" },
+      { status: 400 }
+    );
   }
-
-  // Return success - let the client handle navigation
-  return NextResponse.json({ success: true }, { status: 200 });
 }

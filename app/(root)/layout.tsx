@@ -1,5 +1,5 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { NavbarClient } from "@/components/navigation/NavbarClient";
+import Navbar from "@/components/navigation/Navbar";
 import { AppSidebar } from "@/components/navigation/AppSidebar";
 import { NavigationProgress } from "@/components/navigation/NavigationProgress";
 import { PrefetchProvider } from "@/components/providers/PrefetchProvider";
@@ -16,7 +16,7 @@ export default function AppLayout({
         <Suspense fallback={null}>
           <NavigationProgress />
         </Suspense>
-        <NavbarClient />
+        <Navbar />
 
         <div className='flex pt-16 w-full h-full px-2'>
           <AppSidebar />
