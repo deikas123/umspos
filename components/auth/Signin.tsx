@@ -36,48 +36,49 @@ const SignIn = () => {
     setError(null);
     setIsLoading(true);
 
-    try {
-      const email = `${emailPrefix}@umskenya.com`;
+    const email = `${emailPrefix}@umskenya.com`;
 
-      const { data, error } = await signIn.email({
+    await signIn.email(
+      {
         email,
         password,
-      });
+      },
+      {
+        onSuccess: async (ctx) => {
+          try {
+            const session = await getSession();
+            const user = session?.data?.user as any;
+            const isActive = user?.isActive ?? true;
 
-      if (error) {
-        throw error;
-      }
+            if (!isActive) {
+              await signOut();
+              setIsLoading(false);
+              router.replace("/deactivated");
+              return;
+            }
 
-      if (data?.user) {
-        // Fetch the full session to get all custom fields including isActive
-        const session = await getSession();
-        const user = session?.data?.user as any;
-        const isActive = user?.isActive ?? true;
+            router.replace("/dashboard");
+          } catch (sessionError) {
+            setError("Failed to fetch session. Please try again.");
+            setIsLoading(false);
+          }
+        },
+        onError: (ctx) => {
+          const rawMessage: string | undefined = ctx.error?.message;
 
-        if (!isActive) {
-          await signOut();
+          const errorMessage = rawMessage?.trim().length
+            ? rawMessage
+            : "Failed to sign in";
+
+          setError(errorMessage);
+
+          if (rawMessage?.includes("Invalid login credentials")) {
+            setPassword("");
+          }
           setIsLoading(false);
-          router.replace("/deactivated");
-          return;
-        }
-
-        router.replace("/dashboard");
+        },
       }
-    } catch (error: any) {
-      const rawMessage: string | undefined = error?.message;
-
-      const errorMessage = rawMessage?.trim().length
-        ? rawMessage
-        : "Failed to sign in";
-
-      setError(errorMessage);
-
-      if (rawMessage?.includes("Invalid login credentials")) {
-        setPassword("");
-      }
-      setIsLoading(false);
-    }
-    // Don't set isLoading to false on success - keep loading state until navigation completes
+    );
   };
 
   return (
