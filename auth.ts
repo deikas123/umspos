@@ -11,7 +11,7 @@ import {
   user as userRole,
 } from "@/lib/auth/permissions";
 
-// Singleton pattern to prevent connection exhaustion during builds and hot reloads
+// Singleton pattern to prevent connection leaks during hot reloads
 const globalForDb = globalThis as unknown as {
   authPool: Pool | undefined;
 };
@@ -20,7 +20,7 @@ const authPool =
   globalForDb.authPool ??
   new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 1,
+    max: 5,
     idleTimeoutMillis: 20000,
     connectionTimeoutMillis: 10000,
   });
