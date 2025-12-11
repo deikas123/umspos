@@ -34,9 +34,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If has session and on auth page, allow through (page will handle redirect)
+  // If has session and on auth page, redirect to dashboard
+  // This ensures authenticated users are redirected away from signin page
   if (isAuthPage) {
-    return NextResponse.next();
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
