@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn, signOut, getSession } from "@/lib/auth-client";
+import { signIn, signOut, getSession, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 
 const SignIn = () => {
   const router = useRouter();
+  const { data: session } = useSession();
   const [emailPrefix, setEmailPrefix] = useState("");
   const [password, setPassword] = useState("");
   const [isVisible, setIsVisible] = useState(false);
@@ -25,6 +26,12 @@ const SignIn = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const toggleVisibility = () => setIsVisible((prevState) => !prevState);
+
+  useEffect(() => {
+    if (session?.user) {
+      router.replace("/dashboard");
+    }
+  }, [session, router]);
 
   useEffect(() => {
     router.prefetch("/dashboard");

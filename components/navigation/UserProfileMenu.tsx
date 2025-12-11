@@ -36,20 +36,24 @@ export function UserProfileMenu({
   const handleLogout = async () => {
     setIsLoading(true);
 
-    // Clear client state immediately
-    queryClient.clear();
-    updateAuthState({
-      user: null,
-      userRole: undefined,
-      isAuthenticated: false,
-      isLoading: false,
-    });
+    try {
+      await signOut();
 
-    // Sign out in the background (don't await)
-    signOut().catch((error) => console.error("Logout error:", error));
+      // Clear client state immediately
+      queryClient.clear();
+      updateAuthState({
+        user: null,
+        userRole: undefined,
+        isAuthenticated: false,
+        isLoading: false,
+      });
 
-    // Navigate immediately - the middleware will handle the rest
-    globalThis.window.location.href = "/signin";
+      // Navigate immediately - the middleware will handle the rest
+      globalThis.window.location.href = "/signin";
+    } catch (error) {
+      console.error("Logout error:", error);
+      setIsLoading(false);
+    }
   };
 
   const getRoleBadgeColor = () => {
