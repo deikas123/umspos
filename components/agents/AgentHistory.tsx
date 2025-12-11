@@ -27,6 +27,7 @@ import { RefreshCw, Search, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import Loader from "@/components/ui/Loader";
+import { useDebounce } from "@/hooks/use-debounce";
 
 const EmptyState = () => (
   <div className='flex flex-col items-center justify-center p-8 text-gray-500'>
@@ -79,11 +80,12 @@ const getMeterTypeBadge = (type: string) => {
 
 export default function AgentHistory() {
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const { data, isLoading, isError, error, refetch, isFetching } =
-    useAgentTransactions(currentPage, itemsPerPage, searchTerm);
+    useAgentTransactions(currentPage, itemsPerPage, debouncedSearchTerm);
 
   const handleRefresh = async () => {
     try {
@@ -101,14 +103,6 @@ export default function AgentHistory() {
     setSearchTerm(value);
     setCurrentPage(1);
   };
-
-  if (isLoading) {
-    return (
-      <div className='relative flex items-center justify-center h-64'>
-        <Loader />
-      </div>
-    );
-  }
 
   if (isError) {
     return <div>Error: {error?.message}</div>;
@@ -156,94 +150,106 @@ export default function AgentHistory() {
         </div>
       </div>
 
-      {/* Desktop View */}
-      <div className='hidden md:block'>
-        <Table>
-          <TableHeader>
-            <TableRow className='bg-gray-50'>
-              <TableHead className='font-semibold'>Date</TableHead>
-              <TableHead className='font-semibold'>Agent Name</TableHead>
-              <TableHead className='font-semibold'>Transaction Type</TableHead>
-              <TableHead className='font-semibold'>Meter Type</TableHead>
-              <TableHead className='font-semibold text-right'>
-                Quantity
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      {isLoading ? (
+        <div className='relative flex items-center justify-center h-64'>
+          <Loader />
+        </div>
+      ) : (
+        <>
+          {/* Desktop View */}
+          <div className='hidden md:block'>
+            <Table>
+              <TableHeader>
+                <TableRow className='bg-gray-50'>
+                  <TableHead className='font-semibold'>Date</TableHead>
+                  <TableHead className='font-semibold'>Agent Name</TableHead>
+                  <TableHead className='font-semibold'>
+                    Transaction Type
+                  </TableHead>
+                  <TableHead className='font-semibold'>Meter Type</TableHead>
+                  <TableHead className='font-semibold text-right'>
+                    Quantity
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.length > 0 ? (
+                  transactions.map((transaction) => (
+                    <TableRow key={transaction.id}>
+                      <TableCell>
+                        {transaction.transaction_date
+                          ? format(
+                              new Date(transaction.transaction_date),
+                              "MMM dd, yyyy HH:mm"
+                            )
+                          : "N/A"}
+                      </TableCell>
+                      <TableCell className='font-medium'>
+                        {transaction.agent_name || "Unknown Agent"}
+                      </TableCell>
+                      <TableCell>
+                        {getTransactionTypeBadge(transaction.transaction_type)}
+                      </TableCell>
+                      <TableCell>
+                        {getMeterTypeBadge(transaction.meter_type)}
+                      </TableCell>
+                      <TableCell className='text-right font-semibold'>
+                        {transaction.quantity}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <EmptyState />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile View */}
+          <div className='block md:hidden space-y-4'>
             {transactions.length > 0 ? (
               transactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell>
-                    {transaction.transaction_date
-                      ? format(
-                          new Date(transaction.transaction_date),
-                          "MMM dd, yyyy HH:mm"
-                        )
-                      : "N/A"}
-                  </TableCell>
-                  <TableCell className='font-medium'>
-                    {transaction.agent_name || "Unknown Agent"}
-                  </TableCell>
-                  <TableCell>
+                <div
+                  key={transaction.id}
+                  className='border rounded-lg p-4 space-y-3'>
+                  <div className='flex items-start justify-between'>
+                    <div>
+                      <p className='font-semibold text-sm'>
+                        {transaction.agent_name || "Unknown Agent"}
+                      </p>
+                      <p className='text-xs text-gray-500'>
+                        {transaction.transaction_date
+                          ? format(
+                              new Date(transaction.transaction_date),
+                              "MMM dd, yyyy HH:mm"
+                            )
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div className='text-right'>
+                      <p className='text-lg font-bold'>
+                        {transaction.quantity}
+                      </p>
+                      <p className='text-xs text-gray-500'>Meters</p>
+                    </div>
+                  </div>
+
+                  <div className='flex items-center gap-2 flex-wrap'>
                     {getTransactionTypeBadge(transaction.transaction_type)}
-                  </TableCell>
-                  <TableCell>
                     {getMeterTypeBadge(transaction.meter_type)}
-                  </TableCell>
-                  <TableCell className='text-right font-semibold'>
-                    {transaction.quantity}
-                  </TableCell>
-                </TableRow>
+                  </div>
+                </div>
               ))
             ) : (
-              <TableRow>
-                <TableCell colSpan={5}>
-                  <EmptyState />
-                </TableCell>
-              </TableRow>
+              <EmptyState />
             )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Mobile View */}
-      <div className='block md:hidden space-y-4'>
-        {transactions.length > 0 ? (
-          transactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              className='border rounded-lg p-4 space-y-3'>
-              <div className='flex items-start justify-between'>
-                <div>
-                  <p className='font-semibold text-sm'>
-                    {transaction.agent_name || "Unknown Agent"}
-                  </p>
-                  <p className='text-xs text-gray-500'>
-                    {transaction.transaction_date
-                      ? format(
-                          new Date(transaction.transaction_date),
-                          "MMM dd, yyyy HH:mm"
-                        )
-                      : "N/A"}
-                  </p>
-                </div>
-                <div className='text-right'>
-                  <p className='text-lg font-bold'>{transaction.quantity}</p>
-                  <p className='text-xs text-gray-500'>Meters</p>
-                </div>
-              </div>
-
-              <div className='flex items-center gap-2 flex-wrap'>
-                {getTransactionTypeBadge(transaction.transaction_type)}
-                {getMeterTypeBadge(transaction.meter_type)}
-              </div>
-            </div>
-          ))
-        ) : (
-          <EmptyState />
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (

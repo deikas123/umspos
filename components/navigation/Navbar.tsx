@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -17,9 +17,14 @@ const Navbar: React.FC = () => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
+  const [mounted, setMounted] = useState(false);
   const isMobile = useIsMobile();
   const { userRole, updateAuthState, user } = useAuth();
   const isAdmin = userRole === "admin";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleAgentInventoryOpen = (agentId: string, agentName: string) => {
     setSelectedAgentId(agentId);
@@ -52,7 +57,7 @@ const Navbar: React.FC = () => {
         <SearchBar onAgentInventoryOpen={handleAgentInventoryOpen} />
 
         <div className='flex items-center gap-4'>
-          {!isMobile && (
+          {!isMobile && mounted && (
             <>
               {isAdmin && <StockAlert />}
               <NotificationBell />
