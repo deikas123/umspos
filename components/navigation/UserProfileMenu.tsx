@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { User, LogOut, Edit2 } from "lucide-react";
-import { signOut } from "@/lib/actions/users";
+import { signOut } from "@/lib/auth-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChangePasswordDialog } from "./ChangePasswordDialog";
 

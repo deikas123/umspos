@@ -5,15 +5,22 @@ import {
   phoneNumberClient,
   twoFactorClient,
 } from "better-auth/client/plugins";
+import { ac, admin, accountant, user } from "@/lib/auth/permissions";
 
 export const authClient = createAuthClient({
   plugins: [
-    adminClient(),
+    adminClient({
+      ac,
+      roles: {
+        admin,
+        accountant,
+        user,
+      },
+    }),
     anonymousClient(),
     phoneNumberClient(),
     twoFactorClient(),
   ],
 });
 
-// Export commonly used functions for easier imports
 export const { signIn, signUp, signOut, useSession, getSession } = authClient;

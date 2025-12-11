@@ -3,6 +3,13 @@ import { Pool } from "pg";
 import { admin, anonymous, phoneNumber, twoFactor } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import bcrypt from "bcrypt";
+import crypto from "node:crypto";
+import {
+  ac,
+  admin as adminRole,
+  accountant as accountantRole,
+  user as userRole,
+} from "@/lib/auth/permissions";
 
 export const auth = betterAuth({
   database: new Pool({
@@ -21,12 +28,24 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    admin(),
+    admin({
+      ac,
+      roles: {
+        admin: adminRole,
+        accountant: accountantRole,
+        user: userRole,
+      },
+    }),
     anonymous(),
     phoneNumber(),
     twoFactor(),
     nextCookies(),
   ],
+  advanced: {
+    database: {
+      generateId: () => crypto.randomUUID(),
+    },
+  },
   user: {
     additionalFields: {
       displayName: {

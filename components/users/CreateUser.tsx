@@ -24,26 +24,65 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
   const [name, setName] = useState("");
   const [emailPrefix, setEmailPrefix] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [role, setRole] = useState("user");
   const [isVisible, setIsVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const toggleVisibility = () => setIsVisible((prevState) => !prevState);
 
+  const formatPhoneNumber = (phone: string) => {
+    // Remove any non-digit characters except +
+    let cleaned = phone.replaceAll(/[^\d+]/g, "");
+
+    // Handle +254 format
+    if (cleaned.startsWith("+254")) {
+      cleaned = cleaned.substring(1);
+    }
+    // Handle 07... format
+    else if (cleaned.startsWith("0")) {
+      cleaned = "254" + cleaned.substring(1);
+    }
+    // Handle 7... format (assuming 254 prefix needed)
+    else if (cleaned.startsWith("7") && cleaned.length === 9) {
+      cleaned = "254" + cleaned;
+    }
+
+    return cleaned;
+  };
+
+  const validatePhoneNumber = (phone: string) => {
+    const formatted = formatPhoneNumber(phone);
+    // Check if it matches 254xxxxxxxxx (12 digits total)
+    const regex = /^254[17]\d{8}$/;
+    return regex.test(formatted) ? formatted : null;
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
+    const formattedPhone = validatePhoneNumber(phoneNumber);
+    if (!formattedPhone) {
+      toast.error("Invalid phone number. Use format 07... or +254...");
+      setIsLoading(false);
+      return;
+    }
+
     const email = `${emailPrefix}@umskenya.com`;
+
     try {
-      await createUser(email, password, role, name);
+      await createUser(email, password, role, name, formattedPhone);
 
       toast.success("User created successfully!");
       setName("");
       setEmailPrefix("");
       setPassword("");
+      setPhoneNumber("");
       setRole("user");
       onClose();
     } catch (error: any) {
+      console.error("Error in handleCreate:", error);
       toast.error(`Failed to create user: ${error.message}`);
     } finally {
       setIsLoading(false);
@@ -57,7 +96,7 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
           Create User
         </DialogTitle>
         <DialogDescription className='text-sm text-gray-600'>
-          Create a new user account.
+          Create a new user account. All fields are required.
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleCreate} className='space-y-4'>
@@ -65,10 +104,21 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
           <Label htmlFor='name'>Name</Label>
           <Input
             id='name'
-            placeholder='First Name'
+            placeholder='Full Name'
             type='text'
             value={name}
             onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
+        <div className='space-y-2'>
+          <Label htmlFor='phone'>Mobile Number</Label>
+          <Input
+            id='phone'
+            placeholder='0712345678 or +2547...'
+            type='tel'
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
             required
           />
         </div>

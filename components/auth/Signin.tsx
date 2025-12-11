@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn } from "@/lib/actions/users";
+import { signIn, signOut, getSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,21 +39,32 @@ const SignIn = () => {
     try {
       const email = `${emailPrefix}@umskenya.com`;
 
-      const response = await signIn(email, password);
+      const { data, error } = await signIn.email({
+        email,
+        password,
+      });
 
-      if (response.error) {
-        throw response.error;
+      if (error) {
+        throw error;
       }
 
-      router.replace("/dashboard");
+      if (data?.user) {
+        // Fetch the full session to get all custom fields including isActive
+        const session = await getSession();
+        const user = session?.data?.user as any;
+        const isActive = user?.isActive ?? true;
+
+        if (!isActive) {
+          await signOut();
+          setIsLoading(false);
+          router.replace("/deactivated");
+          return;
+        }
+
+        router.replace("/dashboard");
+      }
     } catch (error: any) {
       const rawMessage: string | undefined = error?.message;
-
-      if (rawMessage === "ACCOUNT_DEACTIVATED") {
-        setIsLoading(false);
-        router.replace("/deactivated");
-        return;
-      }
 
       const errorMessage = rawMessage?.trim().length
         ? rawMessage
