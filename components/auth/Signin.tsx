@@ -57,11 +57,15 @@ const SignIn = () => {
         if (!isActive) {
           await signOut();
           setIsLoading(false);
-          router.replace("/deactivated");
+          globalThis.location.href = "/deactivated";
           return;
         }
 
-        router.replace("/dashboard");
+        globalThis.location.href = "/dashboard";
+      } else {
+        // No user returned, something went wrong
+        setError("Sign in failed. Please try again.");
+        setIsLoading(false);
       }
     } catch (error: any) {
       const rawMessage: string | undefined = error?.message;
@@ -77,7 +81,6 @@ const SignIn = () => {
       }
       setIsLoading(false);
     }
-    // Don't set isLoading to false on success - keep loading state until navigation completes
   };
 
   return (
