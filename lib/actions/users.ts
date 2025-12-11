@@ -4,12 +4,10 @@ import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
+import { requireAdmin, type UserRole } from "./utils";
 
 // Note: User management now uses Better Auth's user table directly
 // Custom fields (appRole, isActive, displayName) are stored in the user table
-
-// Type for the user data from Better Auth user table
-type UserRole = "admin" | "accountant" | "user";
 
 export async function getUserProfile(userId: string) {
   try {
@@ -53,30 +51,51 @@ export async function updateUserProfile(
   }
 ) {
   try {
-    // Use Better Auth's admin API to update user
+    // Require admin role to update user profiles
+    await requireAdmin();
+
+    // Build the update data for Better Auth API (only fields it supports)
     const updateData: Record<string, any> = {};
 
     if (updates.name !== undefined) {
       updateData.displayName = updates.name;
-      updateData.name = updates.name; // Also update the standard name field
+      updateData.name = updates.name;
     }
 
     if (updates.role !== undefined) {
       updateData.appRole = updates.role;
     }
 
-    if (updates.is_active !== undefined) {
-      updateData.isActive = updates.is_active;
+    // Only call Better Auth API if there are fields it can update
+    if (Object.keys(updateData).length > 0) {
+      await auth.api.updateUser({
+        headers: await headers(),
+        body: {
+          userId: userId,
+          data: updateData,
+        } as any,
+      });
     }
 
-    // Use the correct admin API format: body has userId and data as separate fields
-    await auth.api.updateUser({
-      headers: await headers(),
-      body: {
-        userId: userId,
-        data: updateData,
-      } as any, // Type assertion needed for custom fields
-    });
+    // Update isActive directly in the database (Better Auth API doesn't support this)
+    if (updates.is_active !== undefined) {
+      await db.execute(sql`
+        UPDATE "user" 
+        SET "isActive" = ${updates.is_active}
+        WHERE id = ${userId}
+      `);
+    }
+
+    // Update the Better Auth role directly in the database
+    // This is necessary because the API doesn't allow setting role directly
+    if (updates.role !== undefined) {
+      const newRole = updates.role === "admin" ? "admin" : "user";
+      await db.execute(sql`
+        UPDATE "user" 
+        SET role = ${newRole}
+        WHERE id = ${userId}
+      `);
+    }
 
     return { success: true };
   } catch (error: any) {
@@ -87,6 +106,9 @@ export async function updateUserProfile(
 
 export async function deleteUserProfile(userId: string) {
   try {
+    // Require admin role to delete users
+    await requireAdmin();
+
     // Delete from Better Auth using admin API (this handles all related tables)
     await auth.api.removeUser({
       headers: await headers(),
@@ -135,26 +157,35 @@ export async function createUser(
   email: string,
   password: string,
   role: string,
-  name: string
+  name: string,
+  phoneNumber: string
 ) {
   try {
+    // Require admin role to create users
+    await requireAdmin();
+
     // Create user with Better Auth Admin API
-    // Use the data field for custom fields
+    // Use the data field for custom fields AND set the top-level role
     const result = await auth.api.createUser({
       headers: await headers(),
       body: {
         email,
         password,
         name,
+        role: role === "admin" ? "admin" : "user", // Set the Better Auth role
         data: {
           displayName: name,
           appRole: role,
           isActive: true,
+          phoneNumber: phoneNumber,
         },
       },
     });
 
-    if (!result?.user) throw new Error("Failed to create user");
+    if (!result?.user) {
+      console.error("Server Action: Failed to create user - no user returned");
+      throw new Error("Failed to create user");
+    }
 
     return {
       success: true,
@@ -162,6 +193,7 @@ export async function createUser(
       user: result.user,
     };
   } catch (error: any) {
+    console.error("Server Action: Error creating user:", error);
     throw new Error(error.message || "Failed to create user");
   }
 }
@@ -181,9 +213,6 @@ export async function changePassword(userId: string, newPassword: string) {
         revokeOtherSessions: true, // Force sign out from other sessions
       },
     });
-
-    // Force sign out after password change
-    await signOut();
 
     return { success: true };
   } catch (error: any) {
@@ -232,9 +261,8 @@ export async function getCurrentUser() {
     const user = session.user as any;
     const isActive = user.isActive ?? true;
 
-    // If user is inactive, sign them out
+    // If user is inactive, return null (client will handle redirect)
     if (!isActive) {
-      await signOut();
       return null;
     }
 
@@ -248,69 +276,6 @@ export async function getCurrentUser() {
   } catch (error) {
     console.error("Error getting current user:", error);
     return null;
-  }
-}
-
-export async function signOut() {
-  try {
-    await auth.api.signOut({
-      headers: await headers(),
-    });
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error signing out:", error);
-    throw new Error(error.message || "Failed to sign out");
-  }
-}
-
-export async function signIn(email: string, password: string) {
-  try {
-    // Sign in with Better Auth
-    const result = await auth.api.signInEmail({
-      headers: await headers(),
-      body: {
-        email,
-        password,
-      },
-    });
-
-    if (!result?.user) {
-      throw new Error("No user data returned");
-    }
-
-    // Check if user is active (custom field is now in user table)
-    const user = result.user as any;
-    const isActive = user.isActive ?? true;
-
-    if (!isActive) {
-      await signOut();
-      const error = new Error("ACCOUNT_DEACTIVATED");
-      error.name = "AuthError";
-      throw error;
-    }
-
-    return {
-      user: result.user,
-      token: result.token,
-      error: null,
-    } as const;
-  } catch (error: any) {
-    console.error("Error signing in:", error);
-    let fallbackMessage = "Failed to sign in";
-    if (typeof error === "object" && error !== null && "message" in error) {
-      const messageValue = (error as { message?: unknown }).message;
-      if (typeof messageValue === "string" && messageValue.trim().length > 0) {
-        fallbackMessage = messageValue;
-      }
-    }
-
-    const normalizedError =
-      error instanceof Error ? error : new Error(fallbackMessage);
-    return {
-      user: null,
-      token: null,
-      error: normalizedError,
-    } as const;
   }
 }
 

@@ -204,7 +204,7 @@ export const notifications = pgTable("notifications", {
   created_by: uuid("created_by"),
   created_at: timestamp("created_at").defaultNow(),
   is_read: boolean("is_read").default(false),
-  read_by: text("read_by").array(),
+  read_by: uuid("read_by").array(),
 });
 
 // Meter Purchase Batches Table
