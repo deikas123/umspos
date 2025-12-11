@@ -60,11 +60,12 @@ const SignIn = () => {
             if (!isActive) {
               await signOut();
               setIsLoading(false);
-              router.replace("/deactivated");
+              globalThis.location.href = "/deactivated";
               return;
             }
 
-            router.replace("/dashboard");
+            // Use hard navigation to avoid client-side routing issues in production
+            globalThis.location.href = "/dashboard";
           } catch (sessionError) {
             setError("Failed to fetch session. Please try again.");
             setIsLoading(false);

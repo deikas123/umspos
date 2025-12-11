@@ -7,6 +7,11 @@ const withPWA = pwa({
   disable: process.env.NODE_ENV === "development",
   runtimeCaching: [
     {
+      // Never cache auth API requests
+      urlPattern: /\/api\/auth\/.*/,
+      handler: "NetworkOnly",
+    },
+    {
       urlPattern: /^https?.*/,
       handler: "NetworkFirst",
       options: {
