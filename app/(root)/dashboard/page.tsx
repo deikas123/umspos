@@ -3,7 +3,7 @@ import { getSalesChartData } from "@/lib/actions/sales";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 async function DashboardContent() {
   // Fetch data server-side - no POST request needed!

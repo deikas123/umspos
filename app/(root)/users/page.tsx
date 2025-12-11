@@ -1,7 +1,7 @@
 import Users from "@/components/users/Users";
 import { getUsersPageData } from "@/lib/actions/users";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
   // Fetch users data server-side
