@@ -1,6 +1,8 @@
 import MeterSales from "@/components/sales/MeterSales";
 import { getSaleBatches } from "@/lib/actions/sales";
 
+export const dynamic = 'force-dynamic';
+
 const ITEMS_PER_PAGE = 10;
 
 export default async function SalesPage() {

@@ -11,7 +11,7 @@ import {
   user as userRole,
 } from "@/lib/auth/permissions";
 
-// Create a singleton pool to prevent connection exhaustion
+// Singleton pattern to prevent connection exhaustion during builds and hot reloads
 const globalForDb = globalThis as unknown as {
   authPool: Pool | undefined;
 };
@@ -20,14 +20,12 @@ const authPool =
   globalForDb.authPool ??
   new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 5,
+    max: 1,
     idleTimeoutMillis: 20000,
     connectionTimeoutMillis: 10000,
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.authPool = authPool;
-}
+globalForDb.authPool = authPool;
 
 export const auth = betterAuth({
   database: authPool,
