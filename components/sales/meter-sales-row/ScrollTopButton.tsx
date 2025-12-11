@@ -14,9 +14,8 @@ export function ScrollTopButton({ visible, onClick }: ScrollTopButtonProps) {
 
   return (
     <Button
-      variant='outline'
       size='icon'
-      className='fixed bottom-4 right-4 rounded-full shadow-lg bg-white/90 backdrop-blur-sm hover:bg-gray-50 cursor-pointer'
+      className='fixed bottom-6 right-6 rounded-full shadow-lg bg-[#E46020] hover:bg-[#d45518] text-white cursor-pointer h-10 w-10 transition-all hover:scale-105'
       onClick={onClick}>
       <ArrowUp className='h-4 w-4' />
     </Button>

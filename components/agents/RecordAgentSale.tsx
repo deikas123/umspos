@@ -96,7 +96,7 @@ export default function RecordAgentSale({
     };
 
     fetchInventory();
-  }, [agent.id, toast]);
+  }, [agent.id]);
 
   useEffect(() => {
     const fetchUserProfile = async () => {

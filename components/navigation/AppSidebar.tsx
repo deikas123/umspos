@@ -41,13 +41,17 @@ export function AppSidebar() {
     useRoleBasedFiltering(safeUserRole);
   const actionStateMap = useActionDialogs();
 
+  // Show skeleton only during initial session loading (before any auth state is known)
+  // Once we have a role (even the default "user"), show navigation immediately
+  const showSkeleton = isLoading && !userRole;
+
   return (
     <Sidebar
       variant='inset'
       collapsible='icon'
       className='flex flex-col justify-between h-screen bg-white border-r mt-16'>
       <SidebarContent>
-        {isLoading || !user ? (
+        {showSkeleton ? (
           <>
             <NavigationMenuSkeleton />
             <ActionsMenuSkeleton />

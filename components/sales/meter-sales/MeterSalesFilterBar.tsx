@@ -34,6 +34,7 @@ interface MeterSalesFilterBarProps {
   dateRange: DateRangeValue | null;
   selectedDate: CalendarDate | null;
   hasActiveFilters: boolean;
+  isExporting?: boolean;
   onSearchUserChange: (value: string) => void;
   onMeterTypeChange: (value: string | null) => void;
   onCustomerTypeChange: (value: string | null) => void;
@@ -51,6 +52,7 @@ export function MeterSalesFilterBar({
   dateRange,
   selectedDate,
   hasActiveFilters,
+  isExporting = false,
   onSearchUserChange,
   onMeterTypeChange,
   onCustomerTypeChange,
@@ -132,14 +134,22 @@ export function MeterSalesFilterBar({
           <div className='flex items-center gap-2 ml-auto'>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant='outline' size='sm' className='cursor-pointer'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='cursor-pointer'
+                  disabled={isExporting}>
                   <Download className='mr-2 h-4 w-4' />
-                  Export
+                  {isExporting ? "Exporting..." : "Export"}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end'>
-                <DropdownMenuItem onClick={onExportPDF}>PDF</DropdownMenuItem>
-                <DropdownMenuItem onClick={onExportCSV}>CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportPDF} disabled={isExporting}>
+                  PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportCSV} disabled={isExporting}>
+                  CSV
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 

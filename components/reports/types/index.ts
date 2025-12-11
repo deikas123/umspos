@@ -23,7 +23,12 @@ export interface CustomerTypeData {
   count: number;
 }
 
+export interface RegionDistributionData {
+  region: string;
+  count: number;
+}
+
 export interface EmptyStateProps {
   icon: any;
   message: string;
-} 
+}

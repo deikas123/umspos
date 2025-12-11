@@ -12,6 +12,7 @@ export interface SaleBatch {
   total_price: number;
   unit_price: number;
   customer_type: string | null;
+  customer_region: string | null;
   customer_county: string | null;
   customer_contact: string | null;
   transaction_id: string | null;
@@ -19,8 +20,18 @@ export interface SaleBatch {
   note_by: string | null;
 }
 
-const CACHE_TIME = 1000 * 60 * 5;
-const STALE_TIME = 1000 * 30;
+export interface SaleBatchesResponse {
+  batches: SaleBatch[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+const CACHE_TIME = 1000 * 60 * 10; // 10 minutes
+const STALE_TIME = 1000 * 60 * 2; // 2 minutes - increased from 30s
 
 export function useMeterSalesData(
   page: number = 1,
@@ -31,8 +42,18 @@ export function useMeterSalesData(
     customerType?: string;
     dateRange?: { start: Date; end: Date };
     specificDate?: Date;
-  }
+  },
+  initialData?: SaleBatchesResponse
 ) {
+  // Check if this is the initial unfiltered first page load
+  const isInitialLoad =
+    page === 1 &&
+    !filters?.searchUser &&
+    !filters?.meterType &&
+    !filters?.customerType &&
+    !filters?.dateRange &&
+    !filters?.specificDate;
+
   // Fetch sales data with caching and server-side pagination
   const salesQuery = useQuery({
     queryKey: ["saleBatches", page, limit, filters],
@@ -43,6 +64,10 @@ export function useMeterSalesData(
     gcTime: CACHE_TIME,
     staleTime: STALE_TIME,
     placeholderData: (previousData) => previousData,
+    // Use initial data for first page without filters to avoid initial POST request
+    initialData: isInitialLoad ? initialData : undefined,
+    // Don't refetch on mount if we have initial data for this exact query
+    refetchOnMount: !(isInitialLoad && initialData),
   });
 
   return {

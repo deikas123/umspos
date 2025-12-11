@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { AddNoteDialog } from "./AddNoteDialog";
 import GenerateReceiptDialog from "./GenerateReceiptDialog";
 import { useMeterSalesData } from "./hooks/useMeterSalesData";
-import type { SaleBatch } from "./hooks/useMeterSalesData";
+import type { SaleBatch, SaleBatchesResponse } from "./hooks/useMeterSalesData";
 import { MeterSalesEmptyState } from "./meter-sales/MeterSalesEmptyState";
 import { MeterSalesFilterBar } from "./meter-sales/MeterSalesFilterBar";
 import { MeterSalesHeader } from "./meter-sales/MeterSalesHeader";
@@ -24,6 +24,10 @@ import { useMeterSalesSelection } from "./meter-sales/useMeterSalesSelection";
 
 const ITEMS_PER_PAGE = 10;
 
+interface MeterSalesProps {
+  readonly initialData?: SaleBatchesResponse;
+}
+
 function formatSaleDate(date: Date | null) {
   if (!date) return "N/A";
   return date.toLocaleDateString("en-GB", {
@@ -33,7 +37,7 @@ function formatSaleDate(date: Date | null) {
   });
 }
 
-export default function MeterSales() {
+export default function MeterSales({ initialData }: MeterSalesProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const filtersState = useMeterSalesFilters();
   const { filters, hasActiveFilters, clearFilters } = filtersState;
@@ -46,7 +50,7 @@ export default function MeterSales() {
     isError,
     error,
     refetch,
-  } = useMeterSalesData(currentPage, ITEMS_PER_PAGE, filters);
+  } = useMeterSalesData(currentPage, ITEMS_PER_PAGE, filters, initialData);
 
   const {
     selectedBatchId,
@@ -76,10 +80,11 @@ export default function MeterSales() {
   const currentBatches = saleBatches;
   const totalPages = pagination.totalPages;
 
-  const { handleExportPDF, handleExportCSV } = useMeterSalesExport(
+  const { handleExportPDF, handleExportCSV, isExporting } = useMeterSalesExport(
     currentBatches,
     {
       formatDate: formatSaleDate,
+      filters,
     }
   );
 
@@ -132,6 +137,7 @@ export default function MeterSales() {
         dateRange={filtersState.dateRange}
         selectedDate={filtersState.selectedDate}
         hasActiveFilters={hasActiveFilters}
+        isExporting={isExporting}
         onSearchUserChange={filtersState.setSearchUser}
         onMeterTypeChange={filtersState.setSelectedType}
         onCustomerTypeChange={filtersState.setSelectedCustomerType}

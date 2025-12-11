@@ -1,19 +1,22 @@
-import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAgentsList } from "@/lib/actions/agents";
-import { getUserProfile, getCurrentUser } from "@/lib/actions/users";
-import { supabase } from "@/lib/supabase";
-import { KenyaCounty } from "@/lib/constants/locationData";
+import { getCurrentUser } from "@/lib/actions/users";
 
-// Define interfaces
+// Define interfaces - matches the return type from getAgentsList
 interface Agent {
   id: string;
   name: string;
   phone_number: string;
   location: string;
-  county: KenyaCounty;
-  is_active: boolean;
+  county: string;
+  is_active: boolean | null;
+  created_at: Date | null;
   total_meters: number;
+}
+
+// Type for initial data from server
+export interface AgentsPageData {
+  agents: Agent[];
 }
 
 // Query keys
@@ -24,32 +27,14 @@ const AGENTS_KEYS = {
 
 // 1 hour stale time since agent data changes less frequently
 const STALE_TIME = 60 * 60 * 1000; // 1 hour
+const GC_TIME = STALE_TIME * 2; // 2 hours
 
-export function useAgentsData() {
+export function useAgentsData(initialData?: AgentsPageData) {
   const queryClient = useQueryClient();
+  const hasInitialData = !!initialData;
 
-  // Setup real-time subscription
-  useEffect(() => {
-    const agentsChannel = supabase
-      .channel("agents_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "agents",
-        },
-        () => {
-          // Invalidate and refetch agents data
-          queryClient.invalidateQueries({ queryKey: AGENTS_KEYS.lists() });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      agentsChannel.unsubscribe();
-    };
-  }, [queryClient]);
+  // Note: Real-time subscriptions removed during Supabase to Better Auth migration
+  // Manual refresh is now required for real-time updates
 
   // Query for agents list with longer cache duration
   const {
@@ -62,26 +47,21 @@ export function useAgentsData() {
   } = useQuery({
     queryKey: AGENTS_KEYS.lists(),
     queryFn: getAgentsList,
-    staleTime: STALE_TIME, // Data will be considered fresh for 1 hour
-    gcTime: STALE_TIME * 2, // Cache will be kept for 2 hours
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.agents,
+    refetchOnMount: !hasInitialData,
   });
 
-  // Query for current user with user profile data
+  // Query for current user - getCurrentUser now returns displayName directly
   const { data: currentUser } = useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
       const user = await getCurrentUser();
-      if (user) {
-        const profile = await getUserProfile(user.id);
-        return {
-          ...user,
-          name: profile?.name || user.email,
-        };
-      }
-      return null;
+      return user || null;
     },
     staleTime: STALE_TIME,
-    gcTime: STALE_TIME * 2,
+    gcTime: GC_TIME,
   });
 
   return {

@@ -98,40 +98,46 @@ export function MeterSalesRow({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className='min-w-[60vw] w-full bg-gray-50 border-l border-gray-200 px-2 gap-2'>
-        <SaleDetailsHeader
-          transactionRef={transactionRef}
-          isRefLoading={isRefLoading}
-          isCopying={isCopying}
-          onCopy={handleCopyToClipboard}
-          onOpenNoteDialog={() => onOpenNoteDialog(batch)}
-          hasNote={Boolean(batch.notes)}
-          saleDate={batch.sale_date}
-        />
+      <SheetContent className='min-w-[60vw] w-full bg-gray-100 border-l border-gray-200 p-0 gap-0'>
+        <div className='h-full flex flex-col'>
+          {/* Fixed Header */}
+          <div className='flex-shrink-0 bg-white pl-2 pr-6 border-b border-gray-200'>
+            <SaleDetailsHeader
+              transactionRef={transactionRef}
+              isRefLoading={isRefLoading}
+              isCopying={isCopying}
+              onCopy={handleCopyToClipboard}
+              onOpenNoteDialog={() => onOpenNoteDialog(batch)}
+              hasNote={Boolean(batch.notes)}
+              saleDate={batch.sale_date}
+            />
+          </div>
 
-        <div
-          ref={scrollRef}
-          className='mt-2 space-y-6 max-h-[80vh] overflow-y-auto relative pr-2'>
-          <SaleSummaryCards batch={batch} />
+          {/* Scrollable Content */}
+          <div
+            ref={scrollRef}
+            className='flex-1 overflow-y-auto px-6 py-6 space-y-4'>
+            <SaleSummaryCards batch={batch} />
 
-          <SaleToolbar
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            onDownload={handleDownloadSerials}
-          />
+            <SaleToolbar
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              onDownload={handleDownloadSerials}
+            />
 
-          <SerialNumbersSection
-            loading={loading}
-            filteredMeters={filteredMeters}
-            totalMeters={meters.length}
-            currentMeters={currentMeters}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-            onNextPage={handleNextPage}
-            onPreviousPage={handlePreviousPage}
-            hasSearchTerm={Boolean(searchTerm)}
-          />
+            <SerialNumbersSection
+              loading={loading}
+              filteredMeters={filteredMeters}
+              totalMeters={meters.length}
+              currentMeters={currentMeters}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              onNextPage={handleNextPage}
+              onPreviousPage={handlePreviousPage}
+              hasSearchTerm={Boolean(searchTerm)}
+            />
+          </div>
         </div>
 
         <ScrollTopButton visible={showScrollTop} onClick={scrollToTop} />

@@ -19,11 +19,18 @@ import {
   saleBatches,
   faultyReturns,
   meterPurchaseBatches,
-  userProfiles,
+  betterAuthUser,
 } from "@/lib/db/schema";
+import { withActiveUserCheck } from "./utils";
 
 type MeterRecord = typeof meters.$inferSelect;
 
+/**
+ * WARNING: These module-level caches only work within a single serverless instance.
+ * In production, each cold start will reset these caches.
+ * For true persistence, consider using Redis/Upstash or rely on React Query client-side caching.
+ * Current implementation provides optimization during warm instances only.
+ */
 let metersCache: string[] | null = null;
 const meterDetailsCache = new Map<string, MeterRecord | null>();
 
@@ -274,8 +281,8 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
     ? eq(faultyReturns.serial_number, term)
     : ilike(faultyReturns.serial_number, pattern);
 
-  const soldByUser = alias(userProfiles, `${mode}_sold_by_user`);
-  const replacedByUser = alias(userProfiles, `${mode}_replaced_by_user`);
+  const soldByUser = alias(betterAuthUser, `${mode}_sold_by_user`);
+  const replacedByUser = alias(betterAuthUser, `${mode}_replaced_by_user`);
 
   const [stock, agent, sold, faulty] = await Promise.all([
     db
@@ -308,8 +315,8 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
         serial_number: soldMeters.serial_number,
         sold_at: soldMeters.sold_at,
         sold_by: soldMeters.sold_by,
-        sold_by_name: soldByUser.name,
-        sold_by_role: soldByUser.role,
+        sold_by_name: soldByUser.displayName,
+        sold_by_role: soldByUser.appRole,
         destination: soldMeters.destination,
         recipient: soldMeters.recipient,
         unit_price: soldMeters.unit_price,
@@ -317,17 +324,20 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
         replacement_serial: soldMeters.replacement_serial,
         replacement_date: soldMeters.replacement_date,
         replacement_by: soldMeters.replacement_by,
-        replacement_by_name: replacedByUser.name,
-        replacement_by_role: replacedByUser.role,
+        replacement_by_name: replacedByUser.displayName,
+        replacement_by_role: replacedByUser.appRole,
         customer_contact: soldMeters.customer_contact,
         meter_type: saleBatches.meter_type,
       })
       .from(soldMeters)
       .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-      .leftJoin(soldByUser, eq(soldMeters.sold_by, soldByUser.id))
+      .leftJoin(
+        soldByUser,
+        sql`${soldMeters.sold_by}::text = ${soldByUser.id}::text`
+      )
       .leftJoin(
         replacedByUser,
-        eq(soldMeters.replacement_by, replacedByUser.id)
+        sql`${soldMeters.replacement_by}::text = ${replacedByUser.id}::text`
       )
       .where(soldCondition)
       .limit(limit),
@@ -380,27 +390,6 @@ export async function checkMeterExists(serialNumber: string): Promise<boolean> {
 export async function clearMetersCache() {
   metersCache = null;
   meterDetailsCache.clear();
-}
-
-async function checkUserActive(userId: string): Promise<boolean> {
-  const [user] = await db
-    .select({ is_active: userProfiles.is_active })
-    .from(userProfiles)
-    .where(eq(userProfiles.id, userId))
-    .limit(1);
-
-  return user?.is_active || false;
-}
-
-async function withActiveUserCheck<T>(
-  userId: string,
-  action: () => Promise<T>
-): Promise<T> {
-  const isActive = await checkUserActive(userId);
-  if (!isActive) {
-    throw new Error("ACCOUNT_DEACTIVATED");
-  }
-  return action();
 }
 
 export async function updateFaultyMeterStatus(
@@ -608,12 +597,12 @@ export async function getPurchaseBatches() {
       .select({
         ...getTableColumns(meterPurchaseBatches),
         remaining_meters: meterCounts.count,
-        user_name: userProfiles.name,
+        user_name: betterAuthUser.displayName,
       })
       .from(meterPurchaseBatches)
       .leftJoin(
-        userProfiles,
-        eq(meterPurchaseBatches.added_by, userProfiles.id)
+        betterAuthUser,
+        eq(meterPurchaseBatches.added_by, betterAuthUser.id)
       )
       .leftJoin(
         meterCounts,

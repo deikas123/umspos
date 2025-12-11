@@ -127,7 +127,11 @@ const EmptyState = () => (
   </div>
 );
 
-export function SalesBarchart() {
+interface SalesBarchartProps {
+  readonly initialData?: SalesChartData[];
+}
+
+export function SalesBarchart({ initialData }: SalesBarchartProps) {
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [activeChart, setActiveChart] =
     useState<keyof typeof chartConfig>("integrated");
@@ -141,8 +145,8 @@ export function SalesBarchart() {
       : TIME_PERIODS[timePeriod].days;
   }, [timePeriod]);
 
-  // Use React Query hook for data fetching
-  const { data, isLoading, isError } = useSalesChartData(days);
+  // Use React Query hook for data fetching - pass initialData for SSR optimization
+  const { data, isLoading, isError } = useSalesChartData(days, initialData);
 
   useEffect(() => {
     setIsMounted(true);

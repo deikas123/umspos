@@ -6,7 +6,10 @@ import DailyReportPDF from "./DailyReportPDF";
 import { useEffect, useState } from "react";
 import { getDetailedSalesByDateRange } from "@/lib/actions/reports";
 import { toast } from "sonner";
-import { useAllReportsData } from "./hooks/useReportsData";
+import {
+  useAllReportsData,
+  type DailyReportsPageData,
+} from "./hooks/useReportsData";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,10 +34,14 @@ import type {
   SaleWithMeters,
 } from "./types";
 
-const DailyReportsPage = () => {
-  // Use React Query for all data fetching - cache shared across components
+interface DailyReportsPageProps {
+  readonly initialData?: DailyReportsPageData;
+}
+
+const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
+  // Use React Query for all data fetching - pass initialData to avoid POST requests
   const { todaySales, yesterdaySales, remainingMeters, agentInventory } =
-    useAllReportsData();
+    useAllReportsData(initialData);
 
   const [isClient, setIsClient] = useState(false);
   const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);

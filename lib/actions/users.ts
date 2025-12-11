@@ -1,137 +1,134 @@
 "use server";
 
-import { eq, asc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { userProfiles } from "@/lib/db/schema";
-import { createClient } from "@/lib/utils/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { auth } from "@/auth";
+import { headers } from "next/headers";
 
-// Supabase Admin client for user management
-const getSupabaseAdmin = () => {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.SUPABASE_SERVICE_ROLE_KEY
-  ) {
-    throw new Error("Missing Supabase environment variables");
-  }
+// Note: User management now uses Better Auth's user table directly
+// Custom fields (appRole, isActive, displayName) are stored in the user table
 
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-};
-
-/**
- * Checks if a user is active in the database
- */
-export async function checkUserActive(userId: string): Promise<boolean> {
-  const [user] = await db
-    .select({ is_active: userProfiles.is_active })
-    .from(userProfiles)
-    .where(eq(userProfiles.id, userId))
-    .limit(1);
-
-  return user?.is_active || false;
-}
-
-export async function createUserProfile(
-  userId: string,
-  role: "admin" | "accountant" | "user"
-) {
-  const [newProfile] = await db
-    .insert(userProfiles)
-    .values({
-      id: userId,
-      role,
-      is_active: true,
-    })
-    .returning();
-
-  return newProfile;
-}
+// Type for the user data from Better Auth user table
+type UserRole = "admin" | "accountant" | "user";
 
 export async function getUserProfile(userId: string) {
-  const [profile] = await db
-    .select({
-      name: userProfiles.name,
-      role: userProfiles.role,
-      is_active: userProfiles.is_active,
-    })
-    .from(userProfiles)
-    .where(eq(userProfiles.id, userId))
-    .limit(1);
+  try {
+    // Query Better Auth user table directly
+    const result = await db.execute(sql`
+      SELECT 
+        id, 
+        email, 
+        name,
+        "displayName",
+        "appRole",
+        "isActive"
+      FROM "user" 
+      WHERE id = ${userId}
+      LIMIT 1
+    `);
 
-  if (!profile) {
+    const rows = result as unknown as any[];
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    const user = rows[0];
+    return {
+      name: user.displayName || user.name,
+      role: (user.appRole || "user") as UserRole,
+      is_active: user.isActive ?? true,
+    };
+  } catch (error) {
+    console.error("Error getting user profile:", error);
     return null;
   }
-
-  return profile;
 }
 
 export async function updateUserProfile(
   userId: string,
   updates: {
     name?: string;
-    role?: "admin" | "accountant" | "user";
+    role?: UserRole;
     is_active?: boolean;
   }
 ) {
-  const [updatedProfile] = await db
-    .update(userProfiles)
-    .set({
-      ...updates,
-    })
-    .where(eq(userProfiles.id, userId))
-    .returning();
+  try {
+    // Use Better Auth's admin API to update user
+    const updateData: Record<string, any> = {};
 
-  if (!updatedProfile) {
-    throw new Error("Failed to update user profile");
+    if (updates.name !== undefined) {
+      updateData.displayName = updates.name;
+      updateData.name = updates.name; // Also update the standard name field
+    }
+
+    if (updates.role !== undefined) {
+      updateData.appRole = updates.role;
+    }
+
+    if (updates.is_active !== undefined) {
+      updateData.isActive = updates.is_active;
+    }
+
+    // Use the correct admin API format: body has userId and data as separate fields
+    await auth.api.updateUser({
+      headers: await headers(),
+      body: {
+        userId: userId,
+        data: updateData,
+      } as any, // Type assertion needed for custom fields
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating user profile:", error);
+    throw new Error(error.message || "Failed to update user profile");
   }
-
-  return updatedProfile;
 }
 
 export async function deleteUserProfile(userId: string) {
-  const [deletedProfile] = await db
-    .delete(userProfiles)
-    .where(eq(userProfiles.id, userId))
-    .returning();
+  try {
+    // Delete from Better Auth using admin API (this handles all related tables)
+    await auth.api.removeUser({
+      headers: await headers(),
+      body: {
+        userId,
+      },
+    });
 
-  if (!deletedProfile) {
-    throw new Error("Failed to delete user profile");
+    return true;
+  } catch (error: any) {
+    console.error("Error deleting user:", error);
+    throw new Error(error.message || "Failed to delete user");
   }
-
-  const response = await fetch("/api/delete-user", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message);
-  }
-
-  return true;
 }
 
 export async function getUsersList() {
-  const users = await db
-    .select({
-      id: userProfiles.id,
-      name: userProfiles.name,
-      role: userProfiles.role,
-      isActive: userProfiles.is_active,
-    })
-    .from(userProfiles)
-    .orderBy(asc(userProfiles.id));
+  try {
+    // Query Better Auth user table directly
+    const result = await db.execute(sql`
+      SELECT 
+        id, 
+        email, 
+        name,
+        "displayName",
+        "appRole",
+        "isActive"
+      FROM "user" 
+      ORDER BY "createdAt" ASC
+    `);
 
-  return users.map((user) => ({
-    id: user.id,
-    name: user.name || "N/A",
-    role: user.role || "user",
-    isActive: user.isActive,
-  }));
+    const rows = result as unknown as any[];
+    return rows.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.displayName || user.name || "N/A",
+      role: (user.appRole || "user") as UserRole,
+      isActive: user.isActive ?? true,
+    }));
+  } catch (error) {
+    console.error("Error getting users list:", error);
+    return [];
+  }
 }
 
 export async function createUser(
@@ -141,34 +138,28 @@ export async function createUser(
   name: string
 ) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
-
-    // Create user with Supabase Admin
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
+    // Create user with Better Auth Admin API
+    // Use the data field for custom fields
+    const result = await auth.api.createUser({
+      headers: await headers(),
+      body: {
+        email,
+        password,
+        name,
+        data: {
+          displayName: name,
+          appRole: role,
+          isActive: true,
+        },
+      },
     });
 
-    if (error) throw error;
-    if (!data.user) throw new Error("Failed to create user");
-
-    // Insert user profile
-    const { error: profileError } = await supabaseAdmin
-      .from("user_profiles")
-      .insert({
-        id: data.user.id,
-        role,
-        is_active: true,
-        name,
-      });
-
-    if (profileError) throw profileError;
+    if (!result?.user) throw new Error("Failed to create user");
 
     return {
       success: true,
       message: "User created successfully",
-      user: data.user,
+      user: result.user,
     };
   } catch (error: any) {
     throw new Error(error.message || "Failed to create user");
@@ -181,14 +172,15 @@ export async function changePassword(userId: string, newPassword: string) {
       throw new Error("Password must be at least 6 characters long");
     }
 
-    const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
+    // Use Better Auth to change password
+    await auth.api.changePassword({
+      headers: await headers(),
+      body: {
+        currentPassword: "", // Not needed for admin change
+        newPassword,
+        revokeOtherSessions: true, // Force sign out from other sessions
+      },
     });
-
-    if (error) {
-      throw error;
-    }
 
     // Force sign out after password change
     await signOut();
@@ -209,16 +201,14 @@ export async function adminChangePassword(userId: string, newPassword: string) {
       throw new Error("Password must be at least 6 characters long");
     }
 
-    const supabaseAdmin = getSupabaseAdmin();
-
-    // Use admin API to update user's password
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      password: newPassword,
+    // Use Better Auth Admin API to set user password
+    await auth.api.setUserPassword({
+      headers: await headers(),
+      body: {
+        userId,
+        newPassword,
+      },
     });
-
-    if (error) {
-      throw error;
-    }
 
     return { success: true };
   } catch (error: any) {
@@ -229,32 +219,32 @@ export async function adminChangePassword(userId: string, newPassword: string) {
 
 export async function getCurrentUser() {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Get session from Better Auth
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-    if (!user) {
+    if (!session?.user) {
       return null;
     }
 
-    const profile = await getUserProfile(user.id);
+    // User data is now directly in session.user with custom fields
+    const user = session.user as any;
+    const isActive = user.isActive ?? true;
 
-    // If profile doesn't exist or user is inactive, sign them out
-    if (!profile?.is_active) {
+    // If user is inactive, sign them out
+    if (!isActive) {
       await signOut();
       return null;
     }
 
-    const result = {
+    return {
       id: user.id,
       email: user.email || "",
-      name: profile?.name,
-      role: profile?.role,
-      is_active: profile?.is_active,
+      name: user.displayName || user.name,
+      role: user.appRole || "user",
+      is_active: isActive,
     };
-
-    return result;
   } catch (error) {
     console.error("Error getting current user:", error);
     return null;
@@ -263,11 +253,9 @@ export async function getCurrentUser() {
 
 export async function signOut() {
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw new Error(error.message);
-    }
+    await auth.api.signOut({
+      headers: await headers(),
+    });
     return { success: true };
   } catch (error: any) {
     console.error("Error signing out:", error);
@@ -277,45 +265,33 @@ export async function signOut() {
 
 export async function signIn(email: string, password: string) {
   try {
-    const supabase = await createClient();
-
-    // Clear any existing session before attempting a new sign-in
-    await supabase.auth.signOut();
-
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({
+    // Sign in with Better Auth
+    const result = await auth.api.signInEmail({
+      headers: await headers(),
+      body: {
         email,
         password,
-      });
+      },
+    });
 
-    if (authError) {
-      throw authError;
-    }
-
-    if (!authData.user) {
+    if (!result?.user) {
       throw new Error("No user data returned");
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from("user_profiles")
-      .select("is_active")
-      .eq("id", authData.user.id)
-      .maybeSingle();
+    // Check if user is active (custom field is now in user table)
+    const user = result.user as any;
+    const isActive = user.isActive ?? true;
 
-    if (profileError) {
-      throw new Error("Error fetching user profile");
-    }
-
-    if (!profile?.is_active) {
-      await supabase.auth.signOut();
+    if (!isActive) {
+      await signOut();
       const error = new Error("ACCOUNT_DEACTIVATED");
       error.name = "AuthError";
       throw error;
     }
 
     return {
-      user: authData.user,
-      session: authData.session,
+      user: result.user,
+      token: result.token,
       error: null,
     } as const;
   } catch (error: any) {
@@ -332,8 +308,27 @@ export async function signIn(email: string, password: string) {
       error instanceof Error ? error : new Error(fallbackMessage);
     return {
       user: null,
-      session: null,
+      token: null,
       error: normalizedError,
     } as const;
+  }
+}
+
+/**
+ * Consolidated function to fetch all Users page data in a single call
+ * This reduces multiple POST requests to a single server-side fetch
+ */
+export async function getUsersPageData() {
+  try {
+    const users = await getUsersList();
+
+    return {
+      users,
+    };
+  } catch (error) {
+    console.error("Error fetching users page data:", error);
+    return {
+      users: [],
+    };
   }
 }

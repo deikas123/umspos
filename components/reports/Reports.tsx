@@ -10,6 +10,7 @@ import { EarningsByTypeCard } from "./cards/EarningsByTypeCard";
 import { TotalEarningsCard } from "./cards/TotalEarningsCard";
 import { CustomerDistributionCard } from "./cards/CustomerDistributionCard";
 import { cn } from "@/lib/utils";
+import type { ReportsPageData } from "./hooks/useReportsData";
 
 // Skeleton component for cards
 const CardSkeleton = () => (
@@ -33,7 +34,11 @@ const ErrorState = ({
   </div>
 );
 
-export default function Reports() {
+interface ReportsProps {
+  readonly initialData?: ReportsPageData;
+}
+
+export default function Reports({ initialData }: ReportsProps) {
   const {
     data: {
       remainingMetersByType,
@@ -43,12 +48,13 @@ export default function Reports() {
       userRole,
       agentInventory,
       customerTypeData,
+      regionDistribution,
     },
     isLoading,
     isFetching,
     error,
     refetch,
-  } = useReportsData();
+  } = useReportsData(initialData);
 
   const hasReportsAccess = userRole === "admin" || userRole === "accountant";
 
@@ -132,7 +138,8 @@ export default function Reports() {
           <CardSkeleton />
         ) : (
           <CustomerDistributionCard
-            data={customerTypeData}
+            customerTypeData={customerTypeData}
+            regionDistribution={regionDistribution}
             sidebarState='expanded'
           />
         )}

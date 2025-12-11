@@ -9,7 +9,7 @@ import {
   agents,
   saleBatches,
   faultyReturns,
-  userProfiles,
+  betterAuthUser,
 } from "../db/schema";
 
 // Update the MeterWithStatus type to match our implementation
@@ -267,18 +267,18 @@ export async function getAllMetersWithStatus(
             .limit(pageSize)
             .offset(offset);
 
-          // Get user profiles for sold meters
+          // Get user data for sold meters
           const userIds = Array.from(
             new Set(statusMeters.map((m) => m.sold_by))
           );
-          const userProfilesData = await db
-            .select({ id: userProfiles.id, name: userProfiles.name })
-            .from(userProfiles)
-            .where(inArray(userProfiles.id, userIds));
+          const usersData = await db
+            .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
+            .from(betterAuthUser)
+            .where(inArray(betterAuthUser.id, userIds));
 
           const userMap: Record<string, string> = {};
-          if (userProfilesData) {
-            for (const user of userProfilesData) {
+          if (usersData) {
+            for (const user of usersData) {
               userMap[user.id] = user.name || "Unknown";
             }
           }
@@ -364,14 +364,14 @@ export async function getAllMetersWithStatus(
             ])
           );
 
-          const replacedUserProfilesData = await db
-            .select({ id: userProfiles.id, name: userProfiles.name })
-            .from(userProfiles)
-            .where(inArray(userProfiles.id, replacedUserIds));
+          const replacedUsersData = await db
+            .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
+            .from(betterAuthUser)
+            .where(inArray(betterAuthUser.id, replacedUserIds));
 
           const replacedUserMap: Record<string, string> = {};
-          if (replacedUserProfilesData) {
-            for (const user of replacedUserProfilesData) {
+          if (replacedUsersData) {
+            for (const user of replacedUsersData) {
               replacedUserMap[user.id] = user.name || "Unknown";
             }
           }
@@ -504,18 +504,18 @@ export async function getAllMetersWithStatus(
             .limit(pageSize)
             .offset(offset);
 
-          // Get user profiles for faulty sold meters
+          // Get user data for faulty sold meters
           const faultySoldUserIds = Array.from(
             new Set(faultySoldMeters.map((m) => m.sold_by))
           );
-          const faultySoldUserProfilesData = await db
-            .select({ id: userProfiles.id, name: userProfiles.name })
-            .from(userProfiles)
-            .where(inArray(userProfiles.id, faultySoldUserIds));
+          const faultySoldUsersData = await db
+            .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
+            .from(betterAuthUser)
+            .where(inArray(betterAuthUser.id, faultySoldUserIds));
 
           const faultySoldUserMap: Record<string, string> = {};
-          if (faultySoldUserProfilesData) {
-            for (const user of faultySoldUserProfilesData) {
+          if (faultySoldUsersData) {
+            for (const user of faultySoldUsersData) {
               faultySoldUserMap[user.id] = user.name || "Unknown";
             }
           }
@@ -806,19 +806,19 @@ export async function getAllMetersForExport(
         }
 
         if (soldMetersData && soldMetersData.length > 0) {
-          // Get user profiles for sold meters
+          // Get user data for sold meters
           const userIds = Array.from(
             new Set(soldMetersData.map((m) => m.sold_by))
           );
 
-          const userProfilesData = await db
-            .select({ id: userProfiles.id, name: userProfiles.name })
-            .from(userProfiles)
-            .where(inArray(userProfiles.id, userIds));
+          const usersData = await db
+            .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
+            .from(betterAuthUser)
+            .where(inArray(betterAuthUser.id, userIds));
 
           const userMap: Record<string, string> = {};
-          if (userProfilesData) {
-            for (const user of userProfilesData) {
+          if (usersData) {
+            for (const user of usersData) {
               userMap[user.id] = user.name || "Unknown";
             }
           }
@@ -956,7 +956,7 @@ export async function getAllMetersForExport(
         }
 
         if (replacedMeters && replacedMeters.length > 0) {
-          // Get user profiles for sold_by and replacement_by
+          // Get user data for sold_by and replacement_by
           const userIds = Array.from(
             new Set([
               ...replacedMeters.map((m) => m.sold_by),
@@ -966,14 +966,14 @@ export async function getAllMetersForExport(
             ])
           );
 
-          const userProfilesData = await db
-            .select({ id: userProfiles.id, name: userProfiles.name })
-            .from(userProfiles)
-            .where(inArray(userProfiles.id, userIds));
+          const usersData = await db
+            .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
+            .from(betterAuthUser)
+            .where(inArray(betterAuthUser.id, userIds));
 
           const userMap: Record<string, string> = {};
-          if (userProfilesData) {
-            for (const user of userProfilesData) {
+          if (usersData) {
+            for (const user of usersData) {
               userMap[user.id] = user.name || "Unknown";
             }
           }
@@ -1157,19 +1157,19 @@ export async function getAllMetersForExport(
         }
 
         if (faultySoldMeters && faultySoldMeters.length > 0) {
-          // Get user profiles for sold_by
+          // Get user data for sold_by
           const userIds = Array.from(
             new Set(faultySoldMeters.map((m) => m.sold_by))
           );
 
-          const userProfilesData = await db
-            .select({ id: userProfiles.id, name: userProfiles.name })
-            .from(userProfiles)
-            .where(inArray(userProfiles.id, userIds));
+          const usersData = await db
+            .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
+            .from(betterAuthUser)
+            .where(inArray(betterAuthUser.id, userIds));
 
           const userMap: Record<string, string> = {};
-          if (userProfilesData) {
-            for (const user of userProfilesData) {
+          if (usersData) {
+            for (const user of usersData) {
               userMap[user.id] = user.name || "Unknown";
             }
           }

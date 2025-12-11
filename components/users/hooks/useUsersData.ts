@@ -1,19 +1,24 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   getUsersList,
-  getUserProfile,
   getCurrentUser,
   updateUserProfile,
   deleteUserProfile,
 } from "@/lib/actions/users";
 // Real-time subscriptions removed as we're migrating from Supabase
 
+// Interface matches the return type from getUsersList (Better Auth user table)
 interface User {
   id: string;
+  email: string;
   name: string;
   role: string;
   isActive: boolean;
-  email: string;
+}
+
+// Type for initial data from server
+export interface UsersPageData {
+  users: User[];
 }
 
 // Query keys
@@ -25,25 +30,32 @@ const USERS_KEYS = {
 
 // 30 minutes stale time since user data doesn't change frequently
 const STALE_TIME = 30 * 60 * 1000;
+const GC_TIME = STALE_TIME * 2; // 1 hour
 
-export function useUsersData(showDeactivated: boolean) {
+export function useUsersData(
+  showDeactivated: boolean,
+  initialData?: UsersPageData
+) {
   const queryClient = useQueryClient();
+  const hasInitialData = !!initialData;
 
   // Real-time subscriptions removed during Supabase to Drizzle migration
   // Manual refresh will be required for real-time updates
 
-  // Query for users list
+  // Query for users list - use initialData if available
   const {
     data: users = [],
     isLoading,
     isFetching,
     error,
     refetch,
-  } = useQuery({
+  } = useQuery<User[]>({
     queryKey: ["users", showDeactivated],
-    queryFn: () => getUsersList(),
-    staleTime: STALE_TIME, // Data will be considered fresh for 30 minutes
-    gcTime: STALE_TIME * 2, // Cache will be kept for 1 hour
+    queryFn: () => getUsersList() as Promise<User[]>,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.users,
+    refetchOnMount: !hasInitialData,
     select: (data) =>
       showDeactivated ? data : data.filter((user) => user.isActive),
   });
@@ -53,7 +65,7 @@ export function useUsersData(showDeactivated: boolean) {
     queryKey: ["currentUser"],
     queryFn: getCurrentUser,
     staleTime: STALE_TIME,
-    gcTime: STALE_TIME * 2,
+    gcTime: GC_TIME,
   });
 
   // Mutation for updating user

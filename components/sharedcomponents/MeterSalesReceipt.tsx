@@ -150,6 +150,7 @@ interface MeterSalesReceiptProps {
   unitPrices: { [key: string]: string };
   userName: string;
   customerType: string;
+  customerRegion?: string;
   customerCounty: string;
   customerContact: string;
   saleDate?: string;
@@ -163,6 +164,7 @@ const MeterSalesReceipt = ({
   unitPrices,
   userName,
   customerType,
+  customerRegion,
   customerCounty,
   customerContact,
   saleDate,
@@ -229,6 +231,12 @@ const MeterSalesReceipt = ({
                   { flex: 2, textTransform: "capitalize" },
                 ]}>
                 {customerType}
+              </Text>
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, { flex: 1 }]}>Region:</Text>
+              <Text style={[styles.tableCell, { flex: 2 }]}>
+                {customerRegion || "N/A"}
               </Text>
             </View>
             <View style={styles.tableRow}>

@@ -15,37 +15,17 @@ import {
 } from "drizzle-orm";
 import { createNotification } from "./notifications";
 import { clearMetersCache } from "./meters";
+import { withActiveUserCheck } from "./utils";
 import { db } from "../db";
 import {
   soldMeters,
   saleBatches,
   salesTransactions,
-  userProfiles,
+  betterAuthUser,
   faultyReturns,
   meters as metersTable,
   agentInventory,
 } from "../db/schema";
-
-async function checkUserActive(userId: string): Promise<boolean> {
-  const [user] = await db
-    .select({ is_active: userProfiles.is_active })
-    .from(userProfiles)
-    .where(eq(userProfiles.id, userId))
-    .limit(1);
-
-  return user?.is_active || false;
-}
-
-async function withActiveUserCheck<T>(
-  userId: string,
-  action: () => Promise<T>
-): Promise<T> {
-  const isActive = await checkUserActive(userId);
-  if (!isActive) {
-    throw new Error("ACCOUNT_DEACTIVATED");
-  }
-  return action();
-}
 
 interface SoldMeterData {
   meter_id?: string;
@@ -57,6 +37,7 @@ interface SoldMeterData {
   unit_price: number;
   batch_id: string;
   customer_type: string;
+  customer_region?: string;
   customer_county: string;
   customer_contact: string;
 }
@@ -113,6 +94,7 @@ interface SaleBatchData {
   destination: string;
   recipient: string;
   customer_type: string;
+  customer_region?: string;
   customer_county: string;
   customer_contact: string;
   sale_date?: Date;
@@ -120,39 +102,44 @@ interface SaleBatchData {
 }
 
 export async function addSaleBatch(batchData: Omit<SaleBatchData, "id">) {
-  const [data] = await db
-    .insert(saleBatches)
-    .values({
-      ...batchData,
-      unit_price: batchData.unit_price.toString(),
-      total_price: batchData.total_price.toString(),
-    })
-    .returning();
+  try {
+    const [data] = await db
+      .insert(saleBatches)
+      .values({
+        ...batchData,
+        unit_price: batchData.unit_price.toString(),
+        total_price: batchData.total_price.toString(),
+      })
+      .returning();
 
-  // Create a notification for the batch sale
-  await createNotification({
-    type: "METER_SALE",
-    message: `${batchData.user_name} sold ${batchData.batch_amount} ${
-      batchData.meter_type
-    } meter${batchData.batch_amount > 1 ? "s" : ""} to ${
-      batchData.recipient
-    } in ${batchData.destination}`,
-    metadata: {
-      batchId: data.id,
-      meterType: batchData.meter_type,
-      batchAmount: batchData.batch_amount,
-      destination: batchData.destination,
-      recipient: batchData.recipient,
-      totalPrice: batchData.total_price,
-      unitPrice: batchData.unit_price,
-      customerType: batchData.customer_type,
-      customerCounty: batchData.customer_county,
-      customerContact: batchData.customer_contact,
-    },
-    createdBy: batchData.user_id,
-  });
+    // Create a notification for the batch sale
+    await createNotification({
+      type: "METER_SALE",
+      message: `${batchData.user_name} sold ${batchData.batch_amount} ${
+        batchData.meter_type
+      } meter${batchData.batch_amount > 1 ? "s" : ""} to ${
+        batchData.recipient
+      } in ${batchData.destination}`,
+      metadata: {
+        batchId: data.id,
+        meterType: batchData.meter_type,
+        batchAmount: batchData.batch_amount,
+        destination: batchData.destination,
+        recipient: batchData.recipient,
+        totalPrice: batchData.total_price,
+        unitPrice: batchData.unit_price,
+        customerType: batchData.customer_type,
+        customerCounty: batchData.customer_county,
+        customerContact: batchData.customer_contact,
+      },
+      createdBy: batchData.user_id,
+    });
 
-  return data;
+    return data;
+  } catch (error) {
+    console.error("Error adding sale batch:", error);
+    throw error;
+  }
 }
 
 export async function getSaleBatches(
@@ -245,6 +232,7 @@ export async function getSaleBatches(
     destination: string;
     recipient: string;
     customer_type: string | null;
+    customer_region: string | null;
     customer_county: string | null;
     customer_contact: string | null;
     sale_date: Date | null;
@@ -262,6 +250,85 @@ export async function getSaleBatches(
       totalPages: Math.ceil(total / limit),
     },
   };
+}
+
+export async function getAllSaleBatchesForExport(filters?: {
+  searchUser?: string;
+  meterType?: string;
+  customerType?: string;
+  dateRange?: { start: Date; end: Date };
+  specificDate?: Date;
+}) {
+  console.log(
+    "[EXPORT] getAllSaleBatchesForExport called with filters:",
+    JSON.stringify(filters, null, 2)
+  );
+
+  // Build where conditions (same as getSaleBatches)
+  const conditions = [];
+
+  if (filters?.searchUser) {
+    conditions.push(
+      or(
+        ilike(saleBatches.user_name, `%${filters.searchUser}%`),
+        ilike(saleBatches.recipient, `%${filters.searchUser}%`)
+      )
+    );
+  }
+
+  if (filters?.meterType) {
+    conditions.push(ilike(saleBatches.meter_type, filters.meterType));
+  }
+
+  if (filters?.customerType) {
+    conditions.push(eq(saleBatches.customer_type, filters.customerType));
+  }
+
+  if (filters?.dateRange) {
+    conditions.push(
+      and(
+        gte(saleBatches.sale_date, filters.dateRange.start),
+        lte(saleBatches.sale_date, filters.dateRange.end)
+      )
+    );
+  }
+
+  if (filters?.specificDate) {
+    const startOfDay = new Date(filters.specificDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(filters.specificDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    conditions.push(
+      and(
+        gte(saleBatches.sale_date, startOfDay),
+        lte(saleBatches.sale_date, endOfDay)
+      )
+    );
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  console.log("[EXPORT] Number of conditions:", conditions.length);
+  console.log("[EXPORT] Has whereClause:", !!whereClause);
+
+  // Get ALL data without pagination
+  const data = await db
+    .select()
+    .from(saleBatches)
+    .where(whereClause)
+    .orderBy(desc(saleBatches.sale_date));
+
+  console.log("[EXPORT] Raw data count from DB:", data.length);
+
+  // Convert numeric fields to numbers
+  const batches = data.map((batch) => ({
+    ...batch,
+    unit_price: Number(batch.unit_price),
+    total_price: Number(batch.total_price),
+  }));
+
+  console.log("[EXPORT] Returning batches count:", batches.length);
+  return batches;
 }
 
 export async function getSalesChartData(days: number = 30) {
@@ -348,26 +415,65 @@ export async function getMetersByBatchId(batchId: string) {
 }
 
 export async function getSaleBatchMeterDetails(batchId: string) {
-  const [batchMeta, meterRows] = await Promise.all([
+  // First, get the transaction_id for this batch to find ALL meters in the transaction
+  const [batchInfo] = await db
+    .select({
+      transaction_id: saleBatches.transaction_id,
+    })
+    .from(saleBatches)
+    .where(eq(saleBatches.id, batchId))
+    .limit(1);
+
+  if (!batchInfo?.transaction_id) {
+    // Fallback to single batch query if no transaction_id
+    const [batchMeta, meterRows] = await Promise.all([
+      db
+        .select({ reference_number: salesTransactions.reference_number })
+        .from(saleBatches)
+        .leftJoin(
+          salesTransactions,
+          eq(saleBatches.transaction_id, salesTransactions.id)
+        )
+        .where(eq(saleBatches.id, batchId))
+        .limit(1),
+      db
+        .select({ serial_number: soldMeters.serial_number })
+        .from(soldMeters)
+        .where(eq(soldMeters.batch_id, batchId))
+        .orderBy(soldMeters.serial_number),
+    ]);
+
+    return {
+      meters: meterRows,
+      transactionRef: batchMeta[0]?.reference_number ?? null,
+    };
+  }
+
+  // Get all batches in this transaction
+  const transactionBatches = await db
+    .select({ id: saleBatches.id })
+    .from(saleBatches)
+    .where(eq(saleBatches.transaction_id, batchInfo.transaction_id));
+
+  const batchIds = transactionBatches.map((b) => b.id);
+
+  // Get reference number and ALL meters from ALL batches in this transaction
+  const [transactionMeta, meterRows] = await Promise.all([
     db
       .select({ reference_number: salesTransactions.reference_number })
-      .from(saleBatches)
-      .leftJoin(
-        salesTransactions,
-        eq(saleBatches.transaction_id, salesTransactions.id)
-      )
-      .where(eq(saleBatches.id, batchId))
+      .from(salesTransactions)
+      .where(eq(salesTransactions.id, batchInfo.transaction_id))
       .limit(1),
     db
       .select({ serial_number: soldMeters.serial_number })
       .from(soldMeters)
-      .where(eq(soldMeters.batch_id, batchId))
+      .where(inArray(soldMeters.batch_id, batchIds))
       .orderBy(soldMeters.serial_number),
   ]);
 
   return {
     meters: meterRows,
-    transactionRef: batchMeta[0]?.reference_number ?? null,
+    transactionRef: transactionMeta[0]?.reference_number ?? null,
   };
 }
 
@@ -546,6 +652,7 @@ export async function createSalesTransaction({
   destination,
   recipient,
   customer_type,
+  customer_region,
   customer_county,
   customer_contact,
   total_amount,
@@ -556,6 +663,7 @@ export async function createSalesTransaction({
   destination: string;
   recipient: string;
   customer_type: string;
+  customer_region?: string;
   customer_county: string;
   customer_contact: string;
   total_amount: number;
@@ -568,6 +676,7 @@ export async function createSalesTransaction(
     destination,
     recipient,
     customer_type,
+    customer_region,
     customer_county,
     customer_contact,
     total_amount,
@@ -578,6 +687,7 @@ export async function createSalesTransaction(
     destination: string;
     recipient: string;
     customer_type: string;
+    customer_region?: string;
     customer_county: string;
     customer_contact: string;
     total_amount: number;
@@ -592,6 +702,7 @@ export async function createSalesTransaction(
     destination,
     recipient,
     customer_type,
+    customer_region,
     customer_county,
     customer_contact,
     total_amount,
@@ -602,6 +713,7 @@ export async function createSalesTransaction(
     destination: string;
     recipient: string;
     customer_type: string;
+    customer_region?: string;
     customer_county: string;
     customer_contact: string;
     total_amount: number;
@@ -642,6 +754,7 @@ export async function createSalesTransaction(
         destination,
         recipient,
         customer_type,
+        customer_region,
         customer_county,
         customer_contact,
         reference_number: referenceNumber,
@@ -908,13 +1021,13 @@ export async function getTransactionByReferenceNumber(referenceNumber: string) {
     // Get user name if not in transaction
     let userName = transaction.user_name;
     if (!userName && transaction.user_id) {
-      const [profile] = await db
-        .select({ name: userProfiles.name })
-        .from(userProfiles)
-        .where(eq(userProfiles.id, transaction.user_id))
+      const [user] = await db
+        .select({ name: betterAuthUser.displayName })
+        .from(betterAuthUser)
+        .where(eq(betterAuthUser.id, transaction.user_id))
         .limit(1);
 
-      userName = profile?.name || "";
+      userName = user?.name || "";
     }
 
     return {
@@ -993,6 +1106,7 @@ export async function processMeterSale({
     recipient: string;
     unitPrices: { [key: string]: string };
     customerType: string;
+    customerRegion?: string;
     customerCounty: string;
     customerContact: string;
     saleDate: Date;
@@ -1134,6 +1248,7 @@ export async function processMeterSale({
               destination: saleDetails.destination,
               recipient: saleDetails.recipient,
               customer_type: saleDetails.customerType,
+              customer_region: saleDetails.customerRegion,
               customer_county: saleDetails.customerCounty,
               customer_contact: saleDetails.customerContact,
               sale_date: saleDetails.saleDate,
@@ -1217,6 +1332,7 @@ export async function processMeterSale({
             unit_price: typeUnitPrice,
             batch_id: batchId,
             customer_type: saleDetails.customerType,
+            customer_region: saleDetails.customerRegion,
             customer_county: saleDetails.customerCounty,
             customer_contact: saleDetails.customerContact,
           } satisfies Omit<SoldMeterData, "id">;
@@ -1283,6 +1399,7 @@ export async function processAgentMeterSale({
     recipient: string;
     unitPrices: { [key: string]: string };
     customerType: string;
+    customerRegion?: string;
     customerCounty: string;
     customerContact: string;
     saleDate: Date;
@@ -1387,6 +1504,7 @@ export async function processAgentMeterSale({
             destination: saleDetails.destination,
             recipient: saleDetails.recipient,
             customer_type: saleDetails.customerType,
+            customer_region: saleDetails.customerRegion,
             customer_county: saleDetails.customerCounty,
             customer_contact: saleDetails.customerContact,
             total_amount: totalAmount,
@@ -1414,6 +1532,7 @@ export async function processAgentMeterSale({
               destination: saleDetails.destination,
               recipient: saleDetails.recipient,
               customer_type: saleDetails.customerType,
+              customer_region: saleDetails.customerRegion,
               customer_county: saleDetails.customerCounty,
               customer_contact: saleDetails.customerContact,
               sale_date: saleDetails.saleDate,
@@ -1498,6 +1617,7 @@ export async function processAgentMeterSale({
             unit_price: unitPrice,
             batch_id: batchId,
             customer_type: saleDetails.customerType,
+            customer_region: saleDetails.customerRegion,
             customer_county: saleDetails.customerCounty,
             customer_contact: saleDetails.customerContact,
           } satisfies Omit<SoldMeterData, "id">;

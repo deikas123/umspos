@@ -7,11 +7,9 @@ import {
   useState,
   ReactNode,
   useCallback,
-  useRef,
   useMemo,
 } from "react";
-import { createClient } from "@/lib/utils/supabase/client";
-import { getCurrentUser } from "@/lib/actions/users";
+import { authClient } from "@/lib/auth-client";
 
 interface User {
   id: string;
@@ -37,98 +35,56 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<string | null | undefined>(
-    undefined
-  );
-  const [isLoading, setIsLoading] = useState(true);
-  const supabase = useMemo(() => createClient(), []);
-  const isInitialized = useRef(false);
+  // Default to "user" role for optimistic rendering while session loads
+  const [userRole, setUserRole] = useState<string | null | undefined>("user");
 
+  // Use Better Auth's useSession hook for reactive session data
+  const {
+    data: session,
+    isPending: isSessionLoading,
+    error: sessionError,
+  } = authClient.useSession();
+
+  const isLoading = isSessionLoading;
   const isAuthenticated = !!user;
 
   const updateAuthState = useCallback((state: Partial<AuthContextType>) => {
     if (state.user !== undefined) setUser(state.user);
     if (state.userRole !== undefined) setUserRole(state.userRole);
-    if (state.isLoading !== undefined) setIsLoading(state.isLoading);
   }, []);
 
+  // Update user state when session changes - all data now in session.user
   useEffect(() => {
-    let isMounted = true;
+    // If session is still loading, wait
+    if (isSessionLoading) return;
 
-    const initializeAuth = async () => {
-      // Prevent double initialization in strict mode
-      if (isInitialized.current) return;
-      isInitialized.current = true;
+    // If no session or error, clear user state
+    if (!session?.user || sessionError) {
+      setUser(null);
+      setUserRole(undefined);
+      return;
+    }
 
-      try {
-        // Get session from Supabase (stored in httpOnly cookies via middleware)
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+    // Custom fields are now directly in session.user
+    const sessionUser = session.user as any;
+    const isActive = sessionUser.isActive ?? true;
 
-        if (session?.user && isMounted) {
-          const currentUser = await getCurrentUser();
-          if (currentUser && isMounted) {
-            setUser(currentUser);
-            setUserRole(currentUser.role);
-          }
-        }
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-        if (isMounted) {
-          setUser(null);
-          setUserRole(undefined);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initializeAuth();
-
-    // Listen for auth changes (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
-
-      // Handle sign out
-      if (event === "SIGNED_OUT" || !session) {
-        setUser(null);
-        setUserRole(undefined);
-        setIsLoading(false);
-        return;
-      }
-
-      // Handle sign in or token refresh
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        try {
-          const currentUser = await getCurrentUser();
-          if (currentUser && isMounted) {
-            setUser(currentUser);
-            setUserRole(currentUser.role);
-          }
-        } catch (error) {
-          console.error("Error getting user data:", error);
-          if (isMounted) {
-            setUser(null);
-            setUserRole(undefined);
-          }
-        } finally {
-          if (isMounted) {
-            setIsLoading(false);
-          }
-        }
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
+    if (isActive) {
+      setUser({
+        id: session.user.id,
+        email: session.user.email || "",
+        name: sessionUser.displayName || session.user.name,
+        role: sessionUser.appRole || "user",
+        is_active: isActive,
+      });
+      setUserRole(sessionUser.appRole || "user");
+    } else {
+      // User is inactive, sign them out
+      authClient.signOut();
+      setUser(null);
+      setUserRole(undefined);
+    }
+  }, [session, isSessionLoading, sessionError]);
 
   const value: AuthContextType = useMemo(
     () => ({

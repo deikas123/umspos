@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import SaleDetailsDialog from "./SaleDetailsDialog";
-import { KenyaCounty, CustomerType } from "@/lib/constants/locationData";
+import { CustomerType, KenyaRegion } from "@/lib/constants/locationData";
 import { format } from "date-fns";
 
 interface UnitPrices {
@@ -34,7 +34,8 @@ interface SaleDetails {
   recipient: string;
   unitPrices: UnitPrices;
   customerType: CustomerType;
-  customerCounty: KenyaCounty;
+  customerRegion: KenyaRegion;
+  customerCounty: string;
   customerContact: string;
   saleDate: any;
 }
@@ -307,6 +308,7 @@ export default function SellMeters({ currentUser }: { currentUser: any }) {
           recipient: saleDetails.recipient,
           unitPrices: saleDetails.unitPrices,
           customerType: saleDetails.customerType,
+          customerRegion: saleDetails.customerRegion,
           customerCounty: saleDetails.customerCounty,
           customerContact: saleDetails.customerContact,
           saleDate: selectedDate,
@@ -323,6 +325,7 @@ export default function SellMeters({ currentUser }: { currentUser: any }) {
           unitPrices: saleDetails.unitPrices,
           userName,
           customerType: saleDetails.customerType,
+          customerRegion: saleDetails.customerRegion,
           customerCounty: saleDetails.customerCounty,
           customerContact: saleDetails.customerContact,
           saleDate: selectedDate.toISOString(),
@@ -380,6 +383,7 @@ export default function SellMeters({ currentUser }: { currentUser: any }) {
           unitPrices={lastSubmittedData.unitPrices}
           userName={lastSubmittedData.userName}
           customerType={lastSubmittedData.customerType}
+          customerRegion={lastSubmittedData.customerRegion}
           customerCounty={lastSubmittedData.customerCounty}
           customerContact={lastSubmittedData.customerContact}
           saleDate={lastSubmittedData.saleDate}

@@ -1,124 +1,80 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { getSaleBatches, getSalesChartData } from "@/lib/actions/sales";
-import { getUsersList } from "@/lib/actions/users";
-import { getAgentsList, getAgentTransactions } from "@/lib/actions/agents";
+import { getAgentsList } from "@/lib/actions/agents";
 import {
   getRemainingMetersByType,
   getAgentInventoryCount,
-  getDetailedSalesToday,
-  getDetailedSalesYesterday,
-  getTopSellingUsers,
-  getMostSellingProduct,
-  getCustomerTypeCounts,
 } from "@/lib/actions/reports";
 
-const CACHE_TIME = 1000 * 60 * 5;
-const STALE_TIME = 1000 * 30;
+const CACHE_TIME = 1000 * 60 * 10;
+const STALE_TIME = 1000 * 60 * 2;
 
-let hasGloballyPrefetched = false;
+// Track which routes have been prefetched to avoid duplicate requests
+const prefetchedRoutes = new Set<string>();
 
 export function PrefetchProvider({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
   const hasPrefetched = useRef(false);
 
+  // Minimal initial prefetch - only essential shared data
   useEffect(() => {
-    if (hasGloballyPrefetched || hasPrefetched.current) return;
+    if (hasPrefetched.current) return;
     hasPrefetched.current = true;
-    hasGloballyPrefetched = true;
 
+    // Delay prefetch to not compete with initial page load
     const timer = setTimeout(() => {
-      const criticalPrefetches = [
-        queryClient.prefetchQuery({
-          queryKey: ["salesChartData", 30],
-          queryFn: () => getSalesChartData(30),
-          staleTime: STALE_TIME,
-          gcTime: CACHE_TIME,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["saleBatches", 1, 10, undefined],
-          queryFn: () => getSaleBatches(1, 10),
-          staleTime: STALE_TIME,
-          gcTime: CACHE_TIME,
-        }),
+      // Only prefetch truly shared data that's used across multiple pages
+      // Dashboard data is now fetched server-side, so we skip it here
+      Promise.allSettled([
         queryClient.prefetchQuery({
           queryKey: ["agents", "list"],
           queryFn: () => getAgentsList(),
-          staleTime: 60 * 60 * 1000,
-          gcTime: CACHE_TIME,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["agentTransactions", 1, 10, ""],
-          queryFn: () => getAgentTransactions(1, 10, ""),
-          staleTime: STALE_TIME,
+          staleTime: 60 * 60 * 1000, // 1 hour - agents rarely change
           gcTime: CACHE_TIME,
         }),
         queryClient.prefetchQuery({
           queryKey: ["remainingMetersByType"],
           queryFn: () => getRemainingMetersByType(),
-          staleTime: STALE_TIME * 2,
-          gcTime: CACHE_TIME,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["agentInventory"],
-          queryFn: () => getAgentInventoryCount(),
-          staleTime: STALE_TIME * 2,
-          gcTime: CACHE_TIME,
-        }),
-      ];
-
-      const secondaryPrefetches = [
-        queryClient.prefetchQuery({
-          queryKey: ["users", false],
-          queryFn: () => getUsersList(),
-          staleTime: 30 * 60 * 1000,
-          gcTime: CACHE_TIME,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["detailedSales", "today"],
-          queryFn: () => getDetailedSalesToday(),
           staleTime: STALE_TIME,
           gcTime: CACHE_TIME,
         }),
-        queryClient.prefetchQuery({
-          queryKey: ["detailedSales", "yesterday"],
-          queryFn: () => getDetailedSalesYesterday(),
-          staleTime: STALE_TIME,
-          gcTime: CACHE_TIME,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["topSellers"],
-          queryFn: () => getTopSellingUsers(),
-          staleTime: STALE_TIME,
-          gcTime: CACHE_TIME,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["mostSellingProduct"],
-          queryFn: () => getMostSellingProduct(),
-          staleTime: STALE_TIME,
-          gcTime: CACHE_TIME,
-        }),
-        queryClient.prefetchQuery({
-          queryKey: ["customerTypes"],
-          queryFn: () => getCustomerTypeCounts(),
-          staleTime: STALE_TIME,
-          gcTime: CACHE_TIME,
-        }),
-      ];
-
-      Promise.allSettled(criticalPrefetches)
-        .then(() => Promise.allSettled(secondaryPrefetches))
-        .catch((error) => {
-          console.warn("Auto-prefetch failed:", error);
-        });
-    }, 500);
+      ]).catch((error) => {
+        console.warn("Auto-prefetch failed:", error);
+      });
+    }, 1000); // Increased delay to 1 second
 
     return () => clearTimeout(timer);
   }, [queryClient]);
+
+  // Route-based prefetching - prefetch data for likely next pages
+  useEffect(() => {
+    if (!pathname || prefetchedRoutes.has(pathname)) return;
+    prefetchedRoutes.add(pathname);
+
+    const timer = setTimeout(() => {
+      // Based on current route, prefetch likely next destinations
+      // Note: Dashboard and Sales fetch their own data server-side now
+      // So we only prefetch supporting data they might need
+      if (pathname === "/dashboard" || pathname === "/sales") {
+        // User might check agents or inventory
+        queryClient.prefetchQuery({
+          queryKey: ["agentInventory"],
+          queryFn: () => getAgentInventoryCount(),
+          staleTime: STALE_TIME,
+          gcTime: CACHE_TIME,
+        });
+      }
+      // Add more route-based prefetching as needed
+    }, 2000); // 2 second delay for route-based prefetch
+
+    return () => clearTimeout(timer);
+  }, [pathname, queryClient]);
 
   return <>{children}</>;
 }

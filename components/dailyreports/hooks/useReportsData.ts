@@ -6,30 +6,79 @@ import {
   getAgentInventoryCount,
 } from "@/lib/actions/reports";
 
-const GC_TIME = 1000 * 60 * 5; // 5 minutes
-const STALE_TIME = 1000 * 30; // 30 seconds
+const GC_TIME = 1000 * 60 * 10; // 10 minutes
+const STALE_TIME = 1000 * 60 * 2; // 2 minutes - increased from 30 seconds
+
+// Type for sold meter data
+interface SoldMeterData {
+  batch_id: string;
+  serial_number: string;
+  recipient: string;
+  destination: string;
+  customer_type: string | null;
+  customer_county: string | null;
+  customer_contact: string | null;
+}
+
+// Type for sale batch data - matches the return type from getDetailedSalesByDateRange
+interface SaleBatchData {
+  id: string;
+  user_id: string;
+  user_name: string;
+  meter_type: string;
+  batch_amount: number;
+  sale_date: Date | null;
+  destination: string;
+  recipient: string;
+  total_price: number;
+  unit_price: number;
+  customer_type: string | null;
+  customer_region: string | null;
+  customer_county: string | null;
+  customer_contact: string | null;
+  transaction_id: string | null;
+  notes: string | null;
+  note_by: string | null;
+  meters: SoldMeterData[];
+}
+
+// Type for initial data from server - matches the return type from getDailyReportsPageData
+export interface DailyReportsPageData {
+  todaySales: SaleBatchData[];
+  yesterdaySales: SaleBatchData[];
+  remainingMetersByType: Array<{ type: string; remaining_meters: number }>;
+  agentInventory: Array<{ type: string; with_agents: number }>;
+}
 
 /**
  * Hook for fetching today's detailed sales
  */
-export function useTodaySales() {
+export function useTodaySales(
+  initialData?: DailyReportsPageData["todaySales"]
+) {
   return useQuery({
     queryKey: ["detailedSales", "today"],
     queryFn: getDetailedSalesToday,
     gcTime: GC_TIME,
     staleTime: STALE_TIME,
+    initialData,
+    refetchOnMount: !initialData,
   });
 }
 
 /**
  * Hook for fetching yesterday's detailed sales
  */
-export function useYesterdaySales() {
+export function useYesterdaySales(
+  initialData?: DailyReportsPageData["yesterdaySales"]
+) {
   return useQuery({
     queryKey: ["detailedSales", "yesterday"],
     queryFn: getDetailedSalesYesterday,
     gcTime: GC_TIME,
     staleTime: STALE_TIME,
+    initialData,
+    refetchOnMount: !initialData,
   });
 }
 
@@ -37,12 +86,16 @@ export function useYesterdaySales() {
  * Hook for fetching remaining meters by type
  * Shared across multiple components - high cache value
  */
-export function useRemainingMetersByType() {
+export function useRemainingMetersByType(
+  initialData?: DailyReportsPageData["remainingMetersByType"]
+) {
   return useQuery({
     queryKey: ["remainingMetersByType"],
     queryFn: getRemainingMetersByType,
-    gcTime: GC_TIME * 2, // 10 minutes - less frequent changes
-    staleTime: STALE_TIME * 2, // 1 minute
+    gcTime: GC_TIME,
+    staleTime: STALE_TIME,
+    initialData,
+    refetchOnMount: !initialData,
   });
 }
 
@@ -50,24 +103,30 @@ export function useRemainingMetersByType() {
  * Hook for fetching agent inventory count
  * Shared across multiple components - high cache value
  */
-export function useAgentInventory() {
+export function useAgentInventory(
+  initialData?: DailyReportsPageData["agentInventory"]
+) {
   return useQuery({
     queryKey: ["agentInventory"],
     queryFn: getAgentInventoryCount,
-    gcTime: GC_TIME * 2, // 10 minutes - less frequent changes
-    staleTime: STALE_TIME * 2, // 1 minute
+    gcTime: GC_TIME,
+    staleTime: STALE_TIME,
+    initialData,
+    refetchOnMount: !initialData,
   });
 }
 
 /**
  * Combined hook for all reports data
- * Use this when you need multiple data sources
+ * Accepts initialData from server-side fetch to avoid POST requests
  */
-export function useAllReportsData() {
-  const todaySales = useTodaySales();
-  const yesterdaySales = useYesterdaySales();
-  const remainingMeters = useRemainingMetersByType();
-  const agentInventory = useAgentInventory();
+export function useAllReportsData(initialData?: DailyReportsPageData) {
+  const todaySales = useTodaySales(initialData?.todaySales);
+  const yesterdaySales = useYesterdaySales(initialData?.yesterdaySales);
+  const remainingMeters = useRemainingMetersByType(
+    initialData?.remainingMetersByType
+  );
+  const agentInventory = useAgentInventory(initialData?.agentInventory);
 
   return {
     todaySales: todaySales.data ?? [],
@@ -79,16 +138,23 @@ export function useAllReportsData() {
       yesterdaySales.isLoading ||
       remainingMeters.isLoading ||
       agentInventory.isLoading,
+    isFetching:
+      todaySales.isFetching ||
+      yesterdaySales.isFetching ||
+      remainingMeters.isFetching ||
+      agentInventory.isFetching,
     isError:
       todaySales.isError ||
       yesterdaySales.isError ||
       remainingMeters.isError ||
       agentInventory.isError,
-    refetch: () => {
-      todaySales.refetch();
-      yesterdaySales.refetch();
-      remainingMeters.refetch();
-      agentInventory.refetch();
+    refetch: async () => {
+      await Promise.all([
+        todaySales.refetch(),
+        yesterdaySales.refetch(),
+        remainingMeters.refetch(),
+        agentInventory.refetch(),
+      ]);
     },
   };
 }

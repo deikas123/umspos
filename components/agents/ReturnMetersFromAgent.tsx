@@ -117,7 +117,7 @@ export default function ReturnMetersFromAgent({
 
     const timeoutId = setTimeout(checkSerialNumber, 300);
     return () => clearTimeout(timeoutId);
-  }, [serialNumber, meters, agent.id, toast]);
+  }, [serialNumber, meters, agent.id]);
 
   const handleRemoveMeter = (index: number) => {
     setMeters(meters.filter((_, i) => i !== index));
