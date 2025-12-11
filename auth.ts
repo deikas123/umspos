@@ -11,10 +11,26 @@ import {
   user as userRole,
 } from "@/lib/auth/permissions";
 
-export const auth = betterAuth({
-  database: new Pool({
+// Create a singleton pool to prevent connection exhaustion
+const globalForDb = globalThis as unknown as {
+  authPool: Pool | undefined;
+};
+
+const authPool =
+  globalForDb.authPool ??
+  new Pool({
     connectionString: process.env.DATABASE_URL,
-  }),
+    max: 5,
+    idleTimeoutMillis: 20000,
+    connectionTimeoutMillis: 10000,
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.authPool = authPool;
+}
+
+export const auth = betterAuth({
+  database: authPool,
   emailAndPassword: {
     enabled: true,
     // Use bcrypt for password hashing (Supabase uses bcrypt)
