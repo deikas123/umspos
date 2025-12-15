@@ -19,8 +19,12 @@ const Navbar: React.FC = () => {
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [mounted, setMounted] = useState(false);
   const isMobile = useIsMobile();
-  const { userRole, updateAuthState, user } = useAuth();
-  const isAdmin = userRole === "admin";
+  const { userRole, updateAuthState, user, isLoading } = useAuth();
+  // Don't determine role-based visibility until auth is loaded
+  const authReady = mounted && !isLoading && !!userRole;
+  const isAdmin =
+    authReady && (userRole === "admin" || userRole === "super_admin");
+  const isSalesPerson = authReady && userRole === "sales_person";
 
   useEffect(() => {
     setMounted(true);
@@ -33,7 +37,7 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <div className='fixed top-0 left-0 right-0 z-50 bg-white shadow-md h-16 flex items-center px-4 w-full'>
+    <div className='fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-300 h-16 flex items-center px-4 w-full'>
       <div className='flex justify-between items-center w-full gap-4'>
         <div className='flex items-center gap-4'>
           <Link href='/' className='flex items-center'>
@@ -54,13 +58,15 @@ const Navbar: React.FC = () => {
           </div>
         </div>
 
-        <SearchBar onAgentInventoryOpen={handleAgentInventoryOpen} />
+        {authReady && !isSalesPerson && (
+          <SearchBar onAgentInventoryOpen={handleAgentInventoryOpen} />
+        )}
 
         <div className='flex items-center gap-4'>
-          {!isMobile && mounted && (
+          {!isMobile && authReady && (
             <>
               {isAdmin && <StockAlert />}
-              <NotificationBell />
+              {!isSalesPerson && <NotificationBell />}
               <UserProfileMenu
                 user={user}
                 userRole={userRole}

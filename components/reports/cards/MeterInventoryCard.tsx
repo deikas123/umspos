@@ -1,3 +1,5 @@
+"use client";
+
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -7,12 +9,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Package, History, AlertTriangle, RefreshCw, List } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Package,
+  History,
+  AlertTriangle,
+  RefreshCw,
+  List,
+  Download,
+  File,
+  FileSpreadsheet,
+  FileText,
+} from "lucide-react";
 import { EmptyState } from "./EmptyState";
 import { cn } from "@/lib/utils";
 import { getMeterTypeBadgeClass } from "../utils/meterTypeConfig";
-import type { RemainingMetersByType, AgentInventory } from "../types";
+import type {
+  RemainingMetersByType,
+  AgentInventory,
+  FaultyMetersByType,
+} from "../types";
 import {
   SheetTitle,
   Sheet,
@@ -24,6 +47,10 @@ import FaultyMetersView from "./FaultyMetersView";
 import ReplacementsView from "./ReplacementsView";
 import AllMetersView from "./AllMetersView";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
+import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 
 const METER_TYPES = [
   "integrated",
@@ -37,12 +64,14 @@ const METER_TYPES = [
 interface MeterInventoryCardProps {
   remainingMetersByType: RemainingMetersByType[];
   agentInventory: AgentInventory[];
+  faultyMetersByType: FaultyMetersByType[];
   sidebarState: string;
 }
 
 export function MeterInventoryCard({
   remainingMetersByType,
   agentInventory,
+  faultyMetersByType,
   sidebarState,
 }: Readonly<MeterInventoryCardProps>) {
   // Helper functions
@@ -53,9 +82,17 @@ export function MeterInventoryCard({
     return inventory?.with_agents || 0;
   };
 
+  const getFaultyCount = (meterType: string) => {
+    const faulty = faultyMetersByType.find(
+      (item) => item.type.toLowerCase() === meterType.toLowerCase()
+    );
+    return faulty?.faulty_count || 0;
+  };
+
   const getTotal = (meterType: string, remaining: number) => {
     const withAgents = getAgentCount(meterType);
-    return Number(remaining) + Number(withAgents);
+    const faulty = getFaultyCount(meterType);
+    return Number(remaining) + Number(withAgents) + Number(faulty);
   };
 
   // all meter types are represented (like in DailyReportsSummary)
@@ -66,7 +103,7 @@ export function MeterInventoryCard({
     return existingData || { type, remaining_meters: 0 };
   });
 
-  // Calculate grand totals
+  // Calculate grand totals (including faulty)
   const grandTotals = {
     remaining: allMeterTypes.reduce(
       (sum, item) => sum + Number(item.remaining_meters),
@@ -76,11 +113,102 @@ export function MeterInventoryCard({
       (sum, item) => sum + Number(item.with_agents),
       0
     ),
-    total: allMeterTypes.reduce(
-      (sum, item) =>
-        sum + Number(item.remaining_meters) + getAgentCount(item.type),
+    faulty: faultyMetersByType.reduce(
+      (sum, item) => sum + Number(item.faulty_count),
       0
     ),
+    total: allMeterTypes.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.remaining_meters) +
+        getAgentCount(item.type) +
+        getFaultyCount(item.type),
+      0
+    ),
+  };
+
+  const handleExportCSV = () => {
+    const data = allMeterTypes.map((item, index) => ({
+      "#": index + 1,
+      "Meter Type": item.type,
+      "In Stock": item.remaining_meters,
+      "With Agents": getAgentCount(item.type),
+      Faulty: getFaultyCount(item.type),
+      Total: getTotal(item.type, item.remaining_meters),
+    }));
+    data.push({
+      "#": data.length + 1,
+      "Meter Type": "TOTAL",
+      "In Stock": grandTotals.remaining,
+      "With Agents": grandTotals.withAgents,
+      Faulty: grandTotals.faulty,
+      Total: grandTotals.total,
+    });
+    generateCSV(data, "meter_inventory");
+  };
+
+  const handleExportXLSX = () => {
+    const data = allMeterTypes.map((item, index) => ({
+      "#": index + 1,
+      "Meter Type": item.type,
+      "In Stock": item.remaining_meters,
+      "With Agents": getAgentCount(item.type),
+      Faulty: getFaultyCount(item.type),
+      Total: getTotal(item.type, item.remaining_meters),
+    }));
+    data.push({
+      "#": data.length + 1,
+      "Meter Type": "TOTAL",
+      "In Stock": grandTotals.remaining,
+      "With Agents": grandTotals.withAgents,
+      Faulty: grandTotals.faulty,
+      Total: grandTotals.total,
+    });
+    generateXLSX(data, "meter_inventory", "Meter Inventory");
+  };
+
+  const handleExportPDF = async () => {
+    const headers = [
+      "#",
+      "Meter Type",
+      "In Stock",
+      "With Agents",
+      "Faulty",
+      "Total",
+    ];
+    const data = allMeterTypes.map((item, index) => [
+      String(index + 1),
+      item.type,
+      String(item.remaining_meters),
+      String(getAgentCount(item.type)),
+      String(getFaultyCount(item.type)),
+      String(getTotal(item.type, item.remaining_meters)),
+    ]);
+    data.push([
+      String(data.length + 1),
+      "TOTAL",
+      String(grandTotals.remaining),
+      String(grandTotals.withAgents),
+      String(grandTotals.faulty),
+      String(grandTotals.total),
+    ]);
+
+    const blob = await pdf(
+      <TableReportPDF
+        title='Meter Inventory Report'
+        headers={headers}
+        data={data}
+      />
+    ).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "meter_inventory.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -179,6 +307,31 @@ export function MeterInventoryCard({
               <PurchaseBatchesView />
             </SheetContent>
           </Sheet>
+
+          {grandTotals.total > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant='outline' size='icon' className='h-8 w-8'>
+                  <Download className='h-4 w-4' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <File className='h-4 w-4 mr-2' />
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportXLSX}>
+                  <FileSpreadsheet className='h-4 w-4 mr-2' />
+                  Export as XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  <FileText className='h-4 w-4 mr-2' />
+                  Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           <Package className='w-5 h-5 text-[#E46020]' />
         </div>
       </CardHeader>
@@ -201,7 +354,7 @@ export function MeterInventoryCard({
                         {item.type}
                       </Badge>
                     </div>
-                    <div className='grid grid-cols-3 gap-2 text-sm pl-2'>
+                    <div className='grid grid-cols-4 gap-2 text-sm pl-2'>
                       <div>
                         <p className='text-muted-foreground'>In Stock</p>
                         <p className='font-medium'>{item.remaining_meters}</p>
@@ -210,6 +363,12 @@ export function MeterInventoryCard({
                         <p className='text-muted-foreground'>With Agents</p>
                         <p className='font-medium'>
                           {getAgentCount(item.type)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className='text-muted-foreground'>Faulty</p>
+                        <p className='font-medium'>
+                          {getFaultyCount(item.type)}
                         </p>
                       </div>
                       <div>
@@ -226,8 +385,11 @@ export function MeterInventoryCard({
                 <Badge variant='outline' className='bg-gray-100'>
                   Total
                 </Badge>
-                <div className='grid grid-cols-3 gap-4 text-sm font-bold'>
+                <div className='grid grid-cols-4 gap-4 text-sm font-bold'>
                   <span>{grandTotals.remaining}</span>
+                  <span>{grandTotals.withAgents}</span>
+                  <span>{grandTotals.faulty}</span>
+                  <span>{grandTotals.total}</span>
                 </div>
               </div>
             </div>
@@ -243,6 +405,9 @@ export function MeterInventoryCard({
                     </TableHead>
                     <TableHead className='font-semibold text-right'>
                       With Agents
+                    </TableHead>
+                    <TableHead className='font-semibold text-right'>
+                      Faulty
                     </TableHead>
                     <TableHead className='font-semibold text-right'>
                       Total
@@ -269,6 +434,9 @@ export function MeterInventoryCard({
                         {getAgentCount(item.type)}
                       </TableCell>
                       <TableCell className='text-right'>
+                        {getFaultyCount(item.type)}
+                      </TableCell>
+                      <TableCell className='text-right'>
                         {getTotal(item.type, item.remaining_meters)}
                       </TableCell>
                     </TableRow>
@@ -284,6 +452,9 @@ export function MeterInventoryCard({
                     </TableCell>
                     <TableCell className='text-right'>
                       {grandTotals.withAgents}
+                    </TableCell>
+                    <TableCell className='text-right'>
+                      {grandTotals.faulty}
                     </TableCell>
                     <TableCell className='text-right'>
                       {grandTotals.total}

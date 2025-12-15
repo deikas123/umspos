@@ -4,6 +4,7 @@ import {
   getDetailedSalesYesterday,
   getRemainingMetersByType,
   getAgentInventoryCount,
+  getFaultyMetersByType,
 } from "@/lib/actions/reports";
 
 const GC_TIME = 1000 * 60 * 10; // 10 minutes
@@ -39,6 +40,11 @@ interface SaleBatchData {
   transaction_id: string | null;
   notes: string | null;
   note_by: string | null;
+  referral_user_id: string | null;
+  referral_name: string | null;
+  picked_by_type: string | null;
+  picked_by_name: string | null;
+  picked_by_contact: string | null;
   meters: SoldMeterData[];
 }
 
@@ -48,6 +54,7 @@ export interface DailyReportsPageData {
   yesterdaySales: SaleBatchData[];
   remainingMetersByType: Array<{ type: string; remaining_meters: number }>;
   agentInventory: Array<{ type: string; with_agents: number }>;
+  faultyMetersByType: Array<{ type: string; faulty_count: number }>;
 }
 
 /**
@@ -117,6 +124,23 @@ export function useAgentInventory(
 }
 
 /**
+ * Hook for fetching faulty meters by type (pending status)
+ * Shared across multiple components - high cache value
+ */
+export function useFaultyMetersByType(
+  initialData?: DailyReportsPageData["faultyMetersByType"]
+) {
+  return useQuery({
+    queryKey: ["faultyMetersByType"],
+    queryFn: getFaultyMetersByType,
+    gcTime: GC_TIME,
+    staleTime: STALE_TIME,
+    initialData,
+    refetchOnMount: !initialData,
+  });
+}
+
+/**
  * Combined hook for all reports data
  * Accepts initialData from server-side fetch to avoid POST requests
  */
@@ -127,33 +151,39 @@ export function useAllReportsData(initialData?: DailyReportsPageData) {
     initialData?.remainingMetersByType
   );
   const agentInventory = useAgentInventory(initialData?.agentInventory);
+  const faultyMeters = useFaultyMetersByType(initialData?.faultyMetersByType);
 
   return {
     todaySales: todaySales.data ?? [],
     yesterdaySales: yesterdaySales.data ?? [],
     remainingMeters: remainingMeters.data ?? [],
     agentInventory: agentInventory.data ?? [],
+    faultyMeters: faultyMeters.data ?? [],
     isLoading:
       todaySales.isLoading ||
       yesterdaySales.isLoading ||
       remainingMeters.isLoading ||
-      agentInventory.isLoading,
+      agentInventory.isLoading ||
+      faultyMeters.isLoading,
     isFetching:
       todaySales.isFetching ||
       yesterdaySales.isFetching ||
       remainingMeters.isFetching ||
-      agentInventory.isFetching,
+      agentInventory.isFetching ||
+      faultyMeters.isFetching,
     isError:
       todaySales.isError ||
       yesterdaySales.isError ||
       remainingMeters.isError ||
-      agentInventory.isError,
+      agentInventory.isError ||
+      faultyMeters.isError,
     refetch: async () => {
       await Promise.all([
         todaySales.refetch(),
         yesterdaySales.refetch(),
         remainingMeters.refetch(),
         agentInventory.refetch(),
+        faultyMeters.refetch(),
       ]);
     },
   };

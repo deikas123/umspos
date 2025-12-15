@@ -4,16 +4,7 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PhoneCall, MapPin } from "lucide-react";
 import AgentActionsMenu from "./AgentActionsMenu";
-
-interface Agent {
-  id: string;
-  name: string;
-  phone_number: string;
-  location: string;
-  county: string;
-  is_active: boolean | null;
-  total_meters?: number;
-}
+import { type Agent } from "./hooks/useAgentsData";
 
 interface CurrentUser {
   id: string;
@@ -58,6 +49,17 @@ export default function AgentTableRow({
       <TableCell>
         <Badge variant='outline' className='bg-gray-100 text-gray-800'>
           {agent.county}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant='outline'
+          className={
+            agent.agent_type === "credit"
+              ? "bg-purple-100 text-purple-800"
+              : "bg-emerald-100 text-emerald-800"
+          }>
+          {agent.agent_type === "credit" ? "Credit" : "Cash"}
         </Badge>
       </TableCell>
       <TableCell className='text-center'>

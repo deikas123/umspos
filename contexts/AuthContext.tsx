@@ -35,8 +35,10 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
-  // Default to "user" role for optimistic rendering while session loads
-  const [userRole, setUserRole] = useState<string | null | undefined>("user");
+  // Start with undefined - don't assume any role until session is loaded
+  const [userRole, setUserRole] = useState<string | null | undefined>(
+    undefined
+  );
 
   // Use Better Auth's useSession hook for reactive session data
   const {

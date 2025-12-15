@@ -166,22 +166,29 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
             </button>
           </div>
         </div>
-        <Select value={role} onValueChange={setRole}>
-          <SelectTrigger className='w-full border border-gray-300 rounded-md p-2 cursor-pointer'>
-            <SelectValue>
-              {role === "user"
-                ? "User"
-                : role === "admin"
-                  ? "Admin"
-                  : "Accountant"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='user'>User</SelectItem>
-            <SelectItem value='admin'>Admin</SelectItem>
-            <SelectItem value='accountant'>Accountant</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className='space-y-2'>
+          <Label htmlFor='role'>Role</Label>
+          <Select value={role} onValueChange={setRole}>
+            <SelectTrigger
+              id='role'
+              className='w-full border border-gray-300 rounded-md p-2 cursor-pointer'>
+              <SelectValue>
+                {role === "user" && "User"}
+                {role === "admin" && "Admin"}
+                {role === "accountant" && "Accountant"}
+                {role === "super_admin" && "Super Admin"}
+                {role === "sales_person" && "Sales Person"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='user'>User</SelectItem>
+              <SelectItem value='admin'>Admin</SelectItem>
+              <SelectItem value='accountant'>Accountant</SelectItem>
+              <SelectItem value='super_admin'>Super Admin</SelectItem>
+              <SelectItem value='sales_person'>Sales Person</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <Button
           type='submit'
           className='w-full bg-primary hover:bg-[#000061] text-white cursor-pointer'

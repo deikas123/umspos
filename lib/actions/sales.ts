@@ -13,6 +13,7 @@ import {
   ilike,
   count,
 } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { createNotification } from "./notifications";
 import { clearMetersCache } from "./meters";
 import { withActiveUserCheck } from "./utils";
@@ -99,6 +100,12 @@ interface SaleBatchData {
   customer_contact: string;
   sale_date?: Date;
   transaction_id?: string;
+  referral_user_id?: string;
+  referral_name?: string;
+  // Pickup information
+  picked_by_type?: string;
+  picked_by_name?: string;
+  picked_by_contact?: string;
 }
 
 export async function addSaleBatch(batchData: Omit<SaleBatchData, "id">) {
@@ -199,22 +206,19 @@ export async function getSaleBatches(
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  // Get total count
-  const countResult = await db
-    .select({ count: count() })
-    .from(saleBatches)
-    .where(whereClause);
+  // Run count and data queries in parallel for better performance
+  const [countResult, data] = await Promise.all([
+    db.select({ count: count() }).from(saleBatches).where(whereClause),
+    db
+      .select()
+      .from(saleBatches)
+      .where(whereClause)
+      .orderBy(desc(saleBatches.sale_date))
+      .limit(limit)
+      .offset(offset),
+  ]);
 
   const total = Number(countResult[0]?.count || 0);
-
-  // Get paginated data
-  const data = await db
-    .select()
-    .from(saleBatches)
-    .where(whereClause)
-    .orderBy(desc(saleBatches.sale_date))
-    .limit(limit)
-    .offset(offset);
 
   // Convert numeric fields to numbers and cast to our custom SaleBatch type
   const batches = data.map((batch) => ({
@@ -239,6 +243,11 @@ export async function getSaleBatches(
     transaction_id: string | null;
     notes: string | null;
     note_by: string | null;
+    referral_user_id: string | null;
+    referral_name: string | null;
+    picked_by_type: string | null;
+    picked_by_name: string | null;
+    picked_by_contact: string | null;
   }>;
 
   return {
@@ -1110,6 +1119,12 @@ export async function processMeterSale({
     customerCounty: string;
     customerContact: string;
     saleDate: Date;
+    referralUserId?: string;
+    referralName?: string;
+    // Pickup information
+    pickedByType?: string;
+    pickedByName?: string;
+    pickedByContact?: string;
   };
 }) {
   // Input validation
@@ -1253,6 +1268,11 @@ export async function processMeterSale({
               customer_contact: saleDetails.customerContact,
               sale_date: saleDetails.saleDate,
               transaction_id: transactionData.id,
+              referral_user_id: saleDetails.referralUserId,
+              referral_name: saleDetails.referralName,
+              picked_by_type: saleDetails.pickedByType,
+              picked_by_name: saleDetails.pickedByName,
+              picked_by_contact: saleDetails.pickedByContact,
             } satisfies Omit<SaleBatchData, "id">;
           }
         );
@@ -1659,6 +1679,56 @@ export async function processAgentMeterSale({
       return result;
     } catch (error) {
       console.error("Error processing agent meter sale:", error);
+      throw error;
+    }
+  });
+}
+
+/**
+ * Update pickup information for a sale batch
+ * This allows adding/editing pickup details after the initial sale
+ */
+export async function updateSaleBatchPickupInfo({
+  batchId,
+  pickedByType,
+  pickedByName,
+  pickedByContact,
+  updatedBy,
+}: {
+  batchId: string;
+  pickedByType?: string | null;
+  pickedByName?: string | null;
+  pickedByContact?: string | null;
+  updatedBy: string;
+}) {
+  return withActiveUserCheck(updatedBy, async () => {
+    try {
+      // Verify the batch exists
+      const [existingBatch] = await db
+        .select({ id: saleBatches.id })
+        .from(saleBatches)
+        .where(eq(saleBatches.id, batchId))
+        .limit(1);
+
+      if (!existingBatch) {
+        throw new Error("Sale batch not found");
+      }
+
+      // Update the pickup information
+      const [updatedBatch] = await db
+        .update(saleBatches)
+        .set({
+          picked_by_type: pickedByType ?? null,
+          picked_by_name: pickedByName ?? null,
+          picked_by_contact: pickedByContact ?? null,
+        })
+        .where(eq(saleBatches.id, batchId))
+        .returning();
+
+      revalidatePath("/sales");
+      return updatedBatch;
+    } catch (error) {
+      console.error("Error updating pickup info:", error);
       throw error;
     }
   });

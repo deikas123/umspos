@@ -35,13 +35,18 @@ interface CustomerDistributionCardProps {
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length > 0) {
+    const label = payload[0].payload.type || payload[0].payload.region;
+    const capitalizedLabel = label
+      .split(" ")
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
     return (
       <div className='bg-white p-3 border rounded-lg shadow-lg'>
-        <p className='font-medium'>
-          {payload[0].payload.type || payload[0].payload.region}
-        </p>
+        <p className='font-medium text-sm'>{capitalizedLabel}</p>
         <p className='text-sm text-muted-foreground'>
-          Count: <span className='font-medium'>{payload[0].value}</span>
+          Sales:{" "}
+          <span className='font-medium text-primary'>{payload[0].value}</span>
         </p>
       </div>
     );
@@ -58,9 +63,13 @@ export function CustomerDistributionCard({
 
   const getMostCommonType = () => {
     if (!customerTypeData.length) return "N/A";
-    return customerTypeData.reduce((prev, current) =>
+    const mostCommon = customerTypeData.reduce((prev, current) =>
       prev.count > current.count ? prev : current
     ).type;
+    return mostCommon
+      .split(" ")
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   };
 
   const getMostCommonRegion = () => {
@@ -111,15 +120,27 @@ export function CustomerDistributionCard({
           </TabsList>
 
           <TabsContent value='customer' className='mt-0'>
-            <div className='h-[280px] w-full'>
+            <div className='h-[320px] w-full'>
               <ResponsiveContainer width='100%' height='100%'>
                 <RadarChart
                   data={customerTypeData}
-                  margin={{ top: 0, right: 30, bottom: 0, left: 30 }}>
-                  <PolarGrid stroke='hsl(var(--border))' />
+                  margin={{ top: 10, right: 40, bottom: 10, left: 40 }}>
+                  <PolarGrid
+                    stroke='hsl(var(--border))'
+                    strokeDasharray='3 3'
+                  />
                   <PolarAngleAxis
                     dataKey='type'
-                    tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }}
+                    tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }}
+                    tickFormatter={(value) =>
+                      value
+                        .split(" ")
+                        .map(
+                          (word: string) =>
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                        )
+                        .join(" ")
+                    }
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Radar
@@ -127,11 +148,14 @@ export function CustomerDistributionCard({
                     dataKey='count'
                     stroke='hsl(var(--primary))'
                     fill='hsl(var(--primary))'
-                    fillOpacity={0.4}
+                    fillOpacity={0.5}
+                    strokeWidth={2}
                     dot={{
-                      r: 4,
+                      r: 5,
                       fill: "hsl(var(--primary))",
                       fillOpacity: 1,
+                      strokeWidth: 2,
+                      stroke: "#fff",
                     }}
                   />
                 </RadarChart>

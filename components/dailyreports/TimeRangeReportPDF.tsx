@@ -417,7 +417,13 @@ const TimeRangeReportPDF = ({
                   <View style={styles.metaItem}>
                     <Text style={styles.metaLabel}>Customer Type</Text>
                     <Text style={styles.metaValue}>
-                      {sale.customer_type || "N/A"}
+                      {sale.customer_type
+                        ?.split(" ")
+                        .map(
+                          (word: string) =>
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                        )
+                        .join(" ") || "N/A"}
                     </Text>
                   </View>
                 </View>

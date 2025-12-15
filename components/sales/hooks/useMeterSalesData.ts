@@ -18,6 +18,12 @@ export interface SaleBatch {
   transaction_id: string | null;
   notes: string | null;
   note_by: string | null;
+  referral_user_id: string | null;
+  referral_name: string | null;
+  // Pickup information
+  picked_by_type: string | null;
+  picked_by_name: string | null;
+  picked_by_contact: string | null;
 }
 
 export interface SaleBatchesResponse {

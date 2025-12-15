@@ -279,20 +279,18 @@ export async function getAllNotifications(
   try {
     const offset = (page - 1) * pageSize;
 
-    // Get total count
-    const [countResult] = await db
-      .select({ count: count() })
-      .from(notifications);
+    // Run count and data queries in parallel for better performance
+    const [countResult, result] = await Promise.all([
+      db.select({ count: count() }).from(notifications),
+      db
+        .select()
+        .from(notifications)
+        .orderBy(desc(notifications.created_at))
+        .limit(pageSize)
+        .offset(offset),
+    ]);
 
-    const totalCount = countResult?.count || 0;
-
-    // Get paginated results
-    const result = await db
-      .select()
-      .from(notifications)
-      .orderBy(desc(notifications.created_at))
-      .limit(pageSize)
-      .offset(offset);
+    const totalCount = countResult[0]?.count || 0;
 
     return {
       notifications: result,

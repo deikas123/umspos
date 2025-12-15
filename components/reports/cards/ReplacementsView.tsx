@@ -6,8 +6,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import React, { useState } from "react";
-import { RefreshCw, AlertCircle, X, Loader2 } from "lucide-react";
+import {
+  RefreshCw,
+  AlertCircle,
+  X,
+  Loader2,
+  Download,
+  File,
+  FileSpreadsheet,
+  FileText,
+} from "lucide-react";
 import { getMeterReplacements } from "@/lib/actions/reports";
 import { EmptyState } from "./EmptyState";
 import { useQuery } from "@tanstack/react-query";
@@ -15,9 +30,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { DatePicker } from "@/components/ui/date-picker";
-import { format } from "date-fns";
 import { CalendarDate } from "@internationalized/date";
 import { cn } from "@/lib/utils";
+import { formatDate, formatISODate } from "@/lib/utils/dateUtils";
+import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 import {
   Pagination,
   PaginationContent,
@@ -89,7 +108,7 @@ export default function ReplacementsView() {
     const matchesDate =
       !selectedDate ||
       !replacement.replacement_date ||
-      format(replacement.replacement_date, "yyyy-MM-dd") ===
+      formatISODate(replacement.replacement_date) ===
         `${selectedDate.year}-${String(selectedDate.month).padStart(2, "0")}-${String(selectedDate.day).padStart(2, "0")}`;
 
     return matchesSearch && matchesDate;
@@ -102,6 +121,71 @@ export default function ReplacementsView() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentReplacements = filteredReplacements?.slice(startIndex, endIndex);
+
+  const handleExportCSV = () => {
+    if (!filteredReplacements || filteredReplacements.length === 0) return;
+    const data = filteredReplacements.map((r, index) => ({
+      "#": index + 1,
+      "Original Serial": r.serial_number,
+      "Replacement Serial": r.replacement_serial || "-",
+      Customer: r.recipient || "-",
+      Contact: r.customer_contact || "-",
+      "Replaced By": r.replacement_by || "-",
+      Date: r.replacement_date ? formatDate(r.replacement_date) : "-",
+    }));
+    generateCSV(data, "meter_replacements");
+  };
+
+  const handleExportXLSX = () => {
+    if (!filteredReplacements || filteredReplacements.length === 0) return;
+    const data = filteredReplacements.map((r, index) => ({
+      "#": index + 1,
+      "Original Serial": r.serial_number,
+      "Replacement Serial": r.replacement_serial || "-",
+      Customer: r.recipient || "-",
+      Contact: r.customer_contact || "-",
+      "Replaced By": r.replacement_by || "-",
+      Date: r.replacement_date ? formatDate(r.replacement_date) : "-",
+    }));
+    generateXLSX(data, "meter_replacements", "Replacements");
+  };
+
+  const handleExportPDF = async () => {
+    if (!filteredReplacements || filteredReplacements.length === 0) return;
+    const headers = [
+      "#",
+      "Original Serial",
+      "Replacement Serial",
+      "Customer",
+      "Replaced By",
+      "Date",
+    ];
+    const data = filteredReplacements.map((r, index) => [
+      String(index + 1),
+      r.serial_number,
+      r.replacement_serial || "-",
+      r.recipient || "-",
+      r.replacement_by || "-",
+      r.replacement_date ? formatDate(r.replacement_date) : "-",
+    ]);
+
+    const blob = await pdf(
+      <TableReportPDF
+        title='Meter Replacements Report'
+        headers={headers}
+        data={data}
+      />
+    ).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "meter_replacements.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   if (error) {
     return (
@@ -129,20 +213,48 @@ export default function ReplacementsView() {
             <RefreshCw className='h-5 w-5 text-blue-500' />
             Meter Replacements
           </h2>
-          <Button
-            variant='outline'
-            size='icon'
-            onClick={handleRefresh}
-            disabled={isLoading || isRefreshing}
-            aria-label='Refresh replacement data'
-            className='hover:bg-gray-100 cursor-pointer'>
-            <RefreshCw
-              className={cn(
-                "h-4 w-4 transition-transform",
-                (isLoading || isRefreshing) && "animate-spin"
-              )}
-            />
-          </Button>
+          <div className='flex items-center gap-2'>
+            {filteredReplacements && filteredReplacements.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    className='hover:bg-gray-100 cursor-pointer'>
+                    <Download className='h-4 w-4' />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                    <File className='h-4 w-4 mr-2' />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportXLSX}>
+                    <FileSpreadsheet className='h-4 w-4 mr-2' />
+                    Export as XLSX
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>
+                    <FileText className='h-4 w-4 mr-2' />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button
+              variant='outline'
+              size='icon'
+              onClick={handleRefresh}
+              disabled={isLoading || isRefreshing}
+              aria-label='Refresh replacement data'
+              className='hover:bg-gray-100 cursor-pointer'>
+              <RefreshCw
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  (isLoading || isRefreshing) && "animate-spin"
+                )}
+              />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -214,7 +326,7 @@ export default function ReplacementsView() {
                           </TableCell>
                           <TableCell>
                             {replacement.replacement_date
-                              ? replacement.replacement_date.toLocaleDateString()
+                              ? formatDate(replacement.replacement_date)
                               : "-"}
                           </TableCell>
                         </TableRow>

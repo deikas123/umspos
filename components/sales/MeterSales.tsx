@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import Loader from "@/components/ui/Loader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatDate } from "@/lib/utils/dateUtils";
+import { getPendingUpdateRequestBatchIds } from "@/lib/actions/sale-updates";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { AddNoteDialog } from "./AddNoteDialog";
+import { EditSaleDialog } from "./EditSaleDialog";
 import GenerateReceiptDialog from "./GenerateReceiptDialog";
 import { useMeterSalesData } from "./hooks/useMeterSalesData";
 import type { SaleBatch, SaleBatchesResponse } from "./hooks/useMeterSalesData";
@@ -28,15 +32,6 @@ interface MeterSalesProps {
   readonly initialData?: SaleBatchesResponse;
 }
 
-function formatSaleDate(date: Date | null) {
-  if (!date) return "N/A";
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
 export default function MeterSales({ initialData }: MeterSalesProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const filtersState = useMeterSalesFilters();
@@ -52,6 +47,16 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
     refetch,
   } = useMeterSalesData(currentPage, ITEMS_PER_PAGE, filters, initialData);
 
+  // Fetch pending update request batch IDs
+  const {
+    data: pendingRequestBatchIds = [],
+    refetch: refetchPendingRequestBatchIds,
+  } = useQuery({
+    queryKey: ["pendingUpdateRequestBatchIds"],
+    queryFn: getPendingUpdateRequestBatchIds,
+    staleTime: 1000 * 60, // 1 minute
+  });
+
   const {
     selectedBatchId,
     toggleBatchSelection,
@@ -59,6 +64,28 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
     resetSelection,
   } = useMeterSalesSelection();
   const noteDialog = useNoteDialogState();
+
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedEditBatch, setSelectedEditBatch] = useState<SaleBatch | null>(
+    null
+  );
+
+  const handleOpenEditDialog = useCallback((batch: SaleBatch) => {
+    setSelectedEditBatch(batch);
+    setEditDialogOpen(true);
+  }, []);
+
+  const handleEditDialogClose = useCallback((open: boolean) => {
+    setEditDialogOpen(open);
+    if (!open) {
+      setSelectedEditBatch(null);
+    }
+  }, []);
+
+  const handleEditSuccess = useCallback(async () => {
+    await Promise.all([refetch(), refetchPendingRequestBatchIds()]);
+  }, [refetch, refetchPendingRequestBatchIds]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -69,7 +96,10 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
 
   const handleRefresh = async () => {
     try {
-      await refetch({ throwOnError: true });
+      await Promise.all([
+        refetch({ throwOnError: true }),
+        refetchPendingRequestBatchIds(),
+      ]);
       toast.success("Sales data refreshed");
     } catch (err) {
       console.error("Failed to refresh sales data:", err);
@@ -80,13 +110,11 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
   const currentBatches = saleBatches;
   const totalPages = pagination.totalPages;
 
-  const { handleExportPDF, handleExportCSV, isExporting } = useMeterSalesExport(
-    currentBatches,
-    {
-      formatDate: formatSaleDate,
+  const { handleExportPDF, handleExportCSV, handleExportXLSX, isExporting } =
+    useMeterSalesExport(currentBatches, {
+      formatDate,
       filters,
-    }
-  );
+    });
 
   const handleOpenNoteDialog = (batch: SaleBatch) => {
     noteDialog.openDialog(batch);
@@ -95,17 +123,6 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
   const handleNoteSuccess = async () => {
     await refetch();
   };
-
-  const isInitialLoad =
-    isLoading && !saleBatches.length && pagination.total === 0;
-
-  if (isInitialLoad) {
-    return (
-      <div className='relative flex items-center justify-center min-h-[60vh]'>
-        <Loader />
-      </div>
-    );
-  }
 
   if (isError) {
     return (
@@ -145,6 +162,7 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
         onSelectedDateChange={filtersState.setSelectedDate}
         onClearFilters={clearFilters}
         onExportCSV={handleExportCSV}
+        onExportXLSX={handleExportXLSX}
         onExportPDF={handleExportPDF}
       />
 
@@ -165,10 +183,12 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
             <MeterSalesTable
               batches={currentBatches}
               selectedBatchId={selectedBatchId}
+              pendingRequestBatchIds={pendingRequestBatchIds}
               onToggleBatch={toggleBatchSelection}
               onSheetOpenChange={handleSheetOpenChange}
               onOpenNoteDialog={handleOpenNoteDialog}
-              formatDate={formatSaleDate}
+              onOpenEditDialog={handleOpenEditDialog}
+              formatDate={formatDate}
             />
           ) : (
             <MeterSalesEmptyState message='No sales data available' />
@@ -196,6 +216,15 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
             await handleNoteSuccess();
             noteDialog.resetDialog();
           }}
+        />
+      )}
+
+      {selectedEditBatch && (
+        <EditSaleDialog
+          batch={selectedEditBatch}
+          open={editDialogOpen}
+          onOpenChange={handleEditDialogClose}
+          onSuccess={handleEditSuccess}
         />
       )}
     </div>

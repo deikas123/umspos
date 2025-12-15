@@ -164,20 +164,22 @@ export async function createUser(
     // Require admin role to create users
     await requireAdmin();
 
-    // Create user with Better Auth Admin API
-    // Use the data field for custom fields AND set the top-level role
+    const betterAuthRole =
+      role === "admin" || role === "super_admin" ? "admin" : "user";
+
     const result = await auth.api.createUser({
       headers: await headers(),
       body: {
         email,
         password,
         name,
-        role: role === "admin" ? "admin" : "user", // Set the Better Auth role
+        role: betterAuthRole,
         data: {
           displayName: name,
           appRole: role,
           isActive: true,
           phoneNumber: phoneNumber,
+          twoFactorEnabled: true,
         },
       },
     });

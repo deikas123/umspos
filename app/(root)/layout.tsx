@@ -1,9 +1,8 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import Navbar from "@/components/navigation/Navbar";
 import { AppSidebar } from "@/components/navigation/AppSidebar";
-import { NavigationProgress } from "@/components/navigation/NavigationProgress";
-import { PrefetchProvider } from "@/components/providers/PrefetchProvider";
 import { Suspense } from "react";
+import { AuthGate } from "@/components/navigation/AuthGate";
 
 function NavbarFallback() {
   return (
@@ -17,22 +16,17 @@ export default function AppLayout({
   readonly children: React.ReactNode;
 }) {
   return (
-    <PrefetchProvider>
-      <SidebarProvider>
-        <Suspense fallback={null}>
-          <NavigationProgress />
-        </Suspense>
-        <Suspense fallback={<NavbarFallback />}>
-          <Navbar />
-        </Suspense>
+    <SidebarProvider>
+      <Suspense fallback={<NavbarFallback />}>
+        <Navbar />
+      </Suspense>
 
-        <div className='flex pt-16 w-full h-full px-2'>
-          <AppSidebar />
-          <SidebarInset>
-            <div>{children}</div>
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
-    </PrefetchProvider>
+      <div className='flex pt-16 w-full h-full px-2'>
+        <AppSidebar />
+        <SidebarInset>
+          <AuthGate>{children}</AuthGate>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 }

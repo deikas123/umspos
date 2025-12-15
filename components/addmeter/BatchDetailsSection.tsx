@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit2, Loader2 } from "lucide-react";
 import BatchDetailsDialog from "./BatchDetailsDialog";
+import { formatDate } from "@/lib/utils/dateUtils";
 
 interface BatchDetails {
   purchaseDate: string;
@@ -60,8 +61,7 @@ export function BatchDetailsSection({
             <Badge
               variant='secondary'
               className='bg-gradient-to-r from-blue-500/50 to-indigo-500/50 text-black'>
-              Purchase Date:{" "}
-              {new Date(batchDetails.purchaseDate).toLocaleDateString()}
+              Purchase Date: {formatDate(batchDetails.purchaseDate)}
             </Badge>
             {batchDetails.batchGroups.map((group) => (
               <Badge

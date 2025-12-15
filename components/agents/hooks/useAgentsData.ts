@@ -1,17 +1,24 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAgentsList } from "@/lib/actions/agents";
+import { getAgentsList, getAgentInventoryCount } from "@/lib/actions/agents";
 import { getCurrentUser } from "@/lib/actions/users";
 
 // Define interfaces - matches the return type from getAgentsList
-interface Agent {
+export interface Agent {
   id: string;
   name: string;
   phone_number: string;
   location: string;
   county: string;
+  agent_type: string;
   is_active: boolean | null;
   created_at: Date | null;
   total_meters: number;
+}
+
+// Type for meter count by type
+interface MeterTypeCount {
+  type: string;
+  with_agents: number;
 }
 
 // Type for initial data from server
@@ -23,6 +30,7 @@ export interface AgentsPageData {
 const AGENTS_KEYS = {
   all: ["agents"] as const,
   lists: () => [...AGENTS_KEYS.all, "list"] as const,
+  meterCounts: () => [...AGENTS_KEYS.all, "meterCounts"] as const,
 } as const;
 
 // 1 hour stale time since agent data changes less frequently
@@ -53,6 +61,23 @@ export function useAgentsData(initialData?: AgentsPageData) {
     refetchOnMount: !hasInitialData,
   });
 
+  // Query for meter counts by type
+  const { data: meterTypeCounts = [] } = useQuery({
+    queryKey: AGENTS_KEYS.meterCounts(),
+    queryFn: getAgentInventoryCount,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+  });
+
+  // Convert meter counts array to a record for easy lookup
+  const meterCounts = meterTypeCounts.reduce(
+    (acc, item) => {
+      acc[item.type.toLowerCase()] = item.with_agents;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
   // Query for current user - getCurrentUser now returns displayName directly
   const { data: currentUser } = useQuery({
     queryKey: ["currentUser"],
@@ -68,6 +93,7 @@ export function useAgentsData(initialData?: AgentsPageData) {
     agentsData: {
       agents,
       currentUser,
+      meterCounts,
     },
     isLoading,
     isFetching,

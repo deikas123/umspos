@@ -19,6 +19,7 @@ import {
 import { X, Loader2 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import MeterReturnReceipt from "../sharedcomponents/MeterReturnReceipt";
+import { formatDate } from "@/lib/utils/dateUtils";
 
 interface ReturnMetersFromAgentProps {
   agent: {
@@ -272,11 +273,7 @@ export default function ReturnMetersFromAgent({
                         <TableRow key={index}>
                           <TableCell>{meter.serialNumber}</TableCell>
                           <TableCell>{meter.type}</TableCell>
-                          <TableCell>
-                            {meter.assignedAt
-                              ? new Date(meter.assignedAt).toLocaleDateString()
-                              : "N/A"}
-                          </TableCell>
+                          <TableCell>{formatDate(meter.assignedAt)}</TableCell>
                           <TableCell>
                             <Button
                               onClick={() => handleRemoveMeter(index)}

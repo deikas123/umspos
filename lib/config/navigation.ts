@@ -1,4 +1,18 @@
-import { Home, ShoppingCart, BarChart2, Users, PlusCircle, DollarSign, Calendar, HandPlatter, ArrowLeftCircle, SmilePlus } from "lucide-react";
+import {
+  Home,
+  ShoppingCart,
+  BarChart2,
+  Users,
+  PlusCircle,
+  DollarSign,
+  Calendar,
+  HandPlatter,
+  ArrowLeftCircle,
+  SmilePlus,
+  ClipboardCheck,
+  FileText,
+  ClipboardList,
+} from "lucide-react";
 import type { UserRole } from "@/lib/utils/rolePermissions";
 
 export interface NavItem {
@@ -7,6 +21,9 @@ export interface NavItem {
   icon: any;
   adminOnly?: boolean;
   requiresReportAccess?: boolean;
+  requiresApprovalAccess?: boolean;
+  salesPersonOnly?: boolean;
+  requiresProspectViewAccess?: boolean;
 }
 
 export interface ActionItem {
@@ -30,6 +47,24 @@ export const navigationItems: NavItem[] = [
   },
   { title: "Users", url: "/users", icon: Users },
   { title: "Agents", url: "/agents", icon: HandPlatter },
+  {
+    title: "Approvals",
+    url: "/approvals",
+    icon: ClipboardCheck,
+    requiresApprovalAccess: true,
+  },
+  {
+    title: "Client Form",
+    url: "/prospects/new",
+    icon: FileText,
+    salesPersonOnly: true,
+  },
+  {
+    title: "Prospects List",
+    url: "/prospects",
+    icon: ClipboardList,
+    requiresProspectViewAccess: true,
+  },
 ];
 
 export const actionItems: ActionItem[] = [
@@ -72,22 +107,49 @@ export const actionItems: ActionItem[] = [
   },
 ];
 
-export function hasNavigationAccess(item: NavItem, userRole: UserRole): boolean {
+export function hasNavigationAccess(
+  item: NavItem,
+  userRole: UserRole
+): boolean {
+  // Sales person can ONLY see their Client Form page
+  if (userRole === "sales_person") {
+    return item.salesPersonOnly === true;
+  }
+
+  // Sales person only pages are not visible to other roles
+  if (item.salesPersonOnly) {
+    return false;
+  }
+
+  if (item.requiresProspectViewAccess) {
+    return userRole === "super_admin" || userRole === "admin";
+  }
+  if (item.requiresApprovalAccess) {
+    return userRole === "super_admin";
+  }
   if (item.requiresReportAccess) {
-    return userRole === "admin" || userRole === "accountant";
+    return (
+      userRole === "super_admin" ||
+      userRole === "admin" ||
+      userRole === "accountant"
+    );
   }
   if (item.adminOnly) {
-    return userRole === "admin";
+    return userRole === "super_admin" || userRole === "admin";
   }
   return true;
 }
 
 export function hasActionAccess(item: ActionItem, userRole: UserRole): boolean {
   if (item.adminOnly) {
-    return userRole === "admin";
+    return userRole === "super_admin" || userRole === "admin";
   }
   if (item.requiresAuth) {
-    return userRole === "admin" || userRole === "accountant";
+    return (
+      userRole === "super_admin" ||
+      userRole === "admin" ||
+      userRole === "accountant"
+    );
   }
   return true;
 }

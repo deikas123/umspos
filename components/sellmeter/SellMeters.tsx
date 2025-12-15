@@ -29,6 +29,20 @@ interface UnitPrices {
   [key: string]: string;
 }
 
+// Referral info - either a registered user or a custom name
+interface ReferralInfo {
+  userId?: string;
+  name: string;
+  isRegistered: boolean;
+}
+
+// Pickup info - who collected the meters
+interface PickupInfo {
+  type: "customer" | "rider";
+  name: string;
+  contact: string;
+}
+
 interface SaleDetails {
   destination: string;
   recipient: string;
@@ -38,6 +52,8 @@ interface SaleDetails {
   customerCounty: string;
   customerContact: string;
   saleDate: any;
+  referral?: ReferralInfo;
+  pickup?: PickupInfo;
 }
 
 const MAX_SERIAL_LENGTH = 12;
@@ -312,6 +328,11 @@ export default function SellMeters({ currentUser }: { currentUser: any }) {
           customerCounty: saleDetails.customerCounty,
           customerContact: saleDetails.customerContact,
           saleDate: selectedDate,
+          referralUserId: saleDetails.referral?.userId,
+          referralName: saleDetails.referral?.name,
+          pickedByType: saleDetails.pickup?.type,
+          pickedByName: saleDetails.pickup?.name,
+          pickedByContact: saleDetails.pickup?.contact,
         },
       });
 
@@ -330,6 +351,10 @@ export default function SellMeters({ currentUser }: { currentUser: any }) {
           customerContact: saleDetails.customerContact,
           saleDate: selectedDate.toISOString(),
           referenceNumber: result.referenceNumber,
+          referralName: saleDetails.referral?.name,
+          pickedByType: saleDetails.pickup?.type,
+          pickedByName: saleDetails.pickup?.name,
+          pickedByContact: saleDetails.pickup?.contact,
         })
       );
 
@@ -440,7 +465,7 @@ export default function SellMeters({ currentUser }: { currentUser: any }) {
         </SheetTitle>
       </SheetHeader>
 
-      <div className='flex-1 overflow-y-auto px-6 py-4'>
+      <div className='flex-1 overflow-y-auto px-4 py-4'>
         <div className='space-y-4'>
           <Input
             ref={serialInputRef}

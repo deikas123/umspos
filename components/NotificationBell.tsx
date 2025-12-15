@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { formatNotificationDate } from "@/lib/utils/dateUtils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -84,7 +84,14 @@ function NotificationList({
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!loadMoreRef.current) return;
+    if (!loadMoreRef.current || !scrollContainerRef.current) return;
+
+    // Get the actual scroll viewport from Radix ScrollArea
+    const scrollViewport = scrollContainerRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    );
+
+    if (!scrollViewport) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -92,13 +99,17 @@ function NotificationList({
           fetchNextPage();
         }
       },
-      { threshold: 0.1 }
+      {
+        root: scrollViewport,
+        threshold: 0.1,
+        rootMargin: "100px",
+      }
     );
 
     observer.observe(loadMoreRef.current);
 
     return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, scrollContainerRef]);
 
   return (
     <ScrollArea ref={scrollContainerRef} className='h-full'>
@@ -170,7 +181,7 @@ function NotificationList({
                   )}
                   <div className='text-xs text-gray-500 mt-2'>
                     {notification.created_at
-                      ? format(new Date(notification.created_at), "PPp")
+                      ? formatNotificationDate(notification.created_at)
                       : "Unknown date"}
                   </div>
                 </button>
@@ -329,10 +340,10 @@ export function NotificationBell() {
       </SheetTrigger>
       <SheetContent
         side='right'
-        className={`bg-gray-50 border-l border-gray-200 px-2 ${
-          isMobile ? "w-[90vw]" : "min-w-[30vw]"
+        className={`bg-gray-50 border-l border-gray-200 px-2 pb-6 ${
+          isMobile ? "w-[90vw]" : "min-w-[40vw]"
         }`}>
-        <SheetHeader className='pb-4 border-b border-gray-200'>
+        <SheetHeader className='border-b border-gray-200'>
           <SheetTitle className='text-gray-900'>
             <HeaderContent
               unreadCount={unreadCount}

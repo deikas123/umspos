@@ -1,108 +1,283 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-  PaginationEllipsis,
-} from "@/components/ui/pagination";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
-import { useAgentTransactions } from "./hooks/useAgentTransactions";
-import { RefreshCw, Search, History } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import {
+  useAgentTransactions,
+  TransactionFilters,
+  getAllTransactionsForExport,
+} from "./hooks/useAgentTransactions";
+import { useAgentsData } from "./hooks/useAgentsData";
+import { formatDateTimeShort, formatDate } from "@/lib/utils/dateUtils";
 import Loader from "@/components/ui/Loader";
 import { useDebounce } from "@/hooks/use-debounce";
+import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
+import type { DateValue } from "@internationalized/date";
+import { getLocalTimeZone } from "@internationalized/date";
 
-const EmptyState = () => (
-  <div className='flex flex-col items-center justify-center p-8 text-gray-500'>
-    <div className='relative'>
-      <History className='w-12 h-12 mb-4 text-gray-400' />
-      <span className='absolute -bottom-1 -right-1 flex h-3 w-3'>
-        <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75'></span>
-        <span className='relative inline-flex rounded-full h-3 w-3 bg-primary'></span>
-      </span>
-    </div>
-    <p className='text-sm font-medium'>No transaction history yet</p>
-    <p className='text-xs text-gray-400 mt-1'>
-      Agent transactions will appear here
-    </p>
-  </div>
-);
+import {
+  HistoryFiltersBar,
+  HistoryTable,
+  HistoryMobileList,
+  HistoryPagination,
+  ITEMS_PER_PAGE,
+} from "./history";
+import type { HistoryFilters, Agent } from "./history";
 
-const getTransactionTypeBadge = (type: string) => {
-  const variants: Record<string, { variant: any; className: string }> = {
-    assignment: {
-      variant: "outline",
-      className: "bg-blue-100 text-blue-800 border-blue-300",
-    },
-    sale: {
-      variant: "outline",
-      className: "bg-green-100 text-green-800 border-green-300",
-    },
-    return: {
-      variant: "outline",
-      className: "bg-orange-100 text-orange-800 border-orange-300",
-    },
-  };
-
-  const config = variants[type] || variants.assignment;
-
-  return (
-    <Badge variant={config.variant} className={config.className}>
-      {type.charAt(0).toUpperCase() + type.slice(1)}
-    </Badge>
-  );
-};
-
-const getMeterTypeBadge = (type: string) => {
-  return (
-    <Badge variant='secondary' className='bg-gray-100 text-gray-800'>
-      {type}
-    </Badge>
-  );
+const capitalizeMeterType = (type: string) => {
+  if (type === "3 phase") return "3 Phase";
+  return type
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
 
 export default function AgentHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+
+  // Filter states
+  const [transactionType, setTransactionType] = useState<string | undefined>();
+  const [meterType, setMeterType] = useState<string | undefined>();
+  const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>();
+  const [dateRange, setDateRange] = useState<{
+    start: DateValue;
+    end: DateValue;
+  } | null>(null);
+  const [singleDate, setSingleDate] = useState<DateValue | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Get agents for filter dropdown
+  const { agentsData } = useAgentsData();
+  const agents: Agent[] = agentsData?.agents || [];
+
+  // Convert DateValue to Date for filters
+  const getDateFromValue = (value: DateValue | undefined | null) => {
+    if (!value) return undefined;
+    return value.toDate(getLocalTimeZone());
+  };
+
+  // Build filters object for the query
+  const queryFilters: TransactionFilters = {
+    transactionType,
+    meterType,
+    agentId: selectedAgentId,
+    // If single date is set, use it as both start and end date
+    startDate: singleDate
+      ? getDateFromValue(singleDate)
+      : getDateFromValue(dateRange?.start),
+    endDate: singleDate
+      ? getDateFromValue(singleDate)
+      : getDateFromValue(dateRange?.end),
+  };
 
   const { data, isLoading, isError, error, refetch, isFetching } =
-    useAgentTransactions(currentPage, itemsPerPage, debouncedSearchTerm);
+    useAgentTransactions(
+      currentPage,
+      ITEMS_PER_PAGE,
+      debouncedSearchTerm,
+      queryFilters
+    );
 
-  const handleRefresh = async () => {
+  // Combined filters for the UI component
+  const uiFilters: HistoryFilters = {
+    transactionType,
+    meterType,
+    selectedAgentId,
+    dateRange,
+    singleDate,
+    searchTerm,
+  };
+
+  const handleRefresh = useCallback(async () => {
     try {
       await refetch({ cancelRefetch: false, throwOnError: true });
       toast.success("Transaction history refreshed");
-    } catch (error) {
-      console.error("Failed to refresh data:", error);
+    } catch (err) {
+      console.error("Failed to refresh data:", err);
       toast.error("Failed to refresh data");
     }
-  };
+  }, [refetch]);
 
   const isRefreshing = isFetching && !isLoading;
 
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
     setSearchTerm(value);
     setCurrentPage(1);
-  };
+  }, []);
+
+  const handleTransactionTypeChange = useCallback(
+    (value: string | undefined) => {
+      setTransactionType(value);
+      setCurrentPage(1);
+    },
+    []
+  );
+
+  const handleMeterTypeChange = useCallback((value: string | undefined) => {
+    setMeterType(value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleAgentChange = useCallback((value: string | undefined) => {
+    setSelectedAgentId(value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleDateRangeChange = useCallback(
+    (value: { start: DateValue; end: DateValue } | null) => {
+      setDateRange(value);
+      // Clear single date when range is selected
+      if (value) setSingleDate(null);
+      setCurrentPage(1);
+    },
+    []
+  );
+
+  const handleSingleDateChange = useCallback((value: DateValue | null) => {
+    setSingleDate(value);
+    // Clear date range when single date is selected
+    if (value) setDateRange(null);
+    setCurrentPage(1);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setTransactionType(undefined);
+    setMeterType(undefined);
+    setSelectedAgentId(undefined);
+    setDateRange(null);
+    setSingleDate(null);
+    setSearchTerm("");
+    setCurrentPage(1);
+  }, []);
+
+  // Export functions
+  const formatTransactionForExport = useCallback(
+    (transaction: any) => ({
+      Date: transaction.transaction_date
+        ? formatDateTimeShort(transaction.transaction_date)
+        : "N/A",
+      "Agent Name": transaction.agent_name || "Unknown Agent",
+      "Transaction Type":
+        transaction.transaction_type.charAt(0).toUpperCase() +
+        transaction.transaction_type.slice(1),
+      "Meter Type": capitalizeMeterType(transaction.meter_type),
+      Quantity: transaction.quantity,
+    }),
+    []
+  );
+
+  const handleExportCSV = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const allTransactions = await getAllTransactionsForExport(
+        debouncedSearchTerm,
+        queryFilters
+      );
+      if (!allTransactions || allTransactions.length === 0) {
+        toast.error("No data to export");
+        return;
+      }
+      const exportData = allTransactions.map(formatTransactionForExport);
+      generateCSV(exportData, "agent-history");
+      toast.success(
+        `CSV exported successfully (${allTransactions.length} records)`
+      );
+    } catch (err) {
+      console.error("Error exporting CSV:", err);
+      toast.error("Failed to export CSV");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [debouncedSearchTerm, queryFilters, formatTransactionForExport]);
+
+  const handleExportXLSX = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const allTransactions = await getAllTransactionsForExport(
+        debouncedSearchTerm,
+        queryFilters
+      );
+      if (!allTransactions || allTransactions.length === 0) {
+        toast.error("No data to export");
+        return;
+      }
+      const exportData = allTransactions.map(formatTransactionForExport);
+      generateXLSX(exportData, "agent-history", "Agent History");
+      toast.success(
+        `XLSX exported successfully (${allTransactions.length} records)`
+      );
+    } catch (err) {
+      console.error("Error exporting XLSX:", err);
+      toast.error("Failed to export XLSX file");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [debouncedSearchTerm, queryFilters, formatTransactionForExport]);
+
+  const handleExportPDF = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const allTransactions = await getAllTransactionsForExport(
+        debouncedSearchTerm,
+        queryFilters
+      );
+      if (!allTransactions || allTransactions.length === 0) {
+        toast.error("No data to export");
+        return;
+      }
+      const headers = [
+        "Date",
+        "Agent Name",
+        "Transaction Type",
+        "Meter Type",
+        "Quantity",
+      ];
+
+      const pdfData = allTransactions.map((t) => [
+        t.transaction_date ? formatDateTimeShort(t.transaction_date) : "N/A",
+        t.agent_name || "Unknown Agent",
+        t.transaction_type.charAt(0).toUpperCase() +
+          t.transaction_type.slice(1),
+        capitalizeMeterType(t.meter_type),
+        t.quantity.toString(),
+      ]);
+
+      const blob = await pdf(
+        <TableReportPDF
+          title='Agent Transaction History'
+          headers={headers}
+          data={pdfData}
+        />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `agent-history-${formatDate(new Date())}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success(
+        `PDF exported successfully (${allTransactions.length} records)`
+      );
+    } catch (err) {
+      console.error("Error exporting PDF:", err);
+      toast.error("Failed to export PDF");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [debouncedSearchTerm, queryFilters]);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
 
   if (isError) {
     return <div>Error: {error?.message}</div>;
@@ -115,40 +290,25 @@ export default function AgentHistory() {
 
   return (
     <div className='space-y-4'>
-      {/* Search and Actions Bar */}
-      <div className='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
-        <div className='relative flex-1 w-full sm:max-w-sm'>
-          <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
-          <Input
-            type='text'
-            placeholder='Search by agent name...'
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className='pl-10'
-          />
-        </div>
-
-        <div className='flex items-center gap-2'>
-          <div className='text-sm text-gray-600'>
-            Total: <span className='font-semibold'>{pagination.total}</span>{" "}
-            transactions
-          </div>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={handleRefresh}
-            className='gap-2 cursor-pointer'
-            disabled={isRefreshing}>
-            <RefreshCw
-              className={cn(
-                "w-4 h-4 transition-transform",
-                isRefreshing && "animate-spin"
-              )}
-            />
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <HistoryFiltersBar
+        filters={uiFilters}
+        agents={agents}
+        onSearchChange={handleSearchChange}
+        onTransactionTypeChange={handleTransactionTypeChange}
+        onMeterTypeChange={handleMeterTypeChange}
+        onAgentChange={handleAgentChange}
+        onDateRangeChange={handleDateRangeChange}
+        onSingleDateChange={handleSingleDateChange}
+        onClearFilters={clearFilters}
+        totalCount={pagination.total}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        onExportCSV={handleExportCSV}
+        onExportXLSX={handleExportXLSX}
+        onExportPDF={handleExportPDF}
+        isExporting={isExporting}
+        hasTransactions={transactions.length > 0}
+      />
 
       {isLoading ? (
         <div className='relative flex items-center justify-center h-64'>
@@ -156,164 +316,16 @@ export default function AgentHistory() {
         </div>
       ) : (
         <>
-          {/* Desktop View */}
-          <div className='hidden md:block'>
-            <Table>
-              <TableHeader>
-                <TableRow className='bg-gray-50'>
-                  <TableHead className='font-semibold'>Date</TableHead>
-                  <TableHead className='font-semibold'>Agent Name</TableHead>
-                  <TableHead className='font-semibold'>
-                    Transaction Type
-                  </TableHead>
-                  <TableHead className='font-semibold'>Meter Type</TableHead>
-                  <TableHead className='font-semibold text-right'>
-                    Quantity
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.length > 0 ? (
-                  transactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>
-                        {transaction.transaction_date
-                          ? format(
-                              new Date(transaction.transaction_date),
-                              "MMM dd, yyyy HH:mm"
-                            )
-                          : "N/A"}
-                      </TableCell>
-                      <TableCell className='font-medium'>
-                        {transaction.agent_name || "Unknown Agent"}
-                      </TableCell>
-                      <TableCell>
-                        {getTransactionTypeBadge(transaction.transaction_type)}
-                      </TableCell>
-                      <TableCell>
-                        {getMeterTypeBadge(transaction.meter_type)}
-                      </TableCell>
-                      <TableCell className='text-right font-semibold'>
-                        {transaction.quantity}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5}>
-                      <EmptyState />
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile View */}
-          <div className='block md:hidden space-y-4'>
-            {transactions.length > 0 ? (
-              transactions.map((transaction) => (
-                <div
-                  key={transaction.id}
-                  className='border rounded-lg p-4 space-y-3'>
-                  <div className='flex items-start justify-between'>
-                    <div>
-                      <p className='font-semibold text-sm'>
-                        {transaction.agent_name || "Unknown Agent"}
-                      </p>
-                      <p className='text-xs text-gray-500'>
-                        {transaction.transaction_date
-                          ? format(
-                              new Date(transaction.transaction_date),
-                              "MMM dd, yyyy HH:mm"
-                            )
-                          : "N/A"}
-                      </p>
-                    </div>
-                    <div className='text-right'>
-                      <p className='text-lg font-bold'>
-                        {transaction.quantity}
-                      </p>
-                      <p className='text-xs text-gray-500'>Meters</p>
-                    </div>
-                  </div>
-
-                  <div className='flex items-center gap-2 flex-wrap'>
-                    {getTransactionTypeBadge(transaction.transaction_type)}
-                    {getMeterTypeBadge(transaction.meter_type)}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState />
-            )}
-          </div>
+          <HistoryTable transactions={transactions} />
+          <HistoryMobileList transactions={transactions} />
         </>
       )}
 
-      {/* Pagination */}
-      {pagination.totalPages > 1 && (
-        <div className='mt-4 flex justify-center'>
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
-                  className={cn(
-                    "cursor-pointer",
-                    currentPage === 1 && "pointer-events-none opacity-50"
-                  )}
-                />
-              </PaginationItem>
-
-              {Array.from({ length: pagination.totalPages }).map((_, i) => {
-                const page = i + 1;
-                if (
-                  page === 1 ||
-                  page === pagination.totalPages ||
-                  (page >= currentPage - 1 && page <= currentPage + 1)
-                ) {
-                  return (
-                    <PaginationItem key={page}>
-                      <PaginationLink
-                        onClick={() => setCurrentPage(page)}
-                        isActive={page === currentPage}
-                        className='cursor-pointer'>
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                }
-                if (page === currentPage - 2 || page === currentPage + 2) {
-                  return (
-                    <PaginationItem key={page}>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  );
-                }
-                return null;
-              })}
-
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() =>
-                    setCurrentPage((prev) =>
-                      Math.min(prev + 1, pagination.totalPages)
-                    )
-                  }
-                  className={cn(
-                    "cursor-pointer",
-                    currentPage === pagination.totalPages &&
-                      "pointer-events-none opacity-50"
-                  )}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
-      )}
+      <HistoryPagination
+        pagination={pagination}
+        currentPage={currentPage}
+        onPageChange={handlePageChange}
+      />
     </div>
   );
 }

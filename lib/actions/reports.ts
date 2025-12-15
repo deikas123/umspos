@@ -158,6 +158,29 @@ export async function getAgentInventoryCount(): Promise<
 }
 
 /**
+ * Gets faulty meters count grouped by meter type (pending status only - still in stock)
+ */
+export async function getFaultyMetersByType(): Promise<
+  Array<{ type: string; faulty_count: number }>
+> {
+  try {
+    const result = await db
+      .select({
+        type: faultyReturns.type,
+        faulty_count: count().mapWith(Number),
+      })
+      .from(faultyReturns)
+      .where(eq(faultyReturns.status, "pending"))
+      .groupBy(faultyReturns.type);
+
+    return result;
+  } catch (error) {
+    console.error("Error fetching faulty meters by type:", error);
+    return [];
+  }
+}
+
+/**
  * Gets customer type counts from sales data
  */
 export async function getCustomerTypeCounts(): Promise<
@@ -838,6 +861,7 @@ export async function getReportsPageData() {
     const [
       remainingMetersByType,
       agentInventoryData,
+      faultyMetersByTypeData,
       mostSellingProduct,
       customerTypeCounts,
       regionDistributionData,
@@ -845,6 +869,7 @@ export async function getReportsPageData() {
     ] = await Promise.all([
       getRemainingMetersByType(),
       getAgentInventoryCount(),
+      getFaultyMetersByType(),
       getMostSellingProduct(),
       getCustomerTypeCounts(),
       getRegionDistribution(),
@@ -854,6 +879,7 @@ export async function getReportsPageData() {
     return {
       remainingMetersByType,
       agentInventory: agentInventoryData,
+      faultyMetersByType: faultyMetersByTypeData,
       mostSellingProduct,
       customerTypeData: customerTypeCounts,
       regionDistribution: regionDistributionData,
@@ -868,6 +894,7 @@ export async function getReportsPageData() {
     return {
       remainingMetersByType: [],
       agentInventory: [],
+      faultyMetersByType: [],
       mostSellingProduct: "",
       customerTypeData: [],
       regionDistribution: [],
@@ -889,11 +916,13 @@ export async function getDailyReportsPageData() {
       yesterdaySales,
       remainingMetersByType,
       agentInventoryData,
+      faultyMetersByTypeData,
     ] = await Promise.all([
       getDetailedSalesToday(),
       getDetailedSalesYesterday(),
       getRemainingMetersByType(),
       getAgentInventoryCount(),
+      getFaultyMetersByType(),
     ]);
 
     return {
@@ -901,6 +930,7 @@ export async function getDailyReportsPageData() {
       yesterdaySales,
       remainingMetersByType,
       agentInventory: agentInventoryData,
+      faultyMetersByType: faultyMetersByTypeData,
     };
   } catch (error) {
     console.error("Error fetching daily reports page data:", error);
@@ -909,6 +939,7 @@ export async function getDailyReportsPageData() {
       yesterdaySales: [],
       remainingMetersByType: [],
       agentInventory: [],
+      faultyMetersByType: [],
     };
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -10,9 +11,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { usePagePrefetch } from "@/hooks/use-page-prefetch";
-import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 interface NavigationItem {
   title: string;
@@ -31,25 +29,16 @@ export function NavigationMenu({
   items,
   currentPath,
 }: Readonly<NavigationMenuProps>) {
-  const { prefetchPage } = usePagePrefetch();
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [clickedUrl, setClickedUrl] = useState<string | null>(null);
 
-  const handleNavigation = (url: string) => {
-    // Don't navigate if already on this page
+  // Clear clicked URL when route changes (navigation complete)
+  useEffect(() => {
+    setClickedUrl(null);
+  }, [currentPath]);
+
+  const handleClick = (url: string) => {
     if (currentPath === url) return;
-
-    // Set the clicked URL for loading state
     setClickedUrl(url);
-
-    // Dispatch custom event for global loading indicator
-    globalThis.window.dispatchEvent(new CustomEvent("navigation-start"));
-
-    // Use startTransition for non-blocking navigation
-    startTransition(() => {
-      router.push(url);
-    });
   };
 
   return (
@@ -60,12 +49,13 @@ export function NavigationMenu({
       <SidebarGroupContent className='mt-2 space-y-1'>
         <SidebarMenu>
           {items.map((item) => {
-            const isNavigating = clickedUrl === item.url && isPending;
+            const isNavigating = clickedUrl === item.url;
             const isActive = currentPath === item.url;
 
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
+                  asChild
                   isActive={isActive}
                   tooltip={{
                     children: item.title,
@@ -79,17 +69,15 @@ export function NavigationMenu({
                     "focus:bg-gray-50 focus:text-primary focus:outline-none",
                     isActive &&
                       "bg-primary text-white font-semibold shadow-sm border-l-4 border-primary",
-                    isNavigating &&
-                      "bg-primary/10 text-primary opacity-70 cursor-wait"
-                  )}
-                  onMouseEnter={() => prefetchPage(item.url)}
-                  onClick={() => handleNavigation(item.url)}>
-                  {isNavigating ? (
-                    <Loader2 className='h-4 w-4 animate-spin' />
-                  ) : (
+                    isNavigating && "bg-primary/10 text-primary opacity-70"
+                  )}>
+                  <Link
+                    href={item.url}
+                    prefetch={true}
+                    onClick={() => handleClick(item.url)}>
                     <item.icon className='h-4 w-4' />
-                  )}
-                  <span>{item.title}</span>
+                    <span>{item.title}</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );

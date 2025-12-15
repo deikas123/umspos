@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { getTransactionByReferenceNumber } from "@/lib/actions/sales";
 import { pdf } from "@react-pdf/renderer";
 import MeterSalesReceipt from "@/components/sharedcomponents/MeterSalesReceipt";
+import { formatDate } from "@/lib/utils/dateUtils";
 import {
   FileText,
   Loader2,
@@ -209,9 +210,7 @@ export default function GenerateReceiptDialog({
                 </p>
                 <p>
                   <span className='font-medium text-blue-600'>Date:</span>{" "}
-                  {new Date(
-                    receiptData.transactionData.sale_date
-                  ).toLocaleDateString()}
+                  {formatDate(receiptData.transactionData.sale_date)}
                 </p>
                 <p>
                   <span className='font-medium text-blue-600'>Recipient:</span>{" "}

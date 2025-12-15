@@ -29,6 +29,15 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KENYA_COUNTIES, type KenyaCounty } from "@/lib/constants/locationData";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type AgentType = "cash" | "credit";
 
 interface EditAgentDialogProps {
   readonly isOpen: boolean;
@@ -40,6 +49,7 @@ interface EditAgentDialogProps {
     readonly phone_number: string;
     readonly location: string;
     readonly county: string;
+    readonly agent_type?: string;
   };
 }
 
@@ -54,11 +64,13 @@ export default function EditAgentDialog({
     phone_number: string;
     location: string;
     county: KenyaCounty;
+    agent_type: AgentType;
   }>({
     name: agent.name,
     phone_number: agent.phone_number,
     location: agent.location,
     county: (agent.county as KenyaCounty) || "Nairobi",
+    agent_type: (agent.agent_type as AgentType) || "cash",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
@@ -79,6 +91,7 @@ export default function EditAgentDialog({
         phone_number: formData.phone_number,
         location: formData.location,
         county: formData.county,
+        agent_type: formData.agent_type,
       });
 
       toast.success("Agent updated successfully");
@@ -184,6 +197,26 @@ export default function EditAgentDialog({
                 </Command>
               </PopoverContent>
             </Popover>
+          </div>
+          <div className='space-y-2'>
+            <Label>Agent Type</Label>
+            <Select
+              value={formData.agent_type}
+              onValueChange={(value: AgentType) =>
+                setFormData({ ...formData, agent_type: value })
+              }>
+              <SelectTrigger className='w-full bg-white'>
+                <SelectValue placeholder='Select agent type' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='cash'>
+                  <span className='font-medium'>Cash</span>
+                </SelectItem>
+                <SelectItem value='credit'>
+                  <span className='font-medium'>Credit</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button

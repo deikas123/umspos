@@ -41,12 +41,22 @@ import {
   X,
   Check,
   DollarSign,
+  Download,
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatISODate, formatDateShort } from "@/lib/utils/dateUtils";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { getAllMetersForExport, MeterWithStatus } from "@/lib/actions/exports";
 import { superSearchMeter } from "@/lib/actions/meters";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -275,10 +285,7 @@ const AllMetersView: React.FC = () => {
                 "Agent Phone": meter.agent_details.agent_phone,
                 "Agent Location": meter.agent_details.agent_location,
                 "Assigned Date": meter.agent_details.assigned_at
-                  ? format(
-                      new Date(meter.agent_details.assigned_at),
-                      "yyyy-MM-dd"
-                    )
+                  ? formatISODate(meter.agent_details.assigned_at)
                   : "",
               };
             }
@@ -288,7 +295,7 @@ const AllMetersView: React.FC = () => {
             if (meter.sale_details) {
               additionalData = {
                 "Sold Date": meter.sale_details.sold_at
-                  ? format(new Date(meter.sale_details.sold_at), "yyyy-MM-dd")
+                  ? formatISODate(meter.sale_details.sold_at)
                   : "",
                 "Sold By": meter.sale_details.sold_by,
                 Recipient: meter.sale_details.recipient,
@@ -303,7 +310,7 @@ const AllMetersView: React.FC = () => {
             if (meter.sale_details) {
               additionalData = {
                 "Sold Date": meter.sale_details.sold_at
-                  ? format(new Date(meter.sale_details.sold_at), "yyyy-MM-dd")
+                  ? formatISODate(meter.sale_details.sold_at)
                   : "",
                 "Sold By": meter.sale_details.sold_by,
                 Recipient: meter.sale_details.recipient,
@@ -318,10 +325,7 @@ const AllMetersView: React.FC = () => {
                   "Replacement Serial":
                     meter.replacement_details.replacement_serial,
                   "Replacement Date": meter.replacement_details.replacement_date
-                    ? format(
-                        new Date(meter.replacement_details.replacement_date),
-                        "yyyy-MM-dd"
-                      )
+                    ? formatISODate(meter.replacement_details.replacement_date)
                     : "",
                   "Replaced By": meter.replacement_details.replacement_by,
                 };
@@ -333,10 +337,7 @@ const AllMetersView: React.FC = () => {
             if (meter.fault_details) {
               additionalData = {
                 "Reported Date": meter.fault_details.reported_at
-                  ? format(
-                      new Date(meter.fault_details.reported_at),
-                      "yyyy-MM-dd"
-                    )
+                  ? formatISODate(meter.fault_details.reported_at)
                   : "",
                 "Reported By": meter.fault_details.reported_by,
                 "Returner Name": meter.fault_details.returner_name,
@@ -349,7 +350,7 @@ const AllMetersView: React.FC = () => {
               additionalData = {
                 ...additionalData,
                 "Sold Date": meter.sale_details.sold_at
-                  ? format(new Date(meter.sale_details.sold_at), "yyyy-MM-dd")
+                  ? formatISODate(meter.sale_details.sold_at)
                   : "",
                 "Sold By": meter.sale_details.sold_by,
                 Recipient: meter.sale_details.recipient,
@@ -391,6 +392,162 @@ const AllMetersView: React.FC = () => {
     }
   };
 
+  const handleExportXLSX = async () => {
+    try {
+      setIsExporting(true);
+
+      const allMeters = await getAllMetersForExport(
+        filters.statusFilter,
+        filters.typeFilter,
+        filters.searchTerm
+      );
+
+      if (!allMeters.length) {
+        toast.error("No meters found to export with the current filters");
+        setIsExporting(false);
+        return;
+      }
+
+      const xlsxData = allMeters.map((meter: MeterWithStatus) => {
+        let agentName = "";
+        let agentPhone = "";
+        let soldDate = "";
+        let soldBy = "";
+        let recipient = "";
+        let destination = "";
+
+        if (meter.status === "with_agent" && meter.agent_details) {
+          agentName = meter.agent_details.agent_name;
+          agentPhone = meter.agent_details.agent_phone;
+        }
+        if (
+          (meter.status === "sold" ||
+            meter.status === "replaced" ||
+            meter.status === "faulty") &&
+          "sale_details" in meter &&
+          meter.sale_details
+        ) {
+          soldDate = meter.sale_details.sold_at
+            ? formatISODate(meter.sale_details.sold_at)
+            : "";
+          soldBy = meter.sale_details.sold_by || "";
+          recipient = meter.sale_details.recipient || "";
+          destination = meter.sale_details.destination || "";
+        }
+
+        return {
+          "Serial Number": meter.serial_number,
+          Type: meter.type,
+          Status: meter.status,
+          "Agent Name": agentName,
+          "Agent Phone": agentPhone,
+          "Sold Date": soldDate,
+          "Sold By": soldBy,
+          Recipient: recipient,
+          Destination: destination,
+        };
+      });
+
+      generateXLSX(
+        xlsxData,
+        `meters-report-${filters.statusFilter || "all"}-${
+          new Date().toISOString().split("T")[0]
+        }`,
+        "Meters"
+      );
+
+      toast.success(`Exported ${allMeters.length} meters to XLSX`);
+    } catch (error) {
+      console.error("Error exporting XLSX:", error);
+      toast.error("An error occurred while exporting. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setIsExporting(true);
+
+      const allMeters = await getAllMetersForExport(
+        filters.statusFilter,
+        filters.typeFilter,
+        filters.searchTerm
+      );
+
+      if (!allMeters.length) {
+        toast.error("No meters found to export with the current filters");
+        setIsExporting(false);
+        return;
+      }
+
+      const headers = [
+        "Serial Number",
+        "Type",
+        "Status",
+        "Agent/Sold By",
+        "Date",
+      ];
+
+      const pdfData = allMeters.map((meter: MeterWithStatus) => {
+        let personName = "";
+        let dateStr = "";
+
+        if (meter.status === "with_agent" && meter.agent_details) {
+          personName = meter.agent_details.agent_name;
+          dateStr = meter.agent_details.assigned_at
+            ? formatISODate(meter.agent_details.assigned_at)
+            : "";
+        } else if (
+          (meter.status === "sold" ||
+            meter.status === "replaced" ||
+            meter.status === "faulty") &&
+          "sale_details" in meter &&
+          meter.sale_details
+        ) {
+          personName = meter.sale_details.sold_by || "";
+          dateStr = meter.sale_details.sold_at
+            ? formatISODate(meter.sale_details.sold_at)
+            : "";
+        }
+
+        return [
+          meter.serial_number,
+          meter.type,
+          meter.status,
+          personName,
+          dateStr,
+        ];
+      });
+
+      const blob = await pdf(
+        <TableReportPDF
+          title={`Meters Report - ${filters.statusFilter || "All"}`}
+          headers={headers}
+          data={pdfData}
+        />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `meters-report-${filters.statusFilter || "all"}-${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${allMeters.length} meters to PDF`);
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      toast.error("An error occurred while exporting. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleRefresh = async () => {
     try {
       await refetch({ throwOnError: true });
@@ -423,10 +580,7 @@ const AllMetersView: React.FC = () => {
             <p className='text-muted-foreground'>
               <span className='font-medium'>Assigned on:</span>{" "}
               {meter.agent_details.assigned_at
-                ? format(
-                    new Date(meter.agent_details.assigned_at),
-                    "MMM d, yyyy"
-                  )
+                ? formatDateShort(meter.agent_details.assigned_at)
                 : "Unknown"}
             </p>
           </div>
@@ -437,7 +591,7 @@ const AllMetersView: React.FC = () => {
             <div>
               <p className='text-muted-foreground'>
                 <span className='font-medium'>Sold on:</span>{" "}
-                {format(new Date(meter.sale_details.sold_at), "MMM d, yyyy")}
+                {formatDateShort(meter.sale_details.sold_at)}
               </p>
               <p className='text-muted-foreground'>
                 <span className='font-medium'>Sold by:</span>{" "}
@@ -468,10 +622,7 @@ const AllMetersView: React.FC = () => {
             </p>
             <p className='text-muted-foreground'>
               <span className='font-medium'>Replaced on:</span>{" "}
-              {format(
-                new Date(meter.replacement_details.replacement_date),
-                "MMM d, yyyy"
-              )}
+              {formatDateShort(meter.replacement_details.replacement_date)}
             </p>
           </div>
         )}
@@ -480,10 +631,7 @@ const AllMetersView: React.FC = () => {
           <div>
             <p className='text-muted-foreground'>
               <span className='font-medium'>Returned on:</span>{" "}
-              {format(
-                new Date(meter.fault_details.returned_at || ""),
-                "MMM d, yyyy"
-              )}
+              {formatDateShort(meter.fault_details.returned_at)}
             </p>
             <p className='text-muted-foreground'>
               <span className='font-medium'>Returned by:</span>{" "}
@@ -675,9 +823,8 @@ const AllMetersView: React.FC = () => {
                                   <div className='text-sm text-gray-500 space-y-1 mt-2'>
                                     <div>
                                       Sold on:{" "}
-                                      {format(
-                                        new Date(result.sale_details.sold_at),
-                                        "MMM d, yyyy"
+                                      {formatDateShort(
+                                        result.sale_details.sold_at
                                       )}
                                     </div>
                                     <div>
@@ -699,11 +846,8 @@ const AllMetersView: React.FC = () => {
                                     {result.fault_details.returned_at && (
                                       <div>
                                         Returned on:{" "}
-                                        {format(
-                                          new Date(
-                                            result.fault_details.returned_at
-                                          ),
-                                          "MMM d, yyyy"
+                                        {formatDateShort(
+                                          result.fault_details.returned_at
                                         )}
                                       </div>
                                     )}
@@ -719,21 +863,44 @@ const AllMetersView: React.FC = () => {
               )}
             </div>
 
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={handleExportCSV}
-              disabled={isExporting || isLoading}
-              className='ml-2 cursor-pointer'>
-              {isExporting ? (
-                <>
-                  <span className='animate-spin mr-2'>⏳</span>
-                  Exporting...
-                </>
-              ) : (
-                "Export CSV"
-              )}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={isExporting || isLoading}
+                  className='ml-2 cursor-pointer'>
+                  {isExporting ? (
+                    <>
+                      <Loader2 className='w-4 h-4 mr-2 animate-spin' />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className='w-4 h-4 mr-2' />
+                      Export
+                    </>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem
+                  onClick={handleExportCSV}
+                  className='cursor-pointer'>
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleExportXLSX}
+                  className='cursor-pointer'>
+                  Export as XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleExportPDF}
+                  className='cursor-pointer'>
+                  Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

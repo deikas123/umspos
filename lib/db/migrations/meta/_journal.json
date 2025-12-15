@@ -8,6 +8,48 @@
       "when": 1765408396845,
       "tag": "0000_giant_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1765465777629,
+      "tag": "0001_legal_doorman",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765466991181,
+      "tag": "0002_closed_silver_sable",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1765467187744,
+      "tag": "0003_chunky_true_believers",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1765468370095,
+      "tag": "0004_magical_bug",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1765474728029,
+      "tag": "0005_add_place_name_to_prospects",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1765808940324,
+      "tag": "0006_opposite_shinobi_shaw",
+      "breakpoints": true
     }
   ]
 }

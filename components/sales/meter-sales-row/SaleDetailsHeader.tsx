@@ -5,6 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { formatDateShort } from "@/lib/utils/dateUtils";
 import { Check, Copy, StickyNote, Calendar } from "lucide-react";
 
 interface SaleDetailsHeaderProps {
@@ -26,13 +27,7 @@ export function SaleDetailsHeader({
   hasNote,
   saleDate,
 }: SaleDetailsHeaderProps) {
-  const formattedDate = saleDate
-    ? saleDate.toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-    : "N/A";
+  const formattedDate = formatDateShort(saleDate);
 
   return (
     <SheetHeader className='border-b border-gray-200 py-2 gap-2'>

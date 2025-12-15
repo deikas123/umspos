@@ -6,6 +6,7 @@ import {
   deleteAgent,
   getAgentInventory,
 } from "@/lib/actions/agents";
+import AgentAnalytics from "./AgentAnalytics";
 import {
   Table,
   TableBody,
@@ -28,15 +29,22 @@ import { toast } from "sonner";
 import EditAgentDialog from "./EditAgentDialog";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAgentsData, type AgentsPageData } from "./hooks/useAgentsData";
+import {
+  useAgentsData,
+  type AgentsPageData,
+  type Agent,
+} from "./hooks/useAgentsData";
 import { Users2 } from "lucide-react";
-import Loader from "@/components/ui/Loader";
 import AgentHistory from "./AgentHistory";
 import AgentsSearchBar from "./AgentsSearchBar";
 import AgentTableRow from "./AgentTableRow";
 import AgentMobileRow from "./AgentMobileRow";
 import AgentDeleteDialog from "./AgentDeleteDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 
 const EmptyState = () => (
   <div className='flex flex-col items-center justify-center p-8 text-gray-500'>
@@ -53,16 +61,6 @@ const EmptyState = () => (
     </p>
   </div>
 );
-
-interface Agent {
-  id: string;
-  name: string;
-  phone_number: string;
-  location: string;
-  county: string;
-  is_active: boolean | null;
-  total_meters?: number;
-}
 
 interface CurrentUser {
   id: string;
@@ -86,10 +84,11 @@ export default function Agents({ initialData }: AgentsProps) {
   const [agentInventory, setAgentInventory] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 10;
 
   const {
-    agentsData: { agents, currentUser },
+    agentsData: { agents, currentUser, meterCounts },
     isLoading,
     isFetching,
     isError,
@@ -221,21 +220,113 @@ export default function Agents({ initialData }: AgentsProps) {
 
   const isRefreshing = isFetching && !isLoading;
 
-  if (isLoading) {
-    return (
-      <div className='relative flex items-center justify-center h-64'>
-        <Loader />
-      </div>
+  // Export helpers
+  const getExportData = () => {
+    // Export filtered agents (all, not just current page)
+    const filtered = agents.filter(
+      (agent) =>
+        agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        agent.phone_number.includes(searchTerm) ||
+        agent.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        agent.county.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }
+    return filtered;
+  };
+
+  const formatAgentForExport = (agent: Agent) => ({
+    Name: agent.name,
+    "Phone Number": agent.phone_number,
+    Location: agent.location,
+    County: agent.county,
+    Type: agent.agent_type === "credit" ? "Credit" : "Cash",
+    "Total Meters": agent.total_meters ?? 0,
+    Status: agent.is_active ? "Active" : "Inactive",
+  });
+
+  const handleExportCSV = () => {
+    const exportData = getExportData().map(formatAgentForExport);
+    if (exportData.length === 0) {
+      toast.error("No agents to export");
+      return;
+    }
+    generateCSV(
+      exportData,
+      `agents-list-${new Date().toISOString().split("T")[0]}`
+    );
+    toast.success(`Exported ${exportData.length} agents to CSV`);
+  };
+
+  const handleExportXLSX = () => {
+    const exportData = getExportData().map(formatAgentForExport);
+    if (exportData.length === 0) {
+      toast.error("No agents to export");
+      return;
+    }
+    generateXLSX(
+      exportData,
+      `agents-list-${new Date().toISOString().split("T")[0]}`,
+      "Agents"
+    );
+    toast.success(`Exported ${exportData.length} agents to Excel`);
+  };
+
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const exportData = getExportData();
+      if (exportData.length === 0) {
+        toast.error("No agents to export");
+        return;
+      }
+
+      const headers = [
+        "Name",
+        "Phone",
+        "Location",
+        "County",
+        "Type",
+        "Meters",
+        "Status",
+      ];
+      const data = exportData.map((agent) => [
+        agent.name,
+        agent.phone_number,
+        agent.location,
+        agent.county,
+        agent.agent_type === "credit" ? "Credit" : "Cash",
+        String(agent.total_meters ?? 0),
+        agent.is_active ? "Active" : "Inactive",
+      ]);
+
+      const blob = await pdf(
+        <TableReportPDF title='Agents List' headers={headers} data={data} />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `agents-list-${new Date().toISOString().split("T")[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${exportData.length} agents to PDF`);
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (isError) {
     return <div>Error: {error?.message}</div>;
   }
 
   return (
-    <div className='w-full h-full p-4 md:p-6'>
-      <div className='rounded-md border p-4 md:p-6'>
+    <div className='w-full h-full'>
+      <div className='rounded-md border p-4 bg-white'>
         <Tabs defaultValue='agents' className='w-full'>
           <TabsList className='mb-4'>
             <TabsTrigger className='cursor-pointer' value='agents'>
@@ -244,15 +335,24 @@ export default function Agents({ initialData }: AgentsProps) {
             <TabsTrigger className='cursor-pointer' value='history'>
               History
             </TabsTrigger>
+            <TabsTrigger className='cursor-pointer gap-1' value='analytics'>
+              Analytics
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value='agents' className='space-y-4'>
             <AgentsSearchBar
               searchTerm={searchTerm}
               totalAgents={totalAgents}
+              agents={agents}
+              meterCounts={meterCounts}
               onSearchChange={handleSearchChange}
               onRefresh={handleRefresh}
               isRefreshing={isRefreshing}
+              onExportCSV={handleExportCSV}
+              onExportXLSX={handleExportXLSX}
+              onExportPDF={handleExportPDF}
+              isExporting={isExporting}
             />
 
             {/* Desktop View */}
@@ -264,6 +364,7 @@ export default function Agents({ initialData }: AgentsProps) {
                     <TableHead className='font-semibold'>Contact</TableHead>
                     <TableHead className='font-semibold'>Location</TableHead>
                     <TableHead className='font-semibold'>County</TableHead>
+                    <TableHead className='font-semibold'>Type</TableHead>
                     <TableHead className='font-semibold text-center'>
                       Meters
                     </TableHead>
@@ -286,7 +387,7 @@ export default function Agents({ initialData }: AgentsProps) {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7}>
+                      <TableCell colSpan={8}>
                         <EmptyState />
                       </TableCell>
                     </TableRow>
@@ -420,6 +521,10 @@ export default function Agents({ initialData }: AgentsProps) {
 
           <TabsContent value='history'>
             <AgentHistory />
+          </TabsContent>
+
+          <TabsContent value='analytics'>
+            <AgentAnalytics agents={agents} />
           </TabsContent>
         </Tabs>
       </div>

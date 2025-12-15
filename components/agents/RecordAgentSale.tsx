@@ -118,6 +118,9 @@ export default function RecordAgentSale({
     }
   };
 
+  const isMeterSelected = (meterId: string) =>
+    selectedMeters.some((m) => m.id === meterId);
+
   const handleUnitPriceChange = (type: string, price: string) => {
     setUnitPrices({ ...unitPrices, [type]: price });
   };
@@ -270,6 +273,73 @@ export default function RecordAgentSale({
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentItems = filteredInventory.slice(startIndex, endIndex);
 
+  const allCurrentPageSelected =
+    currentItems.length > 0 && currentItems.every((m) => isMeterSelected(m.id));
+  const someCurrentPageSelected =
+    currentItems.some((m) => isMeterSelected(m.id)) && !allCurrentPageSelected;
+
+  let selectAllCheckboxState: boolean | "indeterminate" = false;
+  if (allCurrentPageSelected) {
+    selectAllCheckboxState = true;
+  } else if (someCurrentPageSelected) {
+    selectAllCheckboxState = "indeterminate";
+  }
+
+  const handleToggleSelectAllCurrentPage = (checked: boolean) => {
+    if (checked) {
+      const selectedIds = new Set(selectedMeters.map((m) => m.id));
+      const newSelections = currentItems.filter((m) => !selectedIds.has(m.id));
+      if (newSelections.length) {
+        setSelectedMeters([...selectedMeters, ...newSelections]);
+      }
+      return;
+    }
+
+    const currentIds = new Set(currentItems.map((m) => m.id));
+    setSelectedMeters(selectedMeters.filter((m) => !currentIds.has(m.id)));
+  };
+
+  const inventoryEmptyMessage = searchTerm
+    ? "No meters found matching search"
+    : "No meters available";
+
+  let inventoryTableRows: React.ReactNode;
+  if (isLoading) {
+    inventoryTableRows = (
+      <TableRow>
+        <TableCell colSpan={3} className='text-center py-8'>
+          Loading inventory...
+        </TableCell>
+      </TableRow>
+    );
+  } else if (currentItems.length === 0) {
+    inventoryTableRows = (
+      <TableRow>
+        <TableCell colSpan={3} className='text-center py-8'>
+          {inventoryEmptyMessage}
+        </TableCell>
+      </TableRow>
+    );
+  } else {
+    inventoryTableRows = currentItems.map((meter) => (
+      <TableRow key={meter.id}>
+        <TableCell className={tableStyles.cell}>
+          <Checkbox
+            checked={selectedMeters.some((m) => m.id === meter.id)}
+            onCheckedChange={() => handleCheckMeter(meter)}
+            className={`border-primary ${tableStyles.checkbox}`}
+          />
+        </TableCell>
+        <TableCell className={`${tableStyles.cell} text-sm md:text-base`}>
+          {meter.serial_number}
+        </TableCell>
+        <TableCell className={`${tableStyles.cell} text-sm md:text-base`}>
+          {meter.type}
+        </TableCell>
+      </TableRow>
+    ));
+  }
+
   // Pagination calculations for selected meters table
   const totalSelectedPages = Math.ceil(selectedMeters.length / ITEMS_PER_PAGE);
   const selectedStartIndex = (selectedPage - 1) * ITEMS_PER_PAGE;
@@ -298,52 +368,24 @@ export default function RecordAgentSale({
             <Table className={tableStyles.table}>
               <TableHeader>
                 <TableRow>
-                  <TableHead className='w-[40px] md:w-[50px]'></TableHead>
+                  <TableHead className='w-[40px] md:w-[50px]'>
+                    <Checkbox
+                      checked={selectAllCheckboxState}
+                      onCheckedChange={(value) =>
+                        handleToggleSelectAllCurrentPage(Boolean(value))
+                      }
+                      disabled={isLoading || currentItems.length === 0}
+                      aria-label='Select all meters on this page'
+                      className={`border-primary ${tableStyles.checkbox}`}
+                    />
+                  </TableHead>
                   <TableHead className={tableStyles.headerCell}>
                     Serial Number
                   </TableHead>
                   <TableHead className={tableStyles.headerCell}>Type</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className='text-center py-8'>
-                      Loading inventory...
-                    </TableCell>
-                  </TableRow>
-                ) : currentItems.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className='text-center py-8'>
-                      {searchTerm
-                        ? "No meters found matching search"
-                        : "No meters available"}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  currentItems.map((meter) => (
-                    <TableRow key={meter.id}>
-                      <TableCell className={tableStyles.cell}>
-                        <Checkbox
-                          checked={selectedMeters.some(
-                            (m) => m.id === meter.id
-                          )}
-                          onCheckedChange={() => handleCheckMeter(meter)}
-                          className={`border-primary ${tableStyles.checkbox}`}
-                        />
-                      </TableCell>
-                      <TableCell
-                        className={`${tableStyles.cell} text-sm md:text-base`}>
-                        {meter.serial_number}
-                      </TableCell>
-                      <TableCell
-                        className={`${tableStyles.cell} text-sm md:text-base`}>
-                        {meter.type}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
+              <TableBody>{inventoryTableRows}</TableBody>
             </Table>
           </div>
 

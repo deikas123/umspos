@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -20,12 +20,18 @@ export function AppSidebar() {
   const { user, userRole, isLoading } = useAuth();
   const pathname = usePathname();
   const isMobile = useIsMobile();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Safe role validation - memoized
-  const safeUserRole = useMemo(
-    () => (isValidRole(userRole) ? userRole : null),
-    [userRole]
-  );
+  // Don't assume any role - wait for auth to load
+  const safeUserRole = useMemo(() => {
+    if (!mounted || isLoading || !userRole) return null;
+    return isValidRole(userRole) ? userRole : null;
+  }, [userRole, mounted, isLoading]);
 
   // Memoize user data to prevent recreation
   const currentUserData = useMemo(
@@ -41,15 +47,15 @@ export function AppSidebar() {
     useRoleBasedFiltering(safeUserRole);
   const actionStateMap = useActionDialogs();
 
-  // Show skeleton only during initial session loading (before any auth state is known)
-  // Once we have a role (even the default "user"), show navigation immediately
-  const showSkeleton = isLoading && !userRole;
+  // Show skeleton until auth is fully loaded and we know the user's role
+  // This prevents rendering navigation items the user shouldn't see
+  const showSkeleton = !mounted || isLoading || !safeUserRole;
 
   return (
     <Sidebar
       variant='inset'
       collapsible='icon'
-      className='flex flex-col justify-between h-screen bg-white border-r mt-16'>
+      className='flex flex-col p-0 justify-between h-[calc(100vh-4rem)] border-r mt-16'>
       <SidebarContent>
         {showSkeleton ? (
           <>

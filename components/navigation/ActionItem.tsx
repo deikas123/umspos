@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -106,6 +107,9 @@ export function ActionItem({
   currentUserData,
   onOpenChange,
 }: Readonly<ActionItemProps>) {
+  // Use stable ID to prevent hydration mismatch with Radix UI
+  const stableId = useId();
+
   const TriggerButton = (
     <SidebarMenuButton className='w-full px-2 py-2.5 text-sm font-medium transition-colors hover:bg-gray-50 group cursor-pointer'>
       <Icon className={`mr-3 h-4 w-4 ${getIconColorClass(title)}`} />
@@ -117,8 +121,12 @@ export function ActionItem({
     return (
       <SidebarMenuItem>
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-          <DialogTrigger asChild>{TriggerButton}</DialogTrigger>
-          <DialogContent className='bg-gray-50 border-gray-200 px-2'>
+          <DialogTrigger asChild id={`${stableId}-trigger`}>
+            {TriggerButton}
+          </DialogTrigger>
+          <DialogContent
+            className='bg-gray-50 border-gray-200 px-2'
+            id={`${stableId}-content`}>
             <Component
               onClose={() => onOpenChange(false)}
               onAgentCreated={() => onOpenChange(false)}
@@ -132,10 +140,13 @@ export function ActionItem({
   return (
     <SidebarMenuItem>
       <Sheet open={isOpen} onOpenChange={onOpenChange}>
-        <SheetTrigger asChild>{TriggerButton}</SheetTrigger>
+        <SheetTrigger asChild id={`${stableId}-trigger`}>
+          {TriggerButton}
+        </SheetTrigger>
         <SheetContent
           className={getSheetClassName(title)}
-          side={title === "Sell Meters" ? "right" : undefined}>
+          side={title === "Sell Meters" ? "right" : undefined}
+          id={`${stableId}-content`}>
           {renderSheetContent(title, Component, user, currentUserData)}
         </SheetContent>
       </Sheet>

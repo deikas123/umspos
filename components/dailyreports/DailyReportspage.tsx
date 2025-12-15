@@ -40,8 +40,13 @@ interface DailyReportsPageProps {
 
 const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
   // Use React Query for all data fetching - pass initialData to avoid POST requests
-  const { todaySales, yesterdaySales, remainingMeters, agentInventory } =
-    useAllReportsData(initialData);
+  const {
+    todaySales,
+    yesterdaySales,
+    remainingMeters,
+    agentInventory,
+    faultyMeters,
+  } = useAllReportsData(initialData);
 
   const [isClient, setIsClient] = useState(false);
   const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
@@ -107,6 +112,7 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
           todayTotalEarnings={todayTotalEarnings}
           yesterdayTotalEarnings={yesterdayTotalEarnings}
           agentInventory={agentInventory}
+          faultyMetersByType={faultyMeters}
         />
       ).toBlob();
 
@@ -355,7 +361,7 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
   }
 
   return (
-    <div className='mt-20 lg:mt-8 transition-all duration-300 ease-in-out mx-auto w-full sm:w-auto overflow-hidden px-2 sm:px-4 relative'>
+    <div className='transition-all duration-300 ease-in-out mx-auto w-full sm:w-auto overflow-hidden px-4 relative'>
       <h1 className='text-3xl font-bold text-center mb-2 drop-shadow-lg'>
         Daily Reports
       </h1>

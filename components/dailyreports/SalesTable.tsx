@@ -77,12 +77,20 @@ export const SalesTable = memo(function SalesTable({
                       KES {sale.total_price.toLocaleString()}
                     </TableCell>
                     <TableCell>
-                      {new Date(sale.sale_date || new Date()).toLocaleTimeString()}
+                      {new Date(
+                        sale.sale_date || new Date()
+                      ).toLocaleTimeString()}
                     </TableCell>
                     <TableCell>{sale.recipient}</TableCell>
                     <TableCell>
                       <Badge variant='outline' className='bg-blue-100'>
-                        {sale.customer_type || "N/A"}
+                        {sale.customer_type
+                          ?.split(" ")
+                          .map(
+                            (word: string) =>
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                          )
+                          .join(" ") || "N/A"}
                       </Badge>
                     </TableCell>
                     <TableCell>

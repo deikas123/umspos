@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 import { getAllSaleBatchesForExport } from "@/lib/actions/sales";
 import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
 
 import type { SaleBatch } from "../hooks/useMeterSalesData";
 
@@ -56,7 +57,10 @@ export function useMeterSalesExport(
         batch.batch_amount.toString(),
         `KES ${Math.round(batch.total_price).toLocaleString()}`,
         formatDate(batch.sale_date),
-        batch.customer_type || "N/A",
+        batch.customer_type
+          ?.split(" ")
+          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ") || "N/A",
         batch.customer_county || "N/A",
         batch.customer_contact || "N/A",
       ]);
@@ -113,7 +117,11 @@ export function useMeterSalesExport(
         "Sale Date": formatDate(batch.sale_date),
         Destination: batch.destination,
         Recipient: batch.recipient,
-        "Customer Type": batch.customer_type || "N/A",
+        "Customer Type":
+          batch.customer_type
+            ?.split(" ")
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ") || "N/A",
         County: batch.customer_county || "N/A",
         Contact: batch.customer_contact || "N/A",
       }));
@@ -129,9 +137,50 @@ export function useMeterSalesExport(
     }
   }, [filters, formatDate, isExporting]);
 
+  const handleExportXLSX = useCallback(async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    try {
+      const allBatches = await getAllSaleBatchesForExport(filters);
+
+      if (!allBatches.length) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const xlsxData = allBatches.map((batch) => ({
+        Seller: batch.user_name,
+        "Meter Type": batch.meter_type,
+        Amount: batch.batch_amount,
+        "Sale Amount": batch.total_price,
+        "Sale Date": formatDate(batch.sale_date),
+        Destination: batch.destination,
+        Recipient: batch.recipient,
+        "Customer Type":
+          batch.customer_type
+            ?.split(" ")
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ") || "N/A",
+        County: batch.customer_county || "N/A",
+        Contact: batch.customer_contact || "N/A",
+      }));
+
+      generateXLSX(xlsxData, "meter_sales_report", "Sales");
+
+      toast.success(`Exported ${allBatches.length} records to Excel`);
+    } catch (error) {
+      console.error("Failed to export XLSX:", error);
+      toast.error("Failed to export Excel file");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filters, formatDate, isExporting]);
+
   return {
     handleExportPDF,
     handleExportCSV,
+    handleExportXLSX,
     isExporting,
   };
 }

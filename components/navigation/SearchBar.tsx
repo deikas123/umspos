@@ -18,6 +18,7 @@ import {
 import { superSearchMeter } from "@/lib/actions/meters";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
+import { formatDateShort } from "@/lib/utils/dateUtils";
 
 interface CachedResult {
   timestamp: number;
@@ -80,17 +81,6 @@ export function SearchBar(props: Readonly<SearchBarProps>) {
   const bypassCacheRef = useRef(false);
   const debouncedSearch = useDebounce(searchTerm, 500);
   const showDropdown = isSearchOpen && searchTerm.length > 0;
-
-  const formatDate = (value: string | Date | null | undefined) => {
-    if (!value) return null;
-    const date = typeof value === "string" ? new Date(value) : value;
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   const formatCurrency = (value: number | string | null | undefined) => {
     if (value === null || value === undefined) return null;
@@ -294,9 +284,9 @@ export function SearchBar(props: Readonly<SearchBarProps>) {
                           : seller_name;
                       })()}
                     </div>
-                    {formatDate(result.sale_details.sold_at) && (
+                    {formatDateShort(result.sale_details.sold_at) !== "N/A" && (
                       <div>
-                        Sold on: {formatDate(result.sale_details.sold_at)}
+                        Sold on: {formatDateShort(result.sale_details.sold_at)}
                       </div>
                     )}
                     {formatCurrency(result.sale_details.unit_price) && (
@@ -318,10 +308,14 @@ export function SearchBar(props: Readonly<SearchBarProps>) {
                     Replacement Serial:{" "}
                     {result.replacement_details.replacement_serial}
                   </div>
-                  {formatDate(result.replacement_details.replacement_date) && (
+                  {formatDateShort(
+                    result.replacement_details.replacement_date
+                  ) !== "N/A" && (
                     <div>
                       Replaced on:{" "}
-                      {formatDate(result.replacement_details.replacement_date)}
+                      {formatDateShort(
+                        result.replacement_details.replacement_date
+                      )}
                     </div>
                   )}
                   {(() => {
@@ -346,7 +340,7 @@ export function SearchBar(props: Readonly<SearchBarProps>) {
                   {result.fault_details.returned_at && (
                     <div>
                       Reported on:{" "}
-                      {formatDate(result.fault_details.returned_at)}
+                      {formatDateShort(result.fault_details.returned_at)}
                     </div>
                   )}
                   {result.fault_details.returner_name && (

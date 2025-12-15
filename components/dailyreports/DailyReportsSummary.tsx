@@ -23,6 +23,12 @@ interface AgentInventory {
   with_agents: number;
 }
 
+// Add this interface for faulty meters
+interface FaultyMetersByType {
+  type: string;
+  faulty_count: number;
+}
+
 // Add this constant at the top of the file
 const METER_TYPES = [
   "integrated",
@@ -37,7 +43,11 @@ export const DailyReportsSummary = memo(function DailyReportsSummary({
   totalEarnings,
   remainingMetersByType,
   agentInventory,
-}: SummaryProps & { agentInventory: AgentInventory[] }) {
+  faultyMetersByType,
+}: SummaryProps & {
+  agentInventory: AgentInventory[];
+  faultyMetersByType: FaultyMetersByType[];
+}) {
   // Function to get agent inventory count for a specific meter type
   const getAgentCount = (meterType: string) => {
     const inventory = agentInventory.find(
@@ -46,10 +56,19 @@ export const DailyReportsSummary = memo(function DailyReportsSummary({
     return inventory?.with_agents ?? 0;
   };
 
-  // Function to calculate total for each row
+  // Function to get faulty count for a specific meter type
+  const getFaultyCount = (meterType: string) => {
+    const faulty = faultyMetersByType.find(
+      (item) => item.type.toLowerCase() === meterType.toLowerCase()
+    );
+    return faulty?.faulty_count ?? 0;
+  };
+
+  // Function to calculate total for each row (including faulty)
   const getTotal = (meterType: string, remaining: number) => {
     const withAgents = getAgentCount(meterType);
-    return remaining + withAgents;
+    const faulty = getFaultyCount(meterType);
+    return remaining + withAgents + faulty;
   };
 
   // Ensure all meter types are represented
@@ -60,22 +79,30 @@ export const DailyReportsSummary = memo(function DailyReportsSummary({
     return existingData || { type, remaining_meters: 0 };
   });
 
-  // Calculate grand totals
+  // Calculate grand totals (including faulty)
   const grandTotals = {
     remaining: allMeterTypes.reduce(
       (sum, item) => sum + item.remaining_meters,
       0
     ),
     withAgents: agentInventory.reduce((sum, item) => sum + item.with_agents, 0),
+    faulty: faultyMetersByType.reduce(
+      (sum, item) => sum + item.faulty_count,
+      0
+    ),
     total: allMeterTypes.reduce(
-      (sum, item) => sum + item.remaining_meters + getAgentCount(item.type),
+      (sum, item) =>
+        sum +
+        item.remaining_meters +
+        getAgentCount(item.type) +
+        getFaultyCount(item.type),
       0
     ),
   };
 
   return (
     <>
-      <Card className="shadow-md hover:shadow-xl">
+      <Card className='shadow-md hover:shadow-xl my-4'>
         <CardHeader>
           <CardTitle>Meters Remaining</CardTitle>
         </CardHeader>
@@ -88,15 +115,17 @@ export const DailyReportsSummary = memo(function DailyReportsSummary({
                     <TableHead>Meter Type</TableHead>
                     <TableHead>In Stock</TableHead>
                     <TableHead>With Agents</TableHead>
+                    <TableHead>Faulty</TableHead>
                     <TableHead>Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allMeterTypes.map((item, index) => (
-                    <TableRow key={index}>
+                  {allMeterTypes.map((item) => (
+                    <TableRow key={item.type}>
                       <TableCell className='capitalize'>{item.type}</TableCell>
                       <TableCell>{item.remaining_meters}</TableCell>
                       <TableCell>{getAgentCount(item.type)}</TableCell>
+                      <TableCell>{getFaultyCount(item.type)}</TableCell>
                       <TableCell>
                         {getTotal(item.type, item.remaining_meters)}
                       </TableCell>
@@ -106,6 +135,7 @@ export const DailyReportsSummary = memo(function DailyReportsSummary({
                     <TableCell>Total</TableCell>
                     <TableCell>{grandTotals.remaining}</TableCell>
                     <TableCell>{grandTotals.withAgents}</TableCell>
+                    <TableCell>{grandTotals.faulty}</TableCell>
                     <TableCell>{grandTotals.total}</TableCell>
                   </TableRow>
                 </TableBody>
@@ -115,7 +145,7 @@ export const DailyReportsSummary = memo(function DailyReportsSummary({
         </CardContent>
       </Card>
 
-      <Card className="shadow-md hover:shadow-xl">
+      <Card className='shadow-md hover:shadow-xl'>
         <CardHeader>
           <CardTitle>Today's Total Earnings</CardTitle>
         </CardHeader>

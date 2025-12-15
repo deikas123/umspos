@@ -4,6 +4,9 @@ import { useCallback, useState } from "react";
 
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 import { toast } from "sonner";
 
 import { SaleBatch } from "./hooks/useMeterSalesData";
@@ -50,7 +53,7 @@ export function MeterSalesRow({
     useScrollContainer();
   const [isCopying, setIsCopying] = useState(false);
 
-  const handleDownloadSerials = useCallback(() => {
+  const handleExportCSV = useCallback(() => {
     const csvData = meters.map((meter) => ({
       "SN#": meter.serial_number,
     }));
@@ -60,6 +63,47 @@ export function MeterSalesRow({
       : `meter_serials_batch_${batch.id}`;
 
     generateCSV(csvData, filename);
+  }, [meters, transactionRef, batch.id]);
+
+  const handleExportXLSX = useCallback(() => {
+    const xlsxData = meters.map((meter) => ({
+      "SN#": meter.serial_number,
+    }));
+
+    const filename = transactionRef
+      ? `meter_serials_${transactionRef.replaceAll("/", "-")}`
+      : `meter_serials_batch_${batch.id}`;
+
+    generateXLSX(xlsxData, filename, "Meter Serials");
+  }, [meters, transactionRef, batch.id]);
+
+  const handleExportPDF = useCallback(async () => {
+    const filename = transactionRef
+      ? `meter_serials_${transactionRef.replaceAll("/", "-")}`
+      : `meter_serials_batch_${batch.id}`;
+
+    const title = transactionRef
+      ? `Meter Serials - ${transactionRef}`
+      : `Meter Serials - Batch ${batch.id}`;
+
+    const headers = ["#", "Serial Number"];
+    const pdfData = meters.map((meter, index) => [
+      String(index + 1),
+      meter.serial_number,
+    ]);
+
+    const blob = await pdf(
+      <TableReportPDF title={title} headers={headers} data={pdfData} />
+    ).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filename}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }, [meters, transactionRef, batch.id]);
 
   const handleCopyToClipboard = useCallback(async () => {
@@ -122,7 +166,9 @@ export function MeterSalesRow({
             <SaleToolbar
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
-              onDownload={handleDownloadSerials}
+              onExportCSV={handleExportCSV}
+              onExportXLSX={handleExportXLSX}
+              onExportPDF={handleExportPDF}
             />
 
             <SerialNumbersSection

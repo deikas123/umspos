@@ -2,18 +2,34 @@ import { ChangeEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Search } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Download,
+  Search,
+  File,
+  FileSpreadsheet,
+  FileText,
+} from "lucide-react";
 
 interface SaleToolbarProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
-  onDownload: () => void;
+  onExportCSV: () => void;
+  onExportXLSX: () => void;
+  onExportPDF: () => void;
 }
 
 export function SaleToolbar({
   searchTerm,
   onSearchChange,
-  onDownload,
+  onExportCSV,
+  onExportXLSX,
+  onExportPDF,
 }: SaleToolbarProps) {
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     onSearchChange(event.target.value);
@@ -31,13 +47,30 @@ export function SaleToolbar({
             onChange={handleChange}
           />
         </div>
-        <Button
-          variant='outline'
-          onClick={onDownload}
-          className='whitespace-nowrap border-gray-200 hover:bg-gray-50 hover:border-gray-300 cursor-pointer'>
-          <Download className='h-4 w-4 mr-2' />
-          Export CSV
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant='outline'
+              className='whitespace-nowrap border-gray-200 hover:bg-gray-50 hover:border-gray-300 cursor-pointer'>
+              <Download className='h-4 w-4 mr-2' />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuItem onClick={onExportCSV} className='cursor-pointer'>
+              <File className='w-4 h-4 mr-2' />
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onExportXLSX} className='cursor-pointer'>
+              <FileSpreadsheet className='w-4 h-4 mr-2' />
+              Export as XLSX
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onExportPDF} className='cursor-pointer'>
+              <FileText className='w-4 h-4 mr-2' />
+              Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

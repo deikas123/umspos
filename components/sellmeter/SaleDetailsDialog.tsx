@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -8,55 +9,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
 import { CalendarDate, getLocalTimeZone, today } from "@internationalized/date";
 import {
-  KENYA_REGION_NAMES,
   CUSTOMER_TYPES,
   getCountiesForRegion,
-  type KenyaRegion,
-  type KenyaCounty,
   type CustomerType,
 } from "@/lib/constants/locationData";
+import { getUsersList } from "@/lib/actions/users";
+import {
+  RegionSelector,
+  CountySelector,
+  ReferralSelector,
+  UnitPricesForm,
+  PickupSection,
+  type SaleDetails,
+  type SaleDetailsDialogProps,
+  type PickupInfo,
+} from "./saledetails";
 
-interface UnitPrices {
-  [key: string]: string;
-}
-
-interface SaleDetails {
-  destination: string;
-  recipient: string;
-  unitPrices: UnitPrices;
-  customerType: CustomerType;
-  customerRegion: KenyaRegion;
-  customerCounty: string;
-  customerContact: string;
-  saleDate: CalendarDate;
-}
-
-interface SaleDetailsDialogProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (data: SaleDetails) => void;
-  initialData?: SaleDetails | null;
-  meterTypes: string[];
-  trigger?: React.ReactNode;
-}
+// Re-export types for external use
+export type { SaleDetails } from "./saledetails";
 
 const SaleDetailsDialog = ({
   isOpen,
@@ -83,10 +56,26 @@ const SaleDetailsDialog = ({
     customerRegion: initialData?.customerRegion || "Nairobi",
     customerCounty: initialData?.customerCounty || "Nairobi",
     customerContact: initialData?.customerContact || "",
+    referral: initialData?.referral,
+    pickup: initialData?.pickup,
   });
 
   const [openRegionCombobox, setOpenRegionCombobox] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
+
+  // Fetch registered users for referral selection
+  const { data: registeredUsers = [] } = useQuery({
+    queryKey: ["usersList"],
+    queryFn: getUsersList,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Filter to only show sales_person role
+  const salesPersonUsers = useMemo(() => {
+    return registeredUsers.filter(
+      (user) => (user.role as string) === "sales_person"
+    );
+  }, [registeredUsers]);
 
   // Get counties based on selected region
   const availableCounties = useMemo(() => {
@@ -103,6 +92,8 @@ const SaleDetailsDialog = ({
         customerRegion: initialData.customerRegion,
         customerCounty: initialData.customerCounty,
         customerContact: initialData.customerContact,
+        referral: initialData.referral,
+        pickup: initialData.pickup,
       });
       setSelectedDate(initialData.saleDate || today(getLocalTimeZone()));
     }
@@ -209,155 +200,68 @@ const SaleDetailsDialog = ({
                 className='w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'>
                 {CUSTOMER_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                    {type
+                      .split(" ")
+                      .map(
+                        (word) => word.charAt(0).toUpperCase() + word.slice(1)
+                      )
+                      .join(" ")}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className='space-y-2 w-full'>
-              <label className='text-sm font-medium'>Region</label>
-              <Popover
-                open={openRegionCombobox}
-                onOpenChange={setOpenRegionCombobox}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant='outline'
-                    aria-expanded={openRegionCombobox}
-                    className='w-full justify-between bg-white border-2 border-gray-200 hover:border-primary transition-colors font-medium cursor-pointer'>
-                    {formData.customerRegion || "Select region..."}
-                    <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className='w-[calc(100%-2rem)] p-0'
-                  align='start'>
-                  <Command className='w-full'>
-                    <CommandInput
-                      placeholder='Search region...'
-                      className='h-9 border-none focus:ring-0'
-                    />
-                    <CommandList className='max-h-[300px] overflow-y-auto scroll-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400 scrollbar-track-transparent'>
-                      <CommandEmpty>No region found.</CommandEmpty>
-                      <CommandGroup>
-                        {KENYA_REGION_NAMES.map((region) => (
-                          <CommandItem
-                            key={region}
-                            value={region}
-                            onSelect={(currentValue) => {
-                              const selectedRegion =
-                                currentValue as KenyaRegion;
-                              const regionCounties =
-                                getCountiesForRegion(selectedRegion);
-                              setFormData((prev) => ({
-                                ...prev,
-                                customerRegion: selectedRegion,
-                                // Reset county to first county in the region
-                                customerCounty: regionCounties[0] || "",
-                              }));
-                              setOpenRegionCombobox(false);
-                            }}
-                            className='hover:bg-primary/10 cursor-pointer font-medium'>
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                formData.customerRegion === region
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                            {region}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+            {/* Region Selector */}
+            <RegionSelector
+              value={formData.customerRegion}
+              onChange={(region, firstCounty) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  customerRegion: region,
+                  customerCounty: firstCounty,
+                }))
+              }
+              open={openRegionCombobox}
+              onOpenChange={setOpenRegionCombobox}
+            />
 
-            <div className='space-y-2 w-full'>
-              <label className='text-sm font-medium'>County</label>
-              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant='outline'
-                    aria-expanded={openCombobox}
-                    className='w-full justify-between bg-white border-2 border-gray-200 hover:border-primary transition-colors font-medium cursor-pointer'>
-                    {formData.customerCounty || "Select county..."}
-                    <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className='w-full p-0'
-                  align='start'>
-                  <Command className='w-full'>
-                    <CommandInput
-                      placeholder='Search county...'
-                      className='h-9 border-none focus:ring-0'
-                    />
-                    <CommandList className='max-h-[300px] overflow-y-auto scroll-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400 scrollbar-track-transparent'>
-                      <CommandEmpty>No county found.</CommandEmpty>
-                      <CommandGroup>
-                        {availableCounties.map((county) => (
-                          <CommandItem
-                            key={county}
-                            value={county}
-                            onSelect={(currentValue) => {
-                              setFormData((prev) => ({
-                                ...prev,
-                                customerCounty: currentValue,
-                              }));
-                              setOpenCombobox(false);
-                            }}
-                            className='hover:bg-primary/10 cursor-pointer font-medium'>
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                formData.customerCounty === county
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                            {county}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+            {/* County Selector */}
+            <CountySelector
+              value={formData.customerCounty}
+              onChange={(county) =>
+                setFormData((prev) => ({ ...prev, customerCounty: county }))
+              }
+              counties={availableCounties}
+              open={openCombobox}
+              onOpenChange={setOpenCombobox}
+            />
+
+            {/* Referral Salesperson */}
+            <ReferralSelector
+              value={formData.referral}
+              onChange={(referral) =>
+                setFormData((prev) => ({ ...prev, referral }))
+              }
+              salesPersonUsers={salesPersonUsers}
+            />
+
+            {/* Pickup Information */}
+            <PickupSection
+              value={formData.pickup}
+              onChange={(pickup: PickupInfo | undefined) =>
+                setFormData((prev) => ({ ...prev, pickup }))
+              }
+            />
           </div>
 
-          <div className='space-y-4'>
-            <h4 className='text-sm font-semibold border-b pb-2'>Unit Prices</h4>
-            <div className='grid gap-3 w-full'>
-              {meterTypes.map((type) => (
-                <div
-                  key={type}
-                  className='grid grid-cols-[80px,1fr] items-center gap-1'>
-                  <label className='text-sm font-medium'>{type}:</label>
-                  <Input
-                    type='number'
-                    placeholder={`Enter ${type} price`}
-                    value={formData.unitPrices[type] || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        unitPrices: {
-                          ...prev.unitPrices,
-                          [type]: e.target.value,
-                        },
-                      }))
-                    }
-                    className='w-full'
-                    required
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Unit Prices */}
+          <UnitPricesForm
+            meterTypes={meterTypes}
+            unitPrices={formData.unitPrices}
+            onChange={(unitPrices) =>
+              setFormData((prev) => ({ ...prev, unitPrices }))
+            }
+          />
 
           <Button
             type='submit'

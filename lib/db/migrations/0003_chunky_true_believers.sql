@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD CONSTRAINT "app_role_check" CHECK ("user"."appRole" = ANY(ARRAY['super_admin', 'admin', 'accountant', 'sales_person', 'user']::text[]));

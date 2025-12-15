@@ -7,12 +7,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { format, isSameDay, startOfDay } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, X, Loader2, CalendarIcon } from "lucide-react";
+import {
+  RefreshCw,
+  X,
+  Loader2,
+  CalendarIcon,
+  Download,
+  File,
+  FileSpreadsheet,
+  FileText,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -38,6 +53,10 @@ import {
 } from "@/components/ui/pagination";
 import { useState, Fragment } from "react";
 import { cn } from "@/lib/utils";
+import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 
 interface PurchaseBatch {
   id: string;
@@ -189,26 +208,119 @@ export default function PurchaseBatchesView() {
     setCurrentPage(1);
   };
 
+  const handleExportCSV = () => {
+    if (filteredBatches.length === 0) return;
+    const data = filteredBatches.map((b, index) => ({
+      "#": index + 1,
+      "Batch Number": b.batch_number,
+      "Meter Type": b.meter_type,
+      Quantity: b.quantity,
+      Remaining: b.remaining_meters,
+      "Total Cost (KES)": b.total_cost,
+      "Added By": b.user_profiles?.name || "-",
+      "Purchase Date": b.purchase_date
+        ? format(new Date(b.purchase_date), "dd/MM/yyyy")
+        : "-",
+    }));
+    generateCSV(data, "purchase_batches");
+  };
+
+  const handleExportXLSX = () => {
+    if (filteredBatches.length === 0) return;
+    const data = filteredBatches.map((b, index) => ({
+      "#": index + 1,
+      "Batch Number": b.batch_number,
+      "Meter Type": b.meter_type,
+      Quantity: b.quantity,
+      Remaining: b.remaining_meters,
+      "Total Cost (KES)": b.total_cost,
+      "Added By": b.user_profiles?.name || "-",
+      "Purchase Date": b.purchase_date
+        ? format(new Date(b.purchase_date), "dd/MM/yyyy")
+        : "-",
+    }));
+    generateXLSX(data, "purchase_batches", "Purchase Batches");
+  };
+
+  const handleExportPDF = async () => {
+    if (filteredBatches.length === 0) return;
+    const headers = ["#", "Batch", "Type", "Qty", "Remaining", "Cost", "Date"];
+    const data = filteredBatches.map((b, index) => [
+      String(index + 1),
+      b.batch_number,
+      b.meter_type,
+      String(b.quantity),
+      String(b.remaining_meters),
+      b.total_cost,
+      b.purchase_date ? format(new Date(b.purchase_date), "dd/MM/yyyy") : "-",
+    ]);
+
+    const blob = await pdf(
+      <TableReportPDF
+        title='Purchase Batches Report'
+        headers={headers}
+        data={data}
+      />
+    ).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "purchase_batches.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className='flex flex-col h-full overflow-hidden'>
       {/* Header - aligned with Sheet close button */}
       <div className='flex-none bg-gray-50 pb-4 pt-2 px-6 border-b border-gray-200'>
         <div className='flex justify-between items-center mb-4 pr-12'>
           <h2 className='text-2xl font-bold'>Purchase Batches</h2>
-          <Button
-            variant='outline'
-            size='icon'
-            onClick={handleRefresh}
-            disabled={isLoading || isRefreshing}
-            aria-label='Refresh purchase batch data'
-            className='hover:bg-gray-100 cursor-pointer'>
-            <RefreshCw
-              className={cn(
-                "h-4 w-4 transition-transform",
-                (isLoading || isRefreshing) && "animate-spin"
-              )}
-            />
-          </Button>
+          <div className='flex items-center gap-2'>
+            {filteredBatches.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    className='hover:bg-gray-100 cursor-pointer'>
+                    <Download className='h-4 w-4' />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                    <File className='h-4 w-4 mr-2' />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportXLSX}>
+                    <FileSpreadsheet className='h-4 w-4 mr-2' />
+                    Export as XLSX
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>
+                    <FileText className='h-4 w-4 mr-2' />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button
+              variant='outline'
+              size='icon'
+              onClick={handleRefresh}
+              disabled={isLoading || isRefreshing}
+              aria-label='Refresh purchase batch data'
+              className='hover:bg-gray-100 cursor-pointer'>
+              <RefreshCw
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  (isLoading || isRefreshing) && "animate-spin"
+                )}
+              />
+            </Button>
+          </div>
         </div>
       </div>
 

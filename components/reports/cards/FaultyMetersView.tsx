@@ -6,6 +6,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import React, { useState } from "react";
 import {
   AlertTriangle,
@@ -13,6 +19,10 @@ import {
   RefreshCw,
   X,
   Loader2,
+  Download,
+  File,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { getFaultyMeters } from "@/lib/actions/reports";
 import { EmptyState } from "./EmptyState";
@@ -21,7 +31,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { DatePicker } from "@/components/ui/date-picker";
-import { format } from "date-fns";
 import { CalendarDate } from "@internationalized/date";
 import {
   Select,
@@ -41,6 +50,11 @@ import {
 import { updateFaultyMeterStatus } from "@/lib/actions/meters";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { formatDate, formatISODate } from "@/lib/utils/dateUtils";
+import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 import {
   Pagination,
   PaginationContent,
@@ -110,7 +124,7 @@ export default function FaultyMetersView() {
     const matchesDate =
       !selectedDate ||
       !meter.returned_at ||
-      format(meter.returned_at, "yyyy-MM-dd") ===
+      formatISODate(meter.returned_at) ===
         `${selectedDate.year}-${String(selectedDate.month).padStart(2, "0")}-${String(selectedDate.day).padStart(2, "0")}`;
 
     const matchesStatus =
@@ -186,6 +200,71 @@ export default function FaultyMetersView() {
   const endIndex = startIndex + itemsPerPage;
   const currentMeters = filteredMeters?.slice(startIndex, endIndex);
 
+  const handleExportCSV = () => {
+    if (!filteredMeters || filteredMeters.length === 0) return;
+    const data = filteredMeters.map((m, index) => ({
+      "#": index + 1,
+      "Serial Number": m.serial_number,
+      Type: m.type,
+      Status: m.status || "-",
+      "Returned By": m.returner_name,
+      "Fault Description": m.fault_description || "-",
+      Date: m.returned_at ? formatDate(m.returned_at) : "-",
+    }));
+    generateCSV(data, "faulty_meters");
+  };
+
+  const handleExportXLSX = () => {
+    if (!filteredMeters || filteredMeters.length === 0) return;
+    const data = filteredMeters.map((m, index) => ({
+      "#": index + 1,
+      "Serial Number": m.serial_number,
+      Type: m.type,
+      Status: m.status || "-",
+      "Returned By": m.returner_name,
+      "Fault Description": m.fault_description || "-",
+      Date: m.returned_at ? formatDate(m.returned_at) : "-",
+    }));
+    generateXLSX(data, "faulty_meters", "Faulty Meters");
+  };
+
+  const handleExportPDF = async () => {
+    if (!filteredMeters || filteredMeters.length === 0) return;
+    const headers = [
+      "#",
+      "Serial Number",
+      "Type",
+      "Status",
+      "Returned By",
+      "Date",
+    ];
+    const data = filteredMeters.map((m, index) => [
+      String(index + 1),
+      m.serial_number,
+      m.type,
+      m.status || "-",
+      m.returner_name,
+      m.returned_at ? formatDate(m.returned_at) : "-",
+    ]);
+
+    const blob = await pdf(
+      <TableReportPDF
+        title='Faulty Meters Report'
+        headers={headers}
+        data={data}
+      />
+    ).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "faulty_meters.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className='flex flex-col h-full overflow-hidden'>
       <div className='flex-none bg-gray-50 pb-4 pt-2 px-6 border-b border-gray-200'>
@@ -194,20 +273,48 @@ export default function FaultyMetersView() {
             <AlertTriangle className='h-5 w-5 text-yellow-500' />
             Faulty Meters
           </h2>
-          <Button
-            variant='outline'
-            size='icon'
-            onClick={handleRefresh}
-            disabled={isLoading || isRefreshing || isUpdating}
-            aria-label='Refresh faulty meters data'
-            className='hover:bg-gray-100 cursor-pointer'>
-            <RefreshCw
-              className={cn(
-                "h-4 w-4 transition-transform",
-                (isLoading || isRefreshing) && "animate-spin"
-              )}
-            />
-          </Button>
+          <div className='flex items-center gap-2'>
+            {filteredMeters && filteredMeters.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    className='hover:bg-gray-100 cursor-pointer'>
+                    <Download className='h-4 w-4' />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                    <File className='h-4 w-4 mr-2' />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportXLSX}>
+                    <FileSpreadsheet className='h-4 w-4 mr-2' />
+                    Export as XLSX
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>
+                    <FileText className='h-4 w-4 mr-2' />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button
+              variant='outline'
+              size='icon'
+              onClick={handleRefresh}
+              disabled={isLoading || isRefreshing || isUpdating}
+              aria-label='Refresh faulty meters data'
+              className='hover:bg-gray-100 cursor-pointer'>
+              <RefreshCw
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  (isLoading || isRefreshing) && "animate-spin"
+                )}
+              />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -286,7 +393,7 @@ export default function FaultyMetersView() {
                           <TableCell>{meter.returner_name}</TableCell>
                           <TableCell>
                             {meter.returned_at
-                              ? meter.returned_at.toLocaleDateString()
+                              ? formatDate(meter.returned_at)
                               : "-"}
                           </TableCell>
                           <TableCell>

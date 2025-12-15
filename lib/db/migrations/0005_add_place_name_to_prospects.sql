@@ -1,0 +1,1 @@
+ALTER TABLE "client_prospects" ADD COLUMN "place_name" text;

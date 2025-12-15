@@ -10,6 +10,7 @@ import {
   accountant as accountantRole,
   user as userRole,
 } from "@/lib/auth/permissions";
+import { send2FAOTP } from "@/lib/services/smsService";
 
 // Singleton pattern to prevent connection leaks during hot reloads
 const globalForDb = globalThis as unknown as {
@@ -29,6 +30,7 @@ globalForDb.authPool = authPool;
 
 export const auth = betterAuth({
   database: authPool,
+  appName: "UMS POS",
   emailAndPassword: {
     enabled: true,
     // Use bcrypt for password hashing (Supabase uses bcrypt)
@@ -52,7 +54,26 @@ export const auth = betterAuth({
     }),
     anonymous(),
     phoneNumber(),
-    twoFactor(),
+    twoFactor({
+      otpOptions: {
+        async sendOTP({ user, otp }) {
+          // Send OTP via SMS to user's phone number
+          const userWithPhone = user as typeof user & { phoneNumber?: string };
+          if (userWithPhone.phoneNumber) {
+            const result = await send2FAOTP(userWithPhone.phoneNumber, otp);
+            if (!result.success) {
+              console.error("Failed to send 2FA OTP:", result.error);
+              throw new Error("Failed to send verification code");
+            }
+          } else {
+            console.error("User has no phone number configured for 2FA");
+            throw new Error("No phone number configured for 2FA");
+          }
+        },
+        period: 300, // 5 minutes expiration
+      },
+      skipVerificationOnEnable: false,
+    }),
     nextCookies(),
   ],
   advanced: {

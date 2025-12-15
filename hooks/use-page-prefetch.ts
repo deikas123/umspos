@@ -9,6 +9,7 @@
  * 2. Use exact query keys that match component implementations
  * 3. Set appropriate stale times to prevent unnecessary refetches
  * 4. Prefetch in background without blocking UI
+ * 5. Skip prefetch if data is already cached and fresh
  *
  * CRITICAL: Query keys MUST match exactly with component usage
  * - Dashboard: ["salesChartData", 30]
@@ -19,7 +20,8 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 // Import server actions
 import { getSaleBatches, getSalesChartData } from "@/lib/actions/sales";
@@ -36,6 +38,10 @@ import {
 
 const CACHE_TIME = 1000 * 60 * 5; // 5 minutes - keep in memory
 const STALE_TIME = 1000 * 30; // 30 seconds - refetch if older
+
+// Track prefetch timestamps to debounce rapid prefetch calls
+const prefetchTimestamps = new Map<string, number>();
+const PREFETCH_DEBOUNCE_MS = 5000; // Don't re-prefetch same page within 5 seconds
 
 /**
  * Helper function to aggregate top sellers data
@@ -62,33 +68,86 @@ function aggregateTopSellers(topUsers: any[]) {
  */
 export function usePagePrefetch() {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
+  const prefetchingRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Check if we should skip prefetch (already cached, currently fetching, or debounced)
+   */
+  const shouldSkipPrefetch = useCallback(
+    (url: string, queryKey: unknown[]): boolean => {
+      // Skip if already prefetching this URL
+      if (prefetchingRef.current.has(url)) {
+        return true;
+      }
+
+      // Skip if recently prefetched (debounce)
+      const lastPrefetch = prefetchTimestamps.get(url);
+      if (lastPrefetch && Date.now() - lastPrefetch < PREFETCH_DEBOUNCE_MS) {
+        return true;
+      }
+
+      // Skip if data is already fresh in cache
+      const cachedData = queryClient.getQueryData(queryKey);
+      const queryState = queryClient.getQueryState(queryKey);
+      if (cachedData && queryState && !queryState.isInvalidated) {
+        const dataAge = Date.now() - (queryState.dataUpdatedAt || 0);
+        if (dataAge < STALE_TIME) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+    [queryClient]
+  );
 
   /**
    * Prefetch dashboard page data
    * MUST match SalesBarchart component query key exactly
    */
   const prefetchDashboard = useCallback(async () => {
-    await queryClient.prefetchQuery({
-      queryKey: ["salesChartData", 30], // Matches SalesBarchart default
-      queryFn: () => getSalesChartData(30),
-      staleTime: STALE_TIME,
-    });
-  }, [queryClient]);
+    const queryKey = ["salesChartData", 30];
+    if (shouldSkipPrefetch("/dashboard", queryKey)) return;
+
+    prefetchingRef.current.add("/dashboard");
+    prefetchTimestamps.set("/dashboard", Date.now());
+
+    try {
+      await queryClient.prefetchQuery({
+        queryKey,
+        queryFn: () => getSalesChartData(30),
+        staleTime: STALE_TIME,
+      });
+    } finally {
+      prefetchingRef.current.delete("/dashboard");
+    }
+  }, [queryClient, shouldSkipPrefetch]);
 
   /**
    * Prefetch sales page data
    * MUST match useMeterSalesData hook query key exactly
    */
   const prefetchSales = useCallback(async () => {
-    await queryClient.prefetchQuery({
-      queryKey: ["saleBatches", 1, 10, undefined], // Matches useMeterSalesData default (page 1, limit 10, no filters)
-      queryFn: async () => {
-        const data = await getSaleBatches(1, 10);
-        return data;
-      },
-      staleTime: STALE_TIME,
-    });
-  }, [queryClient]);
+    const queryKey = ["saleBatches", 1, 10, undefined];
+    if (shouldSkipPrefetch("/sales", queryKey)) return;
+
+    prefetchingRef.current.add("/sales");
+    prefetchTimestamps.set("/sales", Date.now());
+
+    try {
+      await queryClient.prefetchQuery({
+        queryKey,
+        queryFn: async () => {
+          const data = await getSaleBatches(1, 10);
+          return data;
+        },
+        staleTime: STALE_TIME,
+      });
+    } finally {
+      prefetchingRef.current.delete("/sales");
+    }
+  }, [queryClient, shouldSkipPrefetch]);
 
   /**
    * Prefetch reports page data
@@ -234,10 +293,16 @@ export function usePagePrefetch() {
 
   /**
    * Prefetch data for a specific page URL
+   * Skips prefetch if already on the page or recently prefetched
    * @param url - The page URL to prefetch data for
    */
   const prefetchPage = useCallback(
     (url: string) => {
+      // Don't prefetch if we're already on this page
+      if (pathname === url) {
+        return;
+      }
+
       const prefetchFn = prefetchMap[url as keyof typeof prefetchMap];
       if (prefetchFn) {
         // Run prefetch in background, don't block UI
@@ -247,6 +312,7 @@ export function usePagePrefetch() {
       }
     },
     [
+      pathname,
       prefetchDashboard,
       prefetchSales,
       prefetchReports,

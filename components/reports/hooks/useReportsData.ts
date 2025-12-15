@@ -8,6 +8,7 @@ import {
   getRegionDistribution,
   getRemainingMetersByType,
   getAgentInventoryCount,
+  getFaultyMetersByType,
 } from "@/lib/actions/reports";
 import type { TopSeller } from "../types";
 
@@ -20,6 +21,7 @@ const QUERY_KEYS = {
   regionDistribution: "regionDistribution",
   remainingMetersByType: "remainingMetersByType",
   agentInventory: "agentInventory",
+  faultyMetersByType: "faultyMetersByType",
 } as const;
 
 const GC_TIME = 1000 * 60 * 10; // 10 minutes
@@ -29,6 +31,7 @@ const STALE_TIME = 1000 * 60 * 2; // 2 minutes - increased from 1 minute
 export interface ReportsPageData {
   remainingMetersByType: Array<{ type: string; remaining_meters: number }>;
   agentInventory: Array<{ type: string; with_agents: number }>;
+  faultyMetersByType: Array<{ type: string; faulty_count: number }>;
   mostSellingProduct: string;
   customerTypeData: Array<{ type: string; count: number }>;
   regionDistribution: Array<{ region: string; count: number }>;
@@ -60,6 +63,16 @@ export function useReportsData(initialData?: ReportsPageData) {
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     initialData: initialData?.agentInventory,
+    refetchOnMount: !hasInitialData,
+  });
+
+  // Faulty meters query - use initialData if available
+  const faultyMetersQuery = useQuery({
+    queryKey: [QUERY_KEYS.faultyMetersByType],
+    queryFn: getFaultyMetersByType,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    initialData: initialData?.faultyMetersByType,
     refetchOnMount: !hasInitialData,
   });
 
@@ -137,6 +150,7 @@ export function useReportsData(initialData?: ReportsPageData) {
     remainingMetersQuery.isLoading ||
     mostSellingProductQuery.isLoading ||
     agentInventoryQuery.isLoading ||
+    faultyMetersQuery.isLoading ||
     customerTypesQuery.isLoading ||
     regionDistributionQuery.isLoading ||
     (hasReportsAccess && earningsQuery.isLoading);
@@ -146,6 +160,7 @@ export function useReportsData(initialData?: ReportsPageData) {
     topSellersQuery.isFetching ||
     mostSellingProductQuery.isFetching ||
     agentInventoryQuery.isFetching ||
+    faultyMetersQuery.isFetching ||
     customerTypesQuery.isFetching ||
     regionDistributionQuery.isFetching ||
     (hasReportsAccess && earningsQuery.isFetching);
@@ -155,6 +170,7 @@ export function useReportsData(initialData?: ReportsPageData) {
     remainingMetersQuery.error ||
     topSellersQuery.error ||
     mostSellingProductQuery.error ||
+    faultyMetersQuery.error ||
     agentInventoryQuery.error ||
     customerTypesQuery.error ||
     regionDistributionQuery.error ||
@@ -175,6 +191,7 @@ export function useReportsData(initialData?: ReportsPageData) {
         0,
       userRole: userRole || "",
       agentInventory: agentInventoryQuery.data || [],
+      faultyMetersByType: faultyMetersQuery.data || [],
       customerTypeData: customerTypesQuery.data || [],
       regionDistribution: regionDistributionQuery.data || [],
     },
@@ -194,6 +211,7 @@ export function useReportsData(initialData?: ReportsPageData) {
         regionDistributionQuery.refetch(refetchOptions),
         remainingMetersQuery.refetch(refetchOptions),
         agentInventoryQuery.refetch(refetchOptions),
+        faultyMetersQuery.refetch(refetchOptions),
       ];
 
       if (hasReportsAccess) {

@@ -1,9 +1,9 @@
 // Kenya Regions (Former Provinces) with their constituent counties
 export const KENYA_REGIONS = {
-  Central: ["Nyandarua", "Nyeri", "Kirinyaga", "Murang'a", "Kiambu"],
-  Coast: ["Mombasa", "Kwale", "Kilifi", "Tana River", "Lamu", "Taita Taveta"],
+  "Central": ["Nyandarua", "Nyeri", "Kirinyaga", "Murang'a", "Kiambu"],
+  "Coast": ["Mombasa", "Kwale", "Kilifi", "Tana River", "Lamu", "Taita Taveta"],
   "North Eastern": ["Garissa", "Wajir", "Mandera"],
-  Eastern: [
+  "Eastern": [
     "Marsabit",
     "Isiolo",
     "Meru",
@@ -29,9 +29,9 @@ export const KENYA_REGIONS = {
     "Kericho",
     "Bomet",
   ],
-  Western: ["Kakamega", "Vihiga", "Bungoma", "Busia"],
-  Nyanza: ["Siaya", "Kisumu", "Homa Bay", "Migori", "Kisii", "Nyamira"],
-  Nairobi: ["Nairobi"],
+  "Western": ["Kakamega", "Vihiga", "Bungoma", "Busia"],
+  "Nyanza": ["Siaya", "Kisumu", "Homa Bay", "Migori", "Kisii", "Nyamira"],
+  "Nairobi": ["Nairobi"],
 } as const;
 
 export const KENYA_REGION_NAMES = Object.keys(KENYA_REGIONS) as KenyaRegion[];
@@ -87,7 +87,12 @@ export const KENYA_COUNTIES = [
 ] as const;
 
 export const CUSTOMER_TYPES = [
+  "website",
+  "socials",
+  "expo",
   "walk in",
+  "cold call",
+  "prospect",
   "agent",
   "technician",
   "referal",

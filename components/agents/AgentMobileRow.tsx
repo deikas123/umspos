@@ -10,16 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Phone, Info, MapPin } from "lucide-react";
 import AgentActionsMenu from "./AgentActionsMenu";
-
-interface Agent {
-  id: string;
-  name: string;
-  phone_number: string;
-  location: string;
-  county: string;
-  is_active: boolean | null;
-  total_meters?: number;
-}
+import { type Agent } from "./hooks/useAgentsData";
 
 interface CurrentUser {
   id: string;
@@ -80,6 +71,20 @@ export default function AgentMobileRow({
                     variant='outline'
                     className='bg-gray-100 text-gray-800'>
                     {agent.county}
+                  </Badge>
+                </div>
+              </div>
+              <div className='mb-2'>
+                <span className='text-sm font-medium'>Type:</span>
+                <div className='mt-1'>
+                  <Badge
+                    variant='outline'
+                    className={
+                      agent.agent_type === "credit"
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-emerald-100 text-emerald-800"
+                    }>
+                    {agent.agent_type === "credit" ? "Credit" : "Cash"}
                   </Badge>
                 </div>
               </div>

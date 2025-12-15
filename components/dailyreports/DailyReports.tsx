@@ -5,29 +5,34 @@ import { useSalesData } from "./hooks/useSalesData";
 import {
   useRemainingMetersByType,
   useAgentInventory,
+  useFaultyMetersByType,
 } from "./hooks/useReportsData";
 import { SalesTable } from "./SalesTable";
 import { DailyReportsFilters } from "./DailyReportsFilters";
 import { DailyReportsSummary } from "./DailyReportsSummary";
 import type {
   DateRange,
-  MeterDetail,
   SaleWithMeters,
 } from "@/components/dailyreports/types";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Button } from "@/components/ui/button";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, Package, ShoppingCart } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { pdf } from "@react-pdf/renderer";
-import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
+import StockSummaryPDF from "@/components/sharedcomponents/StockSummaryPDF";
+import SalesBreakdownPDF from "@/components/sharedcomponents/SalesBreakdownPDF";
 import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDate, formatTime } from "@/lib/utils/dateUtils";
 
 interface DailyReportsProps {
   selectedDateRange: DateRange | null;
@@ -54,13 +59,10 @@ interface AgentInventory {
   with_agents: number;
 }
 
-const formatSerials = (meters?: MeterDetail[], separator: string = ", ") => {
-  if (!meters?.length) {
-    return "N/A";
-  }
-
-  return meters.map((meter) => meter.serial_number).join(separator);
-};
+interface FaultyMetersByType {
+  type: MeterType;
+  faulty_count: number;
+}
 
 export default function DailyReports({
   selectedDateRange,
@@ -77,6 +79,7 @@ export default function DailyReports({
   // Use React Query hooks instead of useEffect - shares cache with parent
   const remainingMetersQuery = useRemainingMetersByType();
   const agentInventoryQuery = useAgentInventory();
+  const faultyMetersQuery = useFaultyMetersByType();
 
   // Normalize data with memoization
   const remainingMetersByType = useMemo(() => {
@@ -104,6 +107,19 @@ export default function DailyReports({
       };
     });
   }, [agentInventoryQuery.data]);
+
+  const faultyMetersByType = useMemo(() => {
+    const rawData = faultyMetersQuery.data || [];
+    return METER_TYPES.map((type) => {
+      const existing = rawData.find(
+        (faulty: any) => faulty.type.toLowerCase() === type.toLowerCase()
+      );
+      return {
+        type: type,
+        faulty_count: existing?.faulty_count || 0,
+      };
+    });
+  }, [faultyMetersQuery.data]);
 
   // Memoize filtered sales
   const filteredSales = useMemo(() => {
@@ -151,69 +167,213 @@ export default function DailyReports({
     return searchUser || selectedType !== "all";
   };
 
-  const handleExportPDF = async () => {
-    const dataToExport = hasActiveFilters() ? currentItems : filteredSales;
+  // Prepare stock summary data
+  const stockData = useMemo(() => {
+    return METER_TYPES.map((type) => {
+      const remaining = remainingMetersByType.find((r) => r.type === type);
+      const agents = agentInventory.find((a) => a.type === type);
+      const faulty = faultyMetersByType.find((f) => f.type === type);
+      const inStock = remaining?.remaining_meters || 0;
+      const withAgents = agents?.with_agents || 0;
+      const faultyCount = faulty?.faulty_count || 0;
+      return {
+        type,
+        inStock,
+        withAgents,
+        faulty: faultyCount,
+        total: inStock + withAgents + faultyCount,
+      };
+    });
+  }, [remainingMetersByType, agentInventory, faultyMetersByType]);
 
-    const headers = [
-      "Seller's Name",
-      "Meter Type",
-      "Amount",
-      "Total Price",
-      "Time",
-      "Customer Type",
-      "County",
-      "Contact",
-      "Serial Numbers",
-    ];
-    const data = dataToExport.map((sale) => [
-      sale.user_name,
-      sale.meter_type,
-      sale.batch_amount.toString(),
-      `KES ${sale.total_price.toLocaleString()}`,
-      new Date(sale.sale_date || new Date()).toLocaleTimeString(),
-      sale.customer_type || "",
-      sale.customer_county || "",
-      sale.customer_contact || "",
-      formatSerials(sale.meters, "\n"),
-    ]);
+  const stockTotals = useMemo(() => {
+    return stockData.reduce(
+      (acc, item) => ({
+        inStock: acc.inStock + item.inStock,
+        withAgents: acc.withAgents + item.withAgents,
+        faulty: acc.faulty + item.faulty,
+        total: acc.total + item.total,
+      }),
+      { inStock: 0, withAgents: 0, faulty: 0, total: 0 }
+    );
+  }, [stockData]);
 
+  // Prepare sales summary data
+  const meterTypeSummary = useMemo(() => {
+    const summary: { [key: string]: { count: number; earnings: number } } = {};
+    filteredSales.forEach((sale) => {
+      const type = sale.meter_type;
+      if (!summary[type]) {
+        summary[type] = { count: 0, earnings: 0 };
+      }
+      summary[type].count += sale.batch_amount;
+      summary[type].earnings += sale.total_price;
+    });
+    return Object.entries(summary).map(([type, data]) => ({
+      type,
+      count: data.count,
+      earnings: data.earnings,
+    }));
+  }, [filteredSales]);
+
+  // Stock Summary Export Handlers
+  const handleExportStockPDF = async () => {
     const blob = await pdf(
-      <TableReportPDF
-        title='Daily Sales Report'
-        headers={headers}
-        data={data}
-      />
+      <StockSummaryPDF data={stockData} totals={stockTotals} />
     ).toBlob();
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `daily-sales-report-${
-      new Date().toISOString().split("T")[0]
-    }.pdf`;
+    link.download = `stock-summary-${new Date().toISOString().split("T")[0]}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
-  const handleExportCSV = () => {
+  const handleExportStockCSV = () => {
+    const csvData: Array<{
+      "Meter Type": string;
+      "In Stock": number;
+      "With Agents": number;
+      Faulty: number;
+      Total: number;
+    }> = stockData.map((item) => ({
+      "Meter Type": item.type,
+      "In Stock": item.inStock,
+      "With Agents": item.withAgents,
+      Faulty: item.faulty,
+      Total: item.total,
+    }));
+    csvData.push({
+      "Meter Type": "TOTAL",
+      "In Stock": stockTotals.inStock,
+      "With Agents": stockTotals.withAgents,
+      Faulty: stockTotals.faulty,
+      Total: stockTotals.total,
+    });
+    generateCSV(csvData, "stock_summary");
+  };
+
+  const handleExportStockXLSX = () => {
+    const xlsxData: Array<{
+      "Meter Type": string;
+      "In Stock": number;
+      "With Agents": number;
+      Faulty: number;
+      Total: number;
+    }> = stockData.map((item) => ({
+      "Meter Type": item.type,
+      "In Stock": item.inStock,
+      "With Agents": item.withAgents,
+      Faulty: item.faulty,
+      Total: item.total,
+    }));
+    xlsxData.push({
+      "Meter Type": "TOTAL",
+      "In Stock": stockTotals.inStock,
+      "With Agents": stockTotals.withAgents,
+      Faulty: stockTotals.faulty,
+      Total: stockTotals.total,
+    });
+    generateXLSX(xlsxData, "stock_summary", "Stock Summary");
+  };
+
+  // Sales Breakdown Export Handlers
+  const handleExportSalesPDF = async () => {
     const dataToExport = hasActiveFilters() ? currentItems : filteredSales;
 
-    // Transform the data into the format expected by generateCSV
-    const csvData = dataToExport.map((sale) => ({
-      "Seller's Name": sale.user_name,
-      "Meter Type": sale.meter_type,
-      Amount: sale.batch_amount.toString(),
-      "Total Price": sale.total_price.toString(),
-      Time: new Date(sale.sale_date || new Date()).toLocaleTimeString(),
-      "Customer Type": sale.customer_type,
-      County: sale.customer_county,
-      Contact: sale.customer_contact,
-      "Serial Numbers": formatSerials(sale.meters),
+    const salesRecords = dataToExport.map((sale) => ({
+      seller: sale.user_name,
+      meterType: sale.meter_type,
+      quantity: sale.batch_amount,
+      unitPrice: sale.unit_price,
+      totalPrice: sale.total_price,
+      time: formatTime(sale.sale_date),
+      customerType:
+        sale.customer_type
+          ?.split(" ")
+          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ") || "",
+      county: sale.customer_county || "",
+      recipient: sale.recipient,
     }));
 
-    generateCSV(csvData, "daily_sales_report");
+    const totalEarnings = dataToExport.reduce(
+      (sum, sale) => sum + sale.total_price,
+      0
+    );
+    const totalMeters = dataToExport.reduce(
+      (sum, sale) => sum + sale.batch_amount,
+      0
+    );
+
+    const blob = await pdf(
+      <SalesBreakdownPDF
+        sales={salesRecords}
+        totalEarnings={totalEarnings}
+        totalMeters={totalMeters}
+        meterTypeSummary={meterTypeSummary}
+        reportTitle='Sales Breakdown Report'
+        dateRange={
+          selectedDateRange
+            ? `${formatDate(selectedDateRange.startDate)} - ${formatDate(selectedDateRange.endDate)}`
+            : "Today"
+        }
+      />
+    ).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `sales-breakdown-${new Date().toISOString().split("T")[0]}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSalesCSV = () => {
+    const dataToExport = hasActiveFilters() ? currentItems : filteredSales;
+
+    const csvData = dataToExport.map((sale) => ({
+      Seller: sale.user_name,
+      "Meter Type": sale.meter_type,
+      Quantity: sale.batch_amount,
+      "Unit Price": sale.unit_price,
+      "Total Price": sale.total_price,
+      Time: formatTime(sale.sale_date),
+      "Customer Type": sale.customer_type
+        ?.split(" ")
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+      County: sale.customer_county,
+      Recipient: sale.recipient,
+    }));
+
+    generateCSV(csvData, "sales_breakdown");
+  };
+
+  const handleExportSalesXLSX = () => {
+    const dataToExport = hasActiveFilters() ? currentItems : filteredSales;
+
+    const xlsxData = dataToExport.map((sale) => ({
+      Seller: sale.user_name,
+      "Meter Type": sale.meter_type,
+      Quantity: sale.batch_amount,
+      "Unit Price": sale.unit_price,
+      "Total Price": sale.total_price,
+      Time: formatTime(sale.sale_date),
+      "Customer Type": sale.customer_type
+        ?.split(" ")
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+      County: sale.customer_county,
+      Recipient: sale.recipient,
+    }));
+
+    generateXLSX(xlsxData, "sales_breakdown", "Sales Breakdown");
   };
 
   // Manual refresh handler
@@ -222,6 +382,10 @@ export default function DailyReports({
       await Promise.all([
         refetch({ throwOnError: true }),
         agentInventoryQuery.refetch({
+          cancelRefetch: false,
+          throwOnError: true,
+        }),
+        faultyMetersQuery.refetch({
           cancelRefetch: false,
           throwOnError: true,
         }),
@@ -235,7 +399,8 @@ export default function DailyReports({
   const isRefreshing =
     (isFetching && !isLoading) ||
     agentInventoryQuery.isFetching ||
-    remainingMetersQuery.isFetching;
+    remainingMetersQuery.isFetching ||
+    faultyMetersQuery.isFetching;
 
   if (isError) {
     return (
@@ -255,8 +420,8 @@ export default function DailyReports({
                 {selectedDateRange ? selectedDateRange.label : "Today's Sales"}
                 {selectedDateRange && (
                   <span className='text-sm text-muted-foreground ml-2'>
-                    ({selectedDateRange.startDate.toLocaleDateString()} -{" "}
-                    {selectedDateRange.endDate.toLocaleDateString()})
+                    ({formatDate(selectedDateRange.startDate)} -{" "}
+                    {formatDate(selectedDateRange.endDate)})
                   </span>
                 )}
               </CardTitle>
@@ -291,19 +456,48 @@ export default function DailyReports({
                   <DropdownMenuTrigger asChild>
                     <Button variant='outline' className='cursor-pointer'>
                       <Download className='mr-2 h-4 w-4' />
-                      Export Table as
+                      Export
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent>
+                  <DropdownMenuContent className='w-48'>
+                    <DropdownMenuLabel className='flex items-center gap-2'>
+                      <Package className='h-4 w-4' />
+                      Stock Summary
+                    </DropdownMenuLabel>
                     <DropdownMenuItem
-                      onClick={handleExportPDF}
-                      className='cursor-pointer'>
+                      onClick={handleExportStockPDF}
+                      className='cursor-pointer pl-6'>
                       PDF
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={handleExportCSV}
-                      className='cursor-pointer'>
+                      onClick={handleExportStockCSV}
+                      className='cursor-pointer pl-6'>
                       CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleExportStockXLSX}
+                      className='cursor-pointer pl-6'>
+                      XLSX
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className='flex items-center gap-2'>
+                      <ShoppingCart className='h-4 w-4' />
+                      Sales Breakdown
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={handleExportSalesPDF}
+                      className='cursor-pointer pl-6'>
+                      PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleExportSalesCSV}
+                      className='cursor-pointer pl-6'>
+                      CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleExportSalesXLSX}
+                      className='cursor-pointer pl-6'>
+                      XLSX
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -327,6 +521,7 @@ export default function DailyReports({
           )}
           remainingMetersByType={remainingMetersByType}
           agentInventory={agentInventory}
+          faultyMetersByType={faultyMetersByType}
         />
       </ErrorBoundary>
     </div>

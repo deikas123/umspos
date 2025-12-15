@@ -18,7 +18,9 @@ export async function middleware(request: NextRequest) {
   }
 
   const isAuthPage =
-    pathname.startsWith("/signin") || pathname.startsWith("/error");
+    pathname.startsWith("/signin") ||
+    pathname.startsWith("/two-factor") ||
+    pathname.startsWith("/error");
   const isDeactivatedPage = pathname.startsWith("/deactivated");
 
   // Get session cookie (optimistic check - full validation happens in pages/routes)

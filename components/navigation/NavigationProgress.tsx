@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /**
@@ -11,10 +11,18 @@ export function NavigationProgress() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isNavigating, setIsNavigating] = useState(false);
+  const prevPathRef = useRef(pathname);
 
+  // Reset navigation state when route changes
   useEffect(() => {
-    // Reset navigation state when route changes
-    setIsNavigating(false);
+    // Only reset if the path actually changed
+    if (prevPathRef.current !== pathname) {
+      prevPathRef.current = pathname;
+      setIsNavigating(false);
+
+      // Dispatch navigation complete event
+      globalThis.window.dispatchEvent(new CustomEvent("navigation-complete"));
+    }
   }, [pathname, searchParams]);
 
   // Listen for route change start

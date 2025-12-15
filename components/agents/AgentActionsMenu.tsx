@@ -38,16 +38,7 @@ import AgentInventory from "./AgentInventory";
 import RecordAgentSale from "./RecordAgentSale";
 import AssignMetersToAgent from "./AssignMetersToAgent";
 import ReturnMetersFromAgent from "./ReturnMetersFromAgent";
-
-interface Agent {
-  id: string;
-  name: string;
-  phone_number: string;
-  location: string;
-  county: string;
-  is_active: boolean | null;
-  total_meters?: number;
-}
+import { type Agent } from "./hooks/useAgentsData";
 
 interface CurrentUser {
   id: string;
@@ -74,6 +65,9 @@ export default function AgentActionsMenu({
   onDelete,
   onSaleClose,
 }: Readonly<AgentActionsMenuProps>) {
+  const canManageAgents =
+    currentUser?.role === "admin" || currentUser?.role === "super_admin";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -99,13 +93,13 @@ export default function AgentActionsMenu({
               </SheetTitle>
             </SheetHeader>
             <div className='flex-1 overflow-y-auto px-6 py-4'>
-              <AgentInventory agentId={agent.id} />
+              <AgentInventory agentId={agent.id} agentName={agent.name} />
             </div>
           </SheetContent>
         </Sheet>
 
         {/* Admin-only actions */}
-        {currentUser?.role === "admin" && (
+        {canManageAgents && (
           <>
             <DropdownMenuSeparator />
 
@@ -140,7 +134,7 @@ export default function AgentActionsMenu({
                     currentUser={{
                       id: currentUser.id,
                       email: currentUser.email || "",
-                      role: currentUser.role,
+                      role: currentUser.role || undefined,
                       name: currentUser.name || undefined,
                     }}
                     onClose={onSaleClose}

@@ -1,6 +1,16 @@
 "use server";
 
-import { eq, and, sql, desc, inArray, ilike, count } from "drizzle-orm";
+import {
+  eq,
+  and,
+  sql,
+  desc,
+  inArray,
+  ilike,
+  count,
+  gte,
+  lte,
+} from "drizzle-orm";
 import { db } from "../db";
 import {
   agents,
@@ -27,6 +37,7 @@ export async function getAgentsList() {
         phone_number: agents.phone_number,
         location: agents.location,
         county: agents.county,
+        agent_type: agents.agent_type,
         is_active: agents.is_active,
         created_at: agents.created_at,
         total_meters: count(agentInventory.id),
@@ -39,6 +50,7 @@ export async function getAgentsList() {
         agents.phone_number,
         agents.location,
         agents.county,
+        agents.agent_type,
         agents.is_active,
         agents.created_at
       )
@@ -72,12 +84,21 @@ export async function updateAgentDetails(
     phone_number?: string;
     location?: string;
     county?: KenyaCounty;
+    agent_type?: "cash" | "credit";
   }
 ) {
   try {
     // Validate county if it's being updated
     if (updates.county && !KENYA_COUNTIES.includes(updates.county)) {
       throw new Error("Invalid county selected");
+    }
+
+    // Validate agent_type if it's being updated
+    if (
+      updates.agent_type &&
+      !["cash", "credit"].includes(updates.agent_type)
+    ) {
+      throw new Error("Invalid agent type. Must be 'cash' or 'credit'");
     }
 
     const [updatedAgent] = await db
@@ -105,6 +126,7 @@ export async function createAgent(agentData: {
   phone_number: string;
   location: string;
   county: KenyaCounty;
+  agent_type?: "cash" | "credit";
 }) {
   try {
     // Validate county
@@ -112,10 +134,19 @@ export async function createAgent(agentData: {
       throw new Error("Invalid county selected");
     }
 
+    // Validate agent_type if provided
+    if (
+      agentData.agent_type &&
+      !["cash", "credit"].includes(agentData.agent_type)
+    ) {
+      throw new Error("Invalid agent type. Must be 'cash' or 'credit'");
+    }
+
     const [data] = await db
       .insert(agents)
       .values({
         ...agentData,
+        agent_type: agentData.agent_type || "cash",
         is_active: true,
       })
       .returning();
@@ -466,15 +497,63 @@ export async function getAgentInventoryCount() {
 export async function getAgentTransactions(
   page: number = 1,
   limit: number = 10,
-  searchTerm: string = ""
+  searchTerm: string = "",
+  filters?: {
+    transactionType?: string;
+    meterType?: string;
+    agentId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }
 ) {
   try {
     const offset = (page - 1) * limit;
 
-    // Build the where conditions
-    const whereClause = searchTerm
-      ? ilike(agents.name, `%${searchTerm}%`)
-      : undefined;
+    // Build the where conditions array
+    const conditions = [];
+
+    if (searchTerm) {
+      conditions.push(ilike(agents.name, `%${searchTerm}%`));
+    }
+
+    if (filters?.transactionType) {
+      const validTransactionTypes = ["assignment", "return"] as const;
+      if (
+        validTransactionTypes.includes(
+          filters.transactionType as (typeof validTransactionTypes)[number]
+        )
+      ) {
+        conditions.push(
+          eq(
+            agentTransactions.transaction_type,
+            filters.transactionType as "assignment" | "return"
+          )
+        );
+      }
+    }
+
+    if (filters?.meterType) {
+      conditions.push(eq(agentTransactions.meter_type, filters.meterType));
+    }
+
+    if (filters?.agentId) {
+      conditions.push(eq(agentTransactions.agent_id, filters.agentId));
+    }
+
+    if (filters?.startDate) {
+      conditions.push(
+        gte(agentTransactions.transaction_date, filters.startDate)
+      );
+    }
+
+    if (filters?.endDate) {
+      // Set end date to end of day
+      const endOfDay = new Date(filters.endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      conditions.push(lte(agentTransactions.transaction_date, endOfDay));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Use a subquery so we only aggregate once and leverage a window function for total rows.
     const aggregated = db
@@ -557,5 +636,148 @@ export async function getAgentsPageData() {
     return {
       agents: [],
     };
+  }
+}
+
+/**
+ * Get agent sales analytics data for charting
+ * Returns daily sales counts for each agent from their creation date
+ */
+export async function getAgentSalesAnalytics(
+  agentIds?: string[],
+  days: number = 30
+) {
+  try {
+    // Get agents with their created_at dates
+    const agentsQuery = agentIds?.length
+      ? await db
+          .select({
+            id: agents.id,
+            name: agents.name,
+            created_at: agents.created_at,
+          })
+          .from(agents)
+          .where(inArray(agents.id, agentIds))
+      : await db
+          .select({
+            id: agents.id,
+            name: agents.name,
+            created_at: agents.created_at,
+          })
+          .from(agents)
+          .where(eq(agents.is_active, true));
+
+    if (agentsQuery.length === 0) {
+      return { agents: [], salesData: [], topPerformer: null };
+    }
+
+    const agentNames = agentsQuery.map((a) => a.name);
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Format dates as ISO strings for PostgreSQL
+    const startDateStr = startDate.toISOString();
+    const endDateStr = endDate.toISOString();
+
+    // Build the agent names array for SQL
+    const escapedNames = agentNames
+      .map((n) => `'${n.replaceAll("'", "''")}'`)
+      .join(",");
+    const agentArraySql = `ARRAY[${escapedNames}]`;
+
+    // Get sales data grouped by date and agent (recipient)
+    const salesData = await db.execute(sql`
+      SELECT 
+        DATE(sale_date) as date,
+        recipient as agent_name,
+        SUM(batch_amount) as total_meters
+      FROM sale_batches
+      WHERE customer_type = 'agent'
+        AND recipient = ANY(${sql.raw(agentArraySql)})
+        AND sale_date >= ${startDateStr}
+        AND sale_date <= ${endDateStr}
+      GROUP BY DATE(sale_date), recipient
+      ORDER BY DATE(sale_date) ASC
+    `);
+
+    // Get total sales per agent for ranking
+    const agentTotals = await db.execute(sql`
+      SELECT 
+        recipient as agent_name,
+        SUM(batch_amount) as total_meters,
+        COUNT(*) as total_transactions
+      FROM sale_batches
+      WHERE customer_type = 'agent'
+        AND recipient = ANY(${sql.raw(agentArraySql)})
+      GROUP BY recipient
+      ORDER BY total_meters DESC
+    `);
+
+    const totalsArray = agentTotals as unknown as Array<{
+      agent_name: string;
+      total_meters: string;
+      total_transactions: string;
+    }>;
+
+    const topPerformer = totalsArray.length > 0 ? totalsArray[0] : null;
+
+    // Transform data for charting - create a map of date -> agent -> count
+    const salesArray = salesData as unknown as Array<{
+      date: string;
+      agent_name: string;
+      total_meters: string;
+    }>;
+
+    // Create date range with all dates
+    const dateMap = new Map<string, Record<string, number>>();
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split("T")[0];
+      dateMap.set(dateStr, {});
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Fill in sales data
+    for (const row of salesArray) {
+      const dateStr =
+        typeof row.date === "string"
+          ? row.date.split("T")[0]
+          : new Date(row.date).toISOString().split("T")[0];
+      const agentData = dateMap.get(dateStr) || {};
+      agentData[row.agent_name] = Number(row.total_meters);
+      dateMap.set(dateStr, agentData);
+    }
+
+    // Convert to array format for recharts
+    const chartData = Array.from(dateMap.entries()).map(([date, agents]) => ({
+      date,
+      ...agents,
+    }));
+
+    return {
+      agents: agentsQuery.map((a) => ({
+        id: a.id,
+        name: a.name,
+        createdAt: a.created_at,
+        totalSales:
+          Number(
+            totalsArray.find((t) => t.agent_name === a.name)?.total_meters
+          ) || 0,
+      })),
+      salesData: chartData,
+      topPerformer: topPerformer
+        ? {
+            name: topPerformer.agent_name,
+            totalMeters: Number(topPerformer.total_meters),
+            totalTransactions: Number(topPerformer.total_transactions),
+          }
+        : null,
+    };
+  } catch (error) {
+    console.error("Error fetching agent sales analytics:", error);
+    return { agents: [], salesData: [], topPerformer: null };
   }
 }

@@ -28,6 +28,15 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { KENYA_COUNTIES, type KenyaCounty } from "@/lib/constants/locationData";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type AgentType = "cash" | "credit";
 
 interface CreateAgentDialogProps {
   onClose: () => void;
@@ -43,6 +52,7 @@ export default function CreateAgentDialog({
     phone_number: "",
     location: "",
     county: "Nairobi" as KenyaCounty,
+    agent_type: "cash" as AgentType,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
@@ -69,6 +79,7 @@ export default function CreateAgentDialog({
         phone_number: "",
         location: "",
         county: "Nairobi",
+        agent_type: "cash",
       });
     } catch (error: any) {
       toast.error(error.message || "Failed to create agent");
@@ -172,6 +183,26 @@ export default function CreateAgentDialog({
                 </Command>
               </PopoverContent>
             </Popover>
+          </div>
+          <div className='space-y-2'>
+            <Label>Agent Type</Label>
+            <Select
+              value={formData.agent_type}
+              onValueChange={(value: AgentType) =>
+                setFormData({ ...formData, agent_type: value })
+              }>
+              <SelectTrigger className='w-full bg-white'>
+                <SelectValue placeholder='Select agent type' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='cash'>
+                  <span className='font-medium'>Cash</span>
+                </SelectItem>
+                <SelectItem value='credit'>
+                  <span className='font-medium'>Credit</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button

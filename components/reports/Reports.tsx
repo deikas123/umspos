@@ -47,6 +47,7 @@ export default function Reports({ initialData }: ReportsProps) {
       totalEarnings,
       userRole,
       agentInventory,
+      faultyMetersByType,
       customerTypeData,
       regionDistribution,
     },
@@ -76,7 +77,7 @@ export default function Reports({ initialData }: ReportsProps) {
 
   // Progressive rendering - show layout immediately, fill in data as it loads
   return (
-    <div className='container p-4 md:p-6 mx-auto'>
+    <div className='container px-4 mx-auto'>
       <div className='flex justify-between items-center mb-6'>
         <h1 className='text-2xl md:text-3xl font-bold text-center drop-shadow-lg'>
           Overall Reports
@@ -105,6 +106,7 @@ export default function Reports({ initialData }: ReportsProps) {
             <MeterInventoryCard
               remainingMetersByType={remainingMetersByType}
               agentInventory={agentInventory}
+              faultyMetersByType={faultyMetersByType}
               sidebarState='expanded'
             />
           )}

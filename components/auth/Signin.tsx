@@ -36,6 +36,7 @@ const SignIn = () => {
   useEffect(() => {
     router.prefetch("/dashboard");
     router.prefetch("/deactivated");
+    router.prefetch("/two-factor");
   }, [router]);
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -53,6 +54,8 @@ const SignIn = () => {
       {
         onSuccess: async (ctx) => {
           try {
+            // Check if 2FA is required - the twoFactorClient plugin handles the redirect
+            // automatically via onTwoFactorRedirect callback
             const session = await getSession();
             const user = session?.data?.user as any;
             const isActive = user?.isActive ?? true;

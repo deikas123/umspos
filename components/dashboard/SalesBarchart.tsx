@@ -28,6 +28,7 @@ import {
 import NumberTicker from "@/components/ui/number-ticker";
 import { TrendingDown, BarChart as ChartIcon, ArrowRight } from "lucide-react";
 import { useSalesChartData } from "./hooks/useSalesChartData";
+import { formatChartDate } from "@/lib/utils/dateUtils";
 
 interface SalesChartData {
   date: string;
@@ -57,32 +58,32 @@ const chartConfig = {
   integrated: {
     label: "Integrated",
     gradientId: "integratedGradient",
-    colors: ["#4F46E5", "#818CF8"], // Indigo gradient
+    colors: ["#4F46E5", "#818CF8"],
   },
   split: {
     label: "Split",
     gradientId: "splitGradient",
-    colors: ["#0EA5E9", "#38BDF8"], // Sky blue gradient
+    colors: ["#0EA5E9", "#38BDF8"],
   },
   gas: {
     label: "Gas",
     gradientId: "gasGradient",
-    colors: ["#059669", "#34D399"], // Emerald gradient
+    colors: ["#059669", "#34D399"],
   },
   water: {
     label: "Water",
     gradientId: "waterGradient",
-    colors: ["#2563EB", "#60A5FA"], // Blue gradient
+    colors: ["#2563EB", "#60A5FA"],
   },
   smart: {
     label: "Smart",
     gradientId: "smartGradient",
-    colors: ["#7C3AED", "#A78BFA"], // Violet gradient
+    colors: ["#7C3AED", "#A78BFA"],
   },
   "3 phase": {
     label: "3_Phase",
     gradientId: "threePhaseGradient",
-    colors: ["#DC2626", "#F87171"], // Red gradient
+    colors: ["#DC2626", "#F87171"],
   },
 };
 
@@ -91,9 +92,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const userSales = payload[0].payload.user_sales || {};
     return (
       <div className='custom-tooltip bg-white p-3 lg:p-4 border rounded shadow max-w-[250px] lg:max-w-none'>
-        <p className='label text-sm lg:text-base font-bold'>{`Date: ${new Date(
-          label
-        ).toLocaleDateString()}`}</p>
+        <p className='label text-sm lg:text-base font-bold'>{`Date: ${formatChartDate(label)}`}</p>
         <p className='total text-sm lg:text-base font-semibold'>{`Total: ${payload[0].value} meters`}</p>
         <p className='meter-type text-sm lg:text-base'>{`Type: ${payload[0].dataKey}`}</p>
         <div className='user-breakdown mt-2'>
@@ -219,7 +218,7 @@ export function SalesBarchart({ initialData }: SalesBarchartProps) {
   );
 
   return (
-    <Card className='w-full h-full transition-all duration-200 ease-linear relative overflow-hidden'>
+    <Card className='w-full h-[87vh] transition-all duration-200 ease-linear relative overflow-hidden'>
       <CardHeader className='flex flex-col items-stretch space-y-4 border-b p-4 lg:p-0 lg:space-y-0 lg:flex-row'>
         <div className='flex flex-1 flex-col justify-center gap-1 lg:px-6 lg:py-6'>
           <div className='flex items-center justify-between'>
@@ -276,7 +275,7 @@ export function SalesBarchart({ initialData }: SalesBarchartProps) {
           ))}
         </div>
       </CardHeader>
-      <CardContent className='p-4 flex-1 w-full' style={{ height: "400px" }}>
+      <CardContent className='p-4 flex-1 ' style={{ height: "72vh" }}>
         {isLoading ? (
           <div className='flex items-center justify-center h-full'>
             <div className='text-gray-500'>Loading chart data...</div>

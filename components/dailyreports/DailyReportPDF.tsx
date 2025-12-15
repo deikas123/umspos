@@ -10,6 +10,7 @@ import {
 import { format } from "date-fns";
 import type {
   AgentInventory,
+  FaultyMetersByType,
   RemainingMetersByType,
   SaleWithMeters,
 } from "./types";
@@ -110,6 +111,7 @@ interface DailyReportPDFProps {
   yesterdaySales: SaleWithMeters[];
   remainingMetersByType: RemainingMetersByType[];
   agentInventory: AgentInventory[];
+  faultyMetersByType: FaultyMetersByType[];
   todayTotalEarnings: number;
   yesterdayTotalEarnings: number;
 }
@@ -135,6 +137,7 @@ const DailyReportPDF = ({
   yesterdaySales,
   remainingMetersByType,
   agentInventory,
+  faultyMetersByType,
   todayTotalEarnings,
   yesterdayTotalEarnings,
 }: DailyReportPDFProps) => {
@@ -160,6 +163,14 @@ const DailyReportPDF = ({
     return inventory?.with_agents || 0;
   };
 
+  // Function to get faulty meters count
+  const getFaultyCount = (meterType: string) => {
+    const faulty = faultyMetersByType.find(
+      (item) => item.type.toLowerCase() === meterType.toLowerCase()
+    );
+    return faulty?.faulty_count || 0;
+  };
+
   // Ensure all meter types are represented
   const allMeterTypes = METER_TYPES.map((type) => {
     const existingData = remainingMetersByType.find(
@@ -169,14 +180,16 @@ const DailyReportPDF = ({
       type,
       remaining: existingData?.remaining_meters || 0,
       withAgents: getAgentCount(type),
+      faulty: getFaultyCount(type),
       soldToday: metersSoldByType[type] || 0,
     };
   });
 
-  // Calculate totals
+  // Calculate totals (including faulty)
   const totals = {
     remaining: allMeterTypes.reduce((sum, item) => sum + item.remaining, 0),
     withAgents: allMeterTypes.reduce((sum, item) => sum + item.withAgents, 0),
+    faulty: allMeterTypes.reduce((sum, item) => sum + item.faulty, 0),
     soldToday: allMeterTypes.reduce((sum, item) => sum + item.soldToday, 0),
   };
 
@@ -216,6 +229,7 @@ const DailyReportPDF = ({
               <Text style={styles.tableHeaderCell}>Meter Type</Text>
               <Text style={styles.tableHeaderCell}>In Stock</Text>
               <Text style={styles.tableHeaderCell}>With Agents</Text>
+              <Text style={styles.tableHeaderCell}>Faulty</Text>
               <Text style={styles.tableHeaderCell}>Sold Today</Text>
               <Text style={styles.tableHeaderCell}>Total Available</Text>
             </View>
@@ -224,9 +238,10 @@ const DailyReportPDF = ({
                 <Text style={styles.tableCell}>{item.type}</Text>
                 <Text style={styles.tableCell}>{item.remaining}</Text>
                 <Text style={styles.tableCell}>{item.withAgents}</Text>
+                <Text style={styles.tableCell}>{item.faulty}</Text>
                 <Text style={styles.tableCell}>{item.soldToday}</Text>
                 <Text style={styles.tableCell}>
-                  {item.remaining + item.withAgents}
+                  {item.remaining + item.withAgents + item.faulty}
                 </Text>
               </View>
             ))}
@@ -234,9 +249,10 @@ const DailyReportPDF = ({
               <Text style={styles.totalCell}>Total</Text>
               <Text style={styles.totalCell}>{totals.remaining}</Text>
               <Text style={styles.totalCell}>{totals.withAgents}</Text>
+              <Text style={styles.totalCell}>{totals.faulty}</Text>
               <Text style={styles.totalCell}>{totals.soldToday}</Text>
               <Text style={styles.totalCell}>
-                {totals.remaining + totals.withAgents}
+                {totals.remaining + totals.withAgents + totals.faulty}
               </Text>
             </View>
           </View>

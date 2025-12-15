@@ -7,6 +7,8 @@ import {
   Tag,
   Building2,
   Map,
+  UserPlus,
+  Truck,
 } from "lucide-react";
 
 interface SaleSummaryCardsProps {
@@ -90,8 +92,24 @@ export function SaleSummaryCards({ batch }: SaleSummaryCardsProps) {
             <InfoRow
               icon={Tag}
               label='Customer Type'
-              value={batch.customer_type || "N/A"}
+              value={
+                batch.customer_type
+                  ?.split(" ")
+                  .map(
+                    (word: string) =>
+                      word.charAt(0).toUpperCase() + word.slice(1)
+                  )
+                  .join(" ") || "N/A"
+              }
             />
+            {batch.referral_name && (
+              <InfoRow
+                icon={UserPlus}
+                label='Referred By'
+                value={batch.referral_name}
+                highlight
+              />
+            )}
           </div>
         </div>
 
@@ -109,6 +127,29 @@ export function SaleSummaryCards({ batch }: SaleSummaryCardsProps) {
             />
           </div>
         </div>
+
+        {/* Pickup Information Card - Only show if pickup info exists */}
+        {batch.picked_by_name && (
+          <div className='bg-white rounded-xl border border-gray-200 p-4 shadow-sm'>
+            <h3 className='text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-100'>
+              Pickup Information
+            </h3>
+            <div className='space-y-1'>
+              <InfoRow
+                icon={batch.picked_by_type === "rider" ? Truck : User}
+                label='Picked By'
+                value={`${batch.picked_by_name} (${batch.picked_by_type === "rider" ? "Rider" : "Customer"})`}
+              />
+              {batch.picked_by_contact && (
+                <InfoRow
+                  icon={Phone}
+                  label='Pickup Contact'
+                  value={batch.picked_by_contact}
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Location Card - Full Width */}
         <div className='md:col-span-2 bg-white rounded-xl border border-gray-200 p-4 shadow-sm'>

@@ -19,7 +19,12 @@ export const authClient = createAuthClient({
     }),
     anonymousClient(),
     phoneNumberClient(),
-    twoFactorClient(),
+    twoFactorClient({
+      onTwoFactorRedirect() {
+        // Redirect to 2FA verification page
+        globalThis.window.location.href = "/two-factor";
+      },
+    }),
   ],
 });
 

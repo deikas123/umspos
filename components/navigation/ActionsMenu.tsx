@@ -55,6 +55,11 @@ export function ActionsMenu({
   user,
   currentUserData,
 }: Readonly<ActionsMenuProps>) {
+  // Don't render anything if there are no action items
+  if (items.length === 0) {
+    return null;
+  }
+
   return (
     <SidebarGroup className='mt-2'>
       <SidebarGroupLabel className='px-2 text-sm font-medium text-gray-500 uppercase tracking-wider'>

@@ -72,7 +72,7 @@ export function StockAlert() {
   }, [minimumLevels]);
 
   // Return null if not admin
-  if (userRole !== "admin") {
+  if (userRole !== "admin" && userRole !== "super_admin") {
     return null;
   }
 

@@ -18,6 +18,11 @@ export interface AgentInventory {
   with_agents: number;
 }
 
+export interface FaultyMetersByType {
+  type: string;
+  faulty_count: number;
+}
+
 export interface CustomerTypeData {
   type: string;
   count: number;

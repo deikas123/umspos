@@ -80,3 +80,8 @@ export interface AgentInventory {
   type: string;
   with_agents: number;
 }
+
+export interface FaultyMetersByType {
+  type: string;
+  faulty_count: number;
+}

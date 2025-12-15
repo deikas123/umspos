@@ -8,13 +8,26 @@ import {
   jsonb,
   pgEnum,
   uuid,
+  check,
+  index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
-// Enums
-export const userRoleEnum = pgEnum("user_role", [
-  "admin",
-  "accountant",
-  "user",
+export const updateRequestStatusEnum = pgEnum("update_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
+
+export const prospectStatusEnum = pgEnum("prospect_status", [
+  "interested",
+  "not_interested",
+  "prospect",
+  "lead",
+  "presentation",
+  "quotation_sent",
+  "closed",
+  "lost",
 ]);
 export const notificationTypeEnum = pgEnum("notification_type", [
   "METER_SALE",
@@ -39,32 +52,58 @@ export const faultyMeterStatusEnum = pgEnum("faulty_meter_status", [
 ]);
 
 // Better Auth User Table (primary user table)
-export const betterAuthUser = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("emailVerified").notNull().default(false),
-  image: text("image"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-  role: text("role"),
-  banned: boolean("banned"),
-  banReason: text("banReason"),
-  banExpires: timestamp("banExpires"),
-  isAnonymous: boolean("isAnonymous"),
-  phoneNumber: text("phoneNumber").unique(),
-  phoneNumberVerified: boolean("phoneNumberVerified"),
-  twoFactorEnabled: boolean("twoFactorEnabled"),
-  displayName: text("displayName"),
-  appRole: text("appRole").default("user"),
-  isActive: boolean("isActive").default(true),
-});
+export const betterAuthUser = pgTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("emailVerified").notNull().default(false),
+    image: text("image"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+    role: text("role"),
+    banned: boolean("banned"),
+    banReason: text("banReason"),
+    banExpires: timestamp("banExpires"),
+    isAnonymous: boolean("isAnonymous"),
+    phoneNumber: text("phoneNumber").unique(),
+    phoneNumberVerified: boolean("phoneNumberVerified"),
+    twoFactorEnabled: boolean("twoFactorEnabled"),
+    displayName: text("displayName"),
+    appRole: text("appRole").default("user"),
+    isActive: boolean("isActive").default(true),
+  },
+  (table) => [
+    check(
+      "app_role_check",
+      sql`${table.appRole} = ANY(ARRAY['super_admin', 'admin', 'accountant', 'sales_person', 'user']::text[])`
+    ),
+  ]
+);
+
+// Better Auth Two-Factor Table (required for 2FA plugin)
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => betterAuthUser.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("two_factor_secret_idx").on(table.secret),
+    index("two_factor_user_id_idx").on(table.userId),
+  ]
+);
 
 // Legacy User Profiles Table (kept for reference, being phased out)
 export const userProfiles = pgTable("user_profiles", {
   id: uuid("id").primaryKey(),
   name: text("name"),
-  role: userRoleEnum("role").default("user"),
+  role: text("role").default("user"), // Uses CHECK constraint in DB: admin, accountant, user
   is_active: boolean("is_active").default(true),
   push_enabled: boolean("push_enabled").default(false),
 });
@@ -87,6 +126,7 @@ export const agents = pgTable("agents", {
   phone_number: text("phone_number").notNull().unique(),
   location: text("location").notNull(),
   county: text("county").notNull(),
+  agent_type: text("agent_type").notNull().default("cash"), // 'cash' or 'credit'
   is_active: boolean("is_active").default(true),
   created_at: timestamp("created_at").defaultNow(),
 });
@@ -139,6 +179,13 @@ export const saleBatches = pgTable("sale_batches", {
     onUpdate: "cascade",
     onDelete: "set null",
   }),
+  // Referral tracking - can be a registered user ID or a manually entered name
+  referral_user_id: text("referral_user_id"), // Links to user.id if registered
+  referral_name: text("referral_name"), // Name of the referrer (used when not a registered user or as display name)
+  // Pickup information - tracks who collected the meters
+  picked_by_type: text("picked_by_type"), // 'customer' or 'rider'
+  picked_by_name: text("picked_by_name"), // Name of the person who picked up
+  picked_by_contact: text("picked_by_contact"), // Contact of the person who picked up
 });
 
 // Sales Transactions Table
@@ -219,6 +266,79 @@ export const meterPurchaseBatches = pgTable("meter_purchase_batches", {
   batch_number: text("batch_number").unique().notNull(),
 });
 
+// Sale Batch Update Requests Table - for approval workflow
+export const saleBatchUpdateRequests = pgTable("sale_batch_update_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sale_batch_id: uuid("sale_batch_id")
+    .notNull()
+    .references(() => saleBatches.id, { onDelete: "cascade" }),
+  requested_by: text("requested_by").notNull(),
+  requested_by_name: text("requested_by_name").notNull(),
+  requested_at: timestamp("requested_at").defaultNow(),
+  status: updateRequestStatusEnum("status").default("pending"),
+  approved_by: text("approved_by"),
+  approved_by_name: text("approved_by_name"),
+  approved_at: timestamp("approved_at"),
+  rejection_reason: text("rejection_reason"),
+  update_reason: text("update_reason").notNull(),
+  // Store the changes as JSON: { field: { old: value, new: value } }
+  changes: jsonb("changes").notNull(),
+  // Specific fields that can be updated
+  new_sale_date: timestamp("new_sale_date"),
+  new_unit_price: numeric("new_unit_price", { precision: 10, scale: 2 }),
+  new_total_price: numeric("new_total_price", { precision: 10, scale: 2 }),
+});
+
+// Sale Batch Audit Log Table - permanent record of all changes
+export const saleBatchAuditLog = pgTable("sale_batch_audit_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sale_batch_id: uuid("sale_batch_id")
+    .notNull()
+    .references(() => saleBatches.id, { onDelete: "cascade" }),
+  action: text("action").notNull(), // 'created', 'update_requested', 'update_approved', 'update_rejected', 'updated'
+  performed_by: text("performed_by").notNull(),
+  performed_by_name: text("performed_by_name").notNull(),
+  performed_at: timestamp("performed_at").defaultNow(),
+  old_values: jsonb("old_values"),
+  new_values: jsonb("new_values"),
+  update_request_id: uuid("update_request_id").references(
+    () => saleBatchUpdateRequests.id
+  ),
+  note: text("note"),
+});
+
+// Client Prospects Table - for sales person field visits
+export const clientProspects = pgTable("client_prospects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  // Sales person who created this prospect
+  sales_person_id: text("sales_person_id")
+    .notNull()
+    .references(() => betterAuthUser.id, { onDelete: "cascade" }),
+  sales_person_name: text("sales_person_name").notNull(),
+  // Client information
+  client_name: text("client_name").notNull(),
+  location: text("location").notNull(),
+  contact: text("contact").notNull(),
+  // Prospect status from dropdown
+  status: prospectStatusEnum("status").notNull().default("prospect"),
+  // Open text field for additional remarks
+  other_remarks: text("other_remarks"),
+  // Meter information
+  meter_type: text("meter_type").notNull(),
+  number_of_meters: integer("number_of_meters").notNull().default(1),
+  // Geolocation (auto-captured)
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
+  // Place name from reverse geocoding
+  place_name: text("place_name"),
+  // Timestamps
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+  // Change history - tracks all modifications with timestamps and changed fields
+  // Format: [{ timestamp: Date, changed_by: string, changed_by_name: string, changes: { field: { old: value, new: value } } }]
+  change_history: jsonb("change_history").default([]),
+});
+
 // Export types for use in the application
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type NewUserProfile = typeof userProfiles.$inferInsert;
@@ -242,3 +362,11 @@ export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 export type MeterPurchaseBatch = typeof meterPurchaseBatches.$inferSelect;
 export type NewMeterPurchaseBatch = typeof meterPurchaseBatches.$inferInsert;
+export type SaleBatchUpdateRequest =
+  typeof saleBatchUpdateRequests.$inferSelect;
+export type NewSaleBatchUpdateRequest =
+  typeof saleBatchUpdateRequests.$inferInsert;
+export type SaleBatchAuditLog = typeof saleBatchAuditLog.$inferSelect;
+export type NewSaleBatchAuditLog = typeof saleBatchAuditLog.$inferInsert;
+export type ClientProspect = typeof clientProspects.$inferSelect;
+export type NewClientProspect = typeof clientProspects.$inferInsert;

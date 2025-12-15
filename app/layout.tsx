@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import Reload from "@/components/Reload";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import QueryProvider from "@/components/providers/QueryProvider";
@@ -54,7 +53,6 @@ export default function RootLayout({
               <NotificationProvider>
                 <div className={`${geistMono.className}`}>{children}</div>
                 <Toaster />
-                <Reload />
               </NotificationProvider>
             </AuthProvider>
           </QueryProvider>
