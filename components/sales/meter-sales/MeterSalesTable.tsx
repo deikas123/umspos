@@ -195,7 +195,7 @@ function DesktopBatchRow({
           <Badge
             variant='outline'
             className='bg-green-100 max-w-full truncate block'
-            title={batch.customer_county}>
+            title={batch.customer_county ?? undefined}>
             {batch.customer_county}
           </Badge>
         </TableCell>

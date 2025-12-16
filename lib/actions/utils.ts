@@ -9,7 +9,12 @@ import { headers } from "next/headers";
 import { isAdmin as checkIsAdmin } from "@/lib/utils/rolePermissions";
 
 // Type for the user data from Better Auth user table
-export type UserRole = "admin" | "accountant" | "user";
+export type UserRole =
+  | "super_admin"
+  | "admin"
+  | "accountant"
+  | "sales_person"
+  | "user";
 
 /**
  * Gets the current session and user from Better Auth
