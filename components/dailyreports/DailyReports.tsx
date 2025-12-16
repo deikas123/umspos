@@ -417,7 +417,9 @@ export default function DailyReports({
           <CardHeader>
             <div className='flex justify-between items-center'>
               <CardTitle>
-                {selectedDateRange ? selectedDateRange.label : "Today's Sales"}
+                {selectedDateRange
+                  ? selectedDateRange.label
+                  : `Today's Sales (${formatDate(new Date())})`}
                 {selectedDateRange && (
                   <span className='text-sm text-muted-foreground ml-2'>
                     ({formatDate(selectedDateRange.startDate)} -{" "}

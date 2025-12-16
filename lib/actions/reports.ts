@@ -511,27 +511,53 @@ export async function getDetailedSalesByDateRange(
 
 /**
  * Gets detailed sales for today
+ * Uses East Africa timezone (UTC+3) for consistent date handling
  */
 export async function getDetailedSalesToday() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Use East Africa timezone (UTC+3) for consistent date handling across environments
+  const now = new Date();
+  const eastAfricaOffset = 3 * 60; // UTC+3 in minutes
+  const localOffset = now.getTimezoneOffset(); // Local offset in minutes (negative for ahead of UTC)
+  const totalOffsetMs = (eastAfricaOffset + localOffset) * 60 * 1000;
 
-  return getDetailedSalesByDateRange(today, tomorrow);
+  const eastAfricaNow = new Date(now.getTime() + totalOffsetMs);
+
+  // Create today's start in East Africa timezone
+  const today = new Date(eastAfricaNow);
+  today.setHours(0, 0, 0, 0);
+
+  // Convert back to UTC for database query
+  const todayUTC = new Date(today.getTime() - totalOffsetMs);
+  const tomorrowUTC = new Date(todayUTC);
+  tomorrowUTC.setDate(tomorrowUTC.getDate() + 1);
+
+  return getDetailedSalesByDateRange(todayUTC, tomorrowUTC);
 }
 
 /**
  * Gets detailed sales for yesterday
+ * Uses East Africa timezone (UTC+3) for consistent date handling
  */
 export async function getDetailedSalesYesterday() {
-  const yesterday = new Date();
+  // Use East Africa timezone (UTC+3) for consistent date handling across environments
+  const now = new Date();
+  const eastAfricaOffset = 3 * 60; // UTC+3 in minutes
+  const localOffset = now.getTimezoneOffset();
+  const totalOffsetMs = (eastAfricaOffset + localOffset) * 60 * 1000;
+
+  const eastAfricaNow = new Date(now.getTime() + totalOffsetMs);
+
+  // Create yesterday's start in East Africa timezone
+  const yesterday = new Date(eastAfricaNow);
   yesterday.setDate(yesterday.getDate() - 1);
   yesterday.setHours(0, 0, 0, 0);
-  const today = new Date(yesterday);
-  today.setDate(today.getDate() + 1);
 
-  return getDetailedSalesByDateRange(yesterday, today);
+  // Convert back to UTC for database query
+  const yesterdayUTC = new Date(yesterday.getTime() - totalOffsetMs);
+  const todayUTC = new Date(yesterdayUTC);
+  todayUTC.setDate(todayUTC.getDate() + 1);
+
+  return getDetailedSalesByDateRange(yesterdayUTC, todayUTC);
 }
 
 /**
