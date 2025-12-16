@@ -592,7 +592,7 @@ export async function getPurchaseBatches(): Promise<
     const meterCounts = db.$with("meter_counts").as(
       db
         .select({
-          batch_id: meters.batch_id,
+          batch_id: sql<string>`${meters.batch_id}::text`.as("batch_id"),
           count: sql<number>`count(${meters.id})`.as("count"),
         })
         .from(meters)
@@ -610,10 +610,13 @@ export async function getPurchaseBatches(): Promise<
       .from(meterPurchaseBatches)
       .leftJoin(
         betterAuthUser,
-        eq(meterPurchaseBatches.added_by, betterAuthUser.id)
+        sql`${meterPurchaseBatches.added_by}::text = ${betterAuthUser.id}`
       )
-      .leftJoin(meterCounts, eq(meterPurchaseBatches.id, meterCounts.batch_id))
-      .orderBy(desc(meterPurchaseBatches.created_at));
+      .leftJoin(
+        meterCounts,
+        sql`${meterPurchaseBatches.id}::text = ${meterCounts.batch_id}`
+      )
+      .orderBy(desc(meterCounts.count), desc(meterPurchaseBatches.created_at));
 
     return batches.map((batch) => ({
       ...batch,

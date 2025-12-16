@@ -73,7 +73,7 @@ interface PurchaseBatch {
   } | null;
 }
 
-// Update sorting function
+// Update sorting function - prioritize remaining meters, then date
 const sortBatches = (batches: PurchaseBatch[]) => {
   const getTimestamp = (batch: PurchaseBatch) => {
     const purchase = batch.purchase_date
@@ -87,13 +87,14 @@ const sortBatches = (batches: PurchaseBatch[]) => {
   };
 
   return [...batches].sort((a, b) => {
-    const timeDiff = getTimestamp(b) - getTimestamp(a);
-    if (timeDiff !== 0) {
-      return timeDiff;
+    // First sort by remaining meters (highest first)
+    const remainingDiff = b.remaining_meters - a.remaining_meters;
+    if (remainingDiff !== 0) {
+      return remainingDiff;
     }
 
-    // Fallback to remaining meters if timestamps are identical
-    return b.remaining_meters - a.remaining_meters;
+    // Then by date (newest first) if remaining meters are equal
+    return getTimestamp(b) - getTimestamp(a);
   });
 };
 
@@ -335,79 +336,75 @@ export default function PurchaseBatchesView() {
         ) : (
           <>
             {/* Filters */}
-            <div className='mb-6 space-y-4'>
-              <div className='bg-white p-4 rounded-lg border shadow-sm'>
-                <div className='flex flex-wrap items-center gap-3'>
-                  <Input
-                    type='text'
-                    placeholder='Search by batch number or user...'
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className='w-[200px]'
-                  />
+            <div className='mb-6'>
+              <div className='flex flex-wrap items-center gap-3'>
+                <Input
+                  type='text'
+                  placeholder='Search by batch number or user...'
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className='w-[200px]'
+                />
 
-                  <Select
-                    value={selectedType || undefined}
-                    onValueChange={(value) => {
-                      setSelectedType(value);
-                      setCurrentPage(1);
-                    }}>
-                    <SelectTrigger className='w-[140px] cursor-pointer'>
-                      <SelectValue placeholder='Meter Type' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='all'>All Types</SelectItem>
-                      <SelectItem value='split'>Split</SelectItem>
-                      <SelectItem value='integrated'>Integrated</SelectItem>
-                      <SelectItem value='gas'>Gas</SelectItem>
-                      <SelectItem value='water'>Water</SelectItem>
-                      <SelectItem value='3 Phase'>3 Phase</SelectItem>
-                      <SelectItem value='Smart'>Smart</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Select
+                  value={selectedType || undefined}
+                  onValueChange={(value) => {
+                    setSelectedType(value);
+                    setCurrentPage(1);
+                  }}>
+                  <SelectTrigger className='w-[140px] cursor-pointer'>
+                    <SelectValue placeholder='Meter Type' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='all'>All Types</SelectItem>
+                    <SelectItem value='split'>Split</SelectItem>
+                    <SelectItem value='integrated'>Integrated</SelectItem>
+                    <SelectItem value='gas'>Gas</SelectItem>
+                    <SelectItem value='water'>Water</SelectItem>
+                    <SelectItem value='3 Phase'>3 Phase</SelectItem>
+                    <SelectItem value='Smart'>Smart</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                  <Popover
-                    open={isCalendarOpen}
-                    onOpenChange={setIsCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant='outline'
-                        className='w-[200px] justify-start text-left font-normal cursor-pointer'>
-                        <CalendarIcon className='mr-2 h-4 w-4' />
-                        {selectedDate ? (
-                          format(selectedDate, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className='w-auto p-0' align='start'>
-                      <Calendar
-                        mode='single'
-                        selected={selectedDate}
-                        onSelect={(date) => {
-                          setSelectedDate(date);
-                          setCurrentPage(1);
-                          setIsCalendarOpen(false);
-                        }}
-                        autoFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-
-                  {hasActiveFilters() && (
+                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                  <PopoverTrigger asChild>
                     <Button
-                      variant='ghost'
-                      size='icon'
-                      onClick={clearFilters}
-                      className='text-muted-foreground hover:text-foreground cursor-pointer'>
-                      <X className='h-4 w-4' />
+                      variant='outline'
+                      className='w-[200px] justify-start text-left font-normal cursor-pointer'>
+                      <CalendarIcon className='mr-2 h-4 w-4' />
+                      {selectedDate ? (
+                        format(selectedDate, "PPP")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
                     </Button>
-                  )}
-                </div>
+                  </PopoverTrigger>
+                  <PopoverContent className='w-auto p-0' align='start'>
+                    <Calendar
+                      mode='single'
+                      selected={selectedDate}
+                      onSelect={(date) => {
+                        setSelectedDate(date);
+                        setCurrentPage(1);
+                        setIsCalendarOpen(false);
+                      }}
+                      autoFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {hasActiveFilters() && (
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    onClick={clearFilters}
+                    className='text-muted-foreground hover:text-foreground cursor-pointer'>
+                    <X className='h-4 w-4' />
+                  </Button>
+                )}
               </div>
             </div>
 

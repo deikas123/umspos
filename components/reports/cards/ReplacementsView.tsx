@@ -61,7 +61,7 @@ export default function ReplacementsView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<CalendarDate | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 7;
+  const itemsPerPage = 12;
 
   const {
     data: replacements,
@@ -72,8 +72,8 @@ export default function ReplacementsView() {
   } = useQuery<Replacement[]>({
     queryKey: ["replacements"],
     queryFn: getMeterReplacements,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const handleRefresh = async () => {
