@@ -5,6 +5,123 @@ export type UserRole =
   | "sales_person"
   | "user";
 
+// ============================================
+// ROLE CHECK UTILITIES
+// Centralized role checking functions to avoid
+// scattered role === "admin" checks throughout the codebase
+// ============================================
+
+/**
+ * Check if role is a super admin
+ */
+export function isSuperAdmin(role: string | null | undefined): boolean {
+  return role === "super_admin";
+}
+
+/**
+ * Check if role has admin privileges (admin or super_admin)
+ */
+export function isAdmin(role: string | null | undefined): boolean {
+  return role === "admin" || role === "super_admin";
+}
+
+/**
+ * Check if role is an accountant
+ */
+export function isAccountant(role: string | null | undefined): boolean {
+  return role === "accountant";
+}
+
+/**
+ * Check if role is a sales person
+ */
+export function isSalesPerson(role: string | null | undefined): boolean {
+  return role === "sales_person";
+}
+
+/**
+ * Check if role has reports access (admin, super_admin, or accountant)
+ */
+export function hasReportsAccess(role: string | null | undefined): boolean {
+  return isAdmin(role) || isAccountant(role);
+}
+
+/**
+ * Check if role has approval access (super_admin only)
+ */
+export function hasApprovalAccess(role: string | null | undefined): boolean {
+  return isSuperAdmin(role);
+}
+
+/**
+ * Check if role can view all prospects (admin or super_admin)
+ */
+export function hasProspectViewAccess(
+  role: string | null | undefined
+): boolean {
+  return isAdmin(role);
+}
+
+/**
+ * Check if role can manage prospects (create/update)
+ * sales_person, admin, super_admin
+ */
+export function canManageProspects(role: string | null | undefined): boolean {
+  return isSalesPerson(role) || isAdmin(role);
+}
+
+/**
+ * Check if role can delete prospects (admin or super_admin only)
+ */
+export function canDeleteProspects(role: string | null | undefined): boolean {
+  return isAdmin(role);
+}
+
+/**
+ * Check if role can manage users (admin or super_admin)
+ */
+export function canManageUsers(role: string | null | undefined): boolean {
+  return isAdmin(role);
+}
+
+/**
+ * Get the role badge variant for UI styling
+ */
+export function getRoleBadgeVariant(role: string | null | undefined): string {
+  if (role === "super_admin") return "bg-red-100 text-red-700 border-red-200";
+  if (role === "admin")
+    return "bg-emerald-100 text-emerald-700 border-emerald-200";
+  if (role === "accountant")
+    return "bg-violet-100 text-violet-700 border-violet-200";
+  if (role === "sales_person")
+    return "bg-blue-100 text-blue-700 border-blue-200";
+  return "bg-amber-100 text-amber-700 border-amber-200";
+}
+
+/**
+ * Get human-readable role label
+ */
+export function getRoleLabel(role: string | null | undefined): string {
+  switch (role) {
+    case "super_admin":
+      return "Super Admin";
+    case "admin":
+      return "Admin";
+    case "accountant":
+      return "Accountant";
+    case "sales_person":
+      return "Sales Person";
+    case "user":
+      return "User";
+    default:
+      return "Unknown";
+  }
+}
+
+// ============================================
+// PERMISSION MATRIX
+// ============================================
+
 interface Permission {
   createUser: boolean;
   createAgent: boolean;

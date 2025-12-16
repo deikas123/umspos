@@ -10,6 +10,7 @@ import { EarningsByTypeCard } from "./cards/EarningsByTypeCard";
 import { TotalEarningsCard } from "./cards/TotalEarningsCard";
 import { CustomerDistributionCard } from "./cards/CustomerDistributionCard";
 import { cn } from "@/lib/utils";
+import { hasReportsAccess as checkHasReportsAccess } from "@/lib/utils/rolePermissions";
 import type { ReportsPageData } from "./hooks/useReportsData";
 
 // Skeleton component for cards
@@ -57,7 +58,7 @@ export default function Reports({ initialData }: ReportsProps) {
     refetch,
   } = useReportsData(initialData);
 
-  const hasReportsAccess = userRole === "admin" || userRole === "accountant";
+  const hasReportsAccess = checkHasReportsAccess(userRole);
 
   const handleRefresh = async () => {
     try {

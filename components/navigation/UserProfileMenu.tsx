@@ -16,6 +16,11 @@ import { LogOut, KeyRound, Shield, ChevronDown, Loader2 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChangePasswordDialog } from "./ChangePasswordDialog";
+import {
+  getRoleBadgeVariant as getVariant,
+  getRoleLabel as getLabel,
+  isAdmin,
+} from "@/lib/utils/rolePermissions";
 
 interface UserProfileMenuProps {
   user: {
@@ -61,15 +66,11 @@ export function UserProfileMenu({
   };
 
   const getRoleBadgeVariant = () => {
-    if (userRole === "admin")
-      return "bg-emerald-100 text-emerald-700 border-emerald-200";
-    if (userRole === "accountant")
-      return "bg-violet-100 text-violet-700 border-violet-200";
-    return "bg-amber-100 text-amber-700 border-amber-200";
+    return getVariant(userRole);
   };
 
   const getRoleIcon = () => {
-    if (userRole === "admin") return <Shield className='h-3 w-3' />;
+    if (isAdmin(userRole)) return <Shield className='h-3 w-3' />;
     return null;
   };
 
@@ -83,20 +84,7 @@ export function UserProfileMenu({
   };
 
   const getRoleLabel = (role?: string | null) => {
-    switch (role) {
-      case "super_admin":
-        return "Super Admin";
-      case "admin":
-        return "Admin";
-      case "accountant":
-        return "Accountant";
-      case "sales_person":
-        return "Sales Person";
-      case "user":
-        return "User";
-      default:
-        return role ?? "User";
-    }
+    return getLabel(role);
   };
 
   return (

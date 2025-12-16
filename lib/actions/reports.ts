@@ -25,6 +25,8 @@ import {
   sum,
   getTableColumns,
   max,
+  or,
+  ne,
 } from "drizzle-orm";
 
 /**
@@ -158,7 +160,7 @@ export async function getAgentInventoryCount(): Promise<
 }
 
 /**
- * Gets faulty meters count grouped by meter type (pending status only - still in stock)
+ * Gets faulty meters count grouped by meter type (pending status only - still in stock, excluding binned)
  */
 export async function getFaultyMetersByType(): Promise<
   Array<{ type: string; faulty_count: number }>
@@ -170,7 +172,15 @@ export async function getFaultyMetersByType(): Promise<
         faulty_count: count().mapWith(Number),
       })
       .from(faultyReturns)
-      .where(eq(faultyReturns.status, "pending"))
+      .where(
+        and(
+          eq(faultyReturns.status, "pending"),
+          or(
+            eq(faultyReturns.is_binned, false),
+            sql`${faultyReturns.is_binned} IS NULL`
+          )
+        )
+      )
       .groupBy(faultyReturns.type);
 
     return result;
@@ -227,7 +237,7 @@ export async function getRegionDistribution(): Promise<
 }
 
 /**
- * Gets faulty meters for reporting
+ * Gets faulty meters for reporting (includes binned status)
  */
 export async function getFaultyMeters(): Promise<
   Array<{
@@ -240,6 +250,10 @@ export async function getFaultyMeters(): Promise<
     fault_description: string | null;
     status: string | null;
     original_sale_id: string | null;
+    is_binned: boolean | null;
+    binned_at: Date | null;
+    binned_by: string | null;
+    binned_by_name: string | null;
   }>
 > {
   try {
@@ -251,6 +265,83 @@ export async function getFaultyMeters(): Promise<
     return result;
   } catch (error) {
     console.error("Error fetching faulty meters:", error);
+    throw error;
+  }
+}
+
+/**
+ * Bins a faulty meter (moves it to the bin)
+ * Only admin or super_admin can bin meters
+ */
+export async function binFaultyMeter(
+  meterId: string,
+  userId: string,
+  userName: string
+): Promise<{ success: boolean }> {
+  try {
+    // Verify the user has admin privileges
+    const userRecord = await db
+      .select({ appRole: betterAuthUser.appRole })
+      .from(betterAuthUser)
+      .where(eq(betterAuthUser.id, userId))
+      .limit(1);
+
+    const userRole = userRecord[0]?.appRole;
+    if (userRole !== "admin" && userRole !== "super_admin") {
+      throw new Error("Not authorized. Admin role required to bin meters.");
+    }
+
+    await db
+      .update(faultyReturns)
+      .set({
+        is_binned: true,
+        binned_at: new Date(),
+        binned_by: userId,
+        binned_by_name: userName,
+      })
+      .where(eq(faultyReturns.id, meterId));
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error binning faulty meter:", error);
+    throw error;
+  }
+}
+
+/**
+ * Restores a binned faulty meter
+ * Only admin or super_admin can restore meters
+ */
+export async function restoreBinnedMeter(
+  meterId: string,
+  userId: string
+): Promise<{ success: boolean }> {
+  try {
+    // Verify the user has admin privileges
+    const userRecord = await db
+      .select({ appRole: betterAuthUser.appRole })
+      .from(betterAuthUser)
+      .where(eq(betterAuthUser.id, userId))
+      .limit(1);
+
+    const userRole = userRecord[0]?.appRole;
+    if (userRole !== "admin" && userRole !== "super_admin") {
+      throw new Error("Not authorized. Admin role required to restore meters.");
+    }
+
+    await db
+      .update(faultyReturns)
+      .set({
+        is_binned: false,
+        binned_at: null,
+        binned_by: null,
+        binned_by_name: null,
+      })
+      .where(eq(faultyReturns.id, meterId));
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error restoring binned meter:", error);
     throw error;
   }
 }

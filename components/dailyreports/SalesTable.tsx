@@ -53,10 +53,10 @@ export const SalesTable = memo(function SalesTable({
                 <TableHead>Seller&apos;s Name</TableHead>
                 <TableHead>Meter Type</TableHead>
                 <TableHead>Amount</TableHead>
-                <TableHead>Total Price</TableHead>
+                <TableHead>Total</TableHead>
                 <TableHead>Time</TableHead>
                 <TableHead>Recipient</TableHead>
-                <TableHead>Customer Type</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>County</TableHead>
               </TableRow>
             </TableHeader>
@@ -70,20 +70,28 @@ export const SalesTable = memo(function SalesTable({
               ) : (
                 sales.map((sale) => (
                   <TableRow key={sale.id}>
-                    <TableCell>{sale.user_name}</TableCell>
+                    <TableCell className='whitespace-nowrap'>
+                      {sale.user_name?.split(" ")[0] || sale.user_name}
+                    </TableCell>
                     <TableCell>{sale.meter_type}</TableCell>
                     <TableCell>{sale.batch_amount}</TableCell>
-                    <TableCell>
+                    <TableCell className='whitespace-nowrap'>
                       KES {sale.total_price.toLocaleString()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='whitespace-nowrap'>
                       {new Date(
                         sale.sale_date || new Date()
                       ).toLocaleTimeString()}
                     </TableCell>
-                    <TableCell>{sale.recipient}</TableCell>
+                    <TableCell
+                      className='max-w-[120px] truncate'
+                      title={sale.recipient}>
+                      {sale.recipient}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant='outline' className='bg-blue-100'>
+                      <Badge
+                        variant='outline'
+                        className='bg-blue-100 whitespace-nowrap'>
                         {sale.customer_type
                           ?.split(" ")
                           .map(
@@ -93,8 +101,11 @@ export const SalesTable = memo(function SalesTable({
                           .join(" ") || "N/A"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant='outline' className='bg-green-100'>
+                    <TableCell className='max-w-[100px]'>
+                      <Badge
+                        variant='outline'
+                        className='bg-green-100 max-w-full truncate block'
+                        title={sale.customer_county || "N/A"}>
                         {sale.customer_county || "N/A"}
                       </Badge>
                     </TableCell>

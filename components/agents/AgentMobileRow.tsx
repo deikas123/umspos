@@ -23,6 +23,7 @@ interface CurrentUser {
 interface AgentMobileRowProps {
   agent: Agent;
   currentUser: CurrentUser | null | undefined;
+  meterCountsByType?: Record<string, number>;
   onToggleStatus: (agent: Agent) => Promise<void>;
   onEdit: (agent: Agent) => void;
   onDelete: (agent: Agent) => Promise<void>;
@@ -32,11 +33,15 @@ interface AgentMobileRowProps {
 export default function AgentMobileRow({
   agent,
   currentUser,
+  meterCountsByType,
   onToggleStatus,
   onEdit,
   onDelete,
   onSaleClose,
 }: Readonly<AgentMobileRowProps>) {
+  const hasMeterBreakdown =
+    meterCountsByType && Object.keys(meterCountsByType).length > 0;
+
   return (
     <TableRow className='hover:bg-gray-50'>
       <TableCell>
@@ -86,6 +91,38 @@ export default function AgentMobileRow({
                     }>
                     {agent.agent_type === "credit" ? "Credit" : "Cash"}
                   </Badge>
+                </div>
+              </div>
+              <div className='mb-2'>
+                <span className='text-sm font-medium'>Meters:</span>
+                <div className='mt-1'>
+                  <Badge
+                    variant='outline'
+                    className='bg-blue-100 text-blue-800'>
+                    {agent.total_meters ?? 0}
+                  </Badge>
+                  {hasMeterBreakdown && (
+                    <div className='mt-1 text-xs text-muted-foreground space-y-0.5'>
+                      {!!meterCountsByType.integrated && (
+                        <p>Integrated: {meterCountsByType.integrated}</p>
+                      )}
+                      {!!meterCountsByType.split && (
+                        <p>Split: {meterCountsByType.split}</p>
+                      )}
+                      {!!meterCountsByType.gas && (
+                        <p>Gas: {meterCountsByType.gas}</p>
+                      )}
+                      {!!meterCountsByType.water && (
+                        <p>Water: {meterCountsByType.water}</p>
+                      )}
+                      {!!meterCountsByType.smart && (
+                        <p>Smart: {meterCountsByType.smart}</p>
+                      )}
+                      {!!meterCountsByType["3 phase"] && (
+                        <p>3 Phase: {meterCountsByType["3 phase"]}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div>

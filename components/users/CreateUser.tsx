@@ -19,10 +19,19 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { getRoleLabel, isSuperAdmin } from "@/lib/utils/rolePermissions";
+import { useAuth } from "@/contexts/AuthContext";
+
+const EMAIL_DOMAINS = [
+  { value: "umskenya.com", label: "@umskenya.com" },
+  { value: "gmail.com", label: "@gmail.com" },
+] as const;
 
 const CreateUser = ({ onClose }: { onClose: () => void }) => {
+  const { userRole } = useAuth();
   const [name, setName] = useState("");
   const [emailPrefix, setEmailPrefix] = useState("");
+  const [emailDomain, setEmailDomain] = useState("umskenya.com");
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [role, setRole] = useState("user");
@@ -69,7 +78,7 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
       return;
     }
 
-    const email = `${emailPrefix}@umskenya.com`;
+    const email = `${emailPrefix}@${emailDomain}`;
 
     try {
       await createUser(email, password, role, name, formattedPhone);
@@ -134,9 +143,18 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
               onChange={(e) => setEmailPrefix(e.target.value)}
               required
             />
-            <span className='-z-10 inline-flex items-center rounded-e-lg border border-input bg-background px-3 text-sm text-muted-foreground'>
-              @umskenya.com
-            </span>
+            <Select value={emailDomain} onValueChange={setEmailDomain}>
+              <SelectTrigger className='w-[160px] rounded-s-none border-s-0'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EMAIL_DOMAINS.map((domain) => (
+                  <SelectItem key={domain.value} value={domain.value}>
+                    {domain.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <div className='space-y-2'>
@@ -172,19 +190,15 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
             <SelectTrigger
               id='role'
               className='w-full border border-gray-300 rounded-md p-2 cursor-pointer'>
-              <SelectValue>
-                {role === "user" && "User"}
-                {role === "admin" && "Admin"}
-                {role === "accountant" && "Accountant"}
-                {role === "super_admin" && "Super Admin"}
-                {role === "sales_person" && "Sales Person"}
-              </SelectValue>
+              <SelectValue>{getRoleLabel(role)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='user'>User</SelectItem>
               <SelectItem value='admin'>Admin</SelectItem>
               <SelectItem value='accountant'>Accountant</SelectItem>
-              <SelectItem value='super_admin'>Super Admin</SelectItem>
+              {isSuperAdmin(userRole) && (
+                <SelectItem value='super_admin'>Super Admin</SelectItem>
+              )}
               <SelectItem value='sales_person'>Sales Person</SelectItem>
             </SelectContent>
           </Select>

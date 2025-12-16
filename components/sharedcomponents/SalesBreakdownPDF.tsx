@@ -255,9 +255,9 @@ const SalesBreakdownPDF = ({
               <Text style={styles.tableHeaderCellWide}>Recipient</Text>
               <Text style={styles.tableHeaderCell}>County</Text>
             </View>
-            {sales.map((sale) => (
+            {sales.map((sale, index) => (
               <View
-                key={`${sale.seller}-${sale.time}-${sale.meterType}`}
+                key={`${index}-${sale.seller}-${sale.time}-${sale.meterType}`}
                 style={styles.tableRow}>
                 <Text style={styles.tableCellWide}>{sale.seller}</Text>
                 <Text style={styles.tableCell}>{sale.meterType}</Text>

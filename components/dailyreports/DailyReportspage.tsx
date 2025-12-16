@@ -366,15 +366,6 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
         Daily Reports
       </h1>
       <div className='mb-6 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end'>
-        <Button
-          variant='outline'
-          className='flex gap-2 items-center cursor-pointer'
-          onClick={handleDownloadDailyReport}
-          disabled={isGeneratingDaily}>
-          <Download className='h-4 w-4' />
-          {isGeneratingDaily ? "Preparing..." : "Download Today's Report"}
-        </Button>
-
         <Popover>
           <PopoverTrigger asChild>
             <Button

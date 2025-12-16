@@ -268,30 +268,28 @@ export default function ReplacementsView() {
         ) : (
           <>
             {/* Filters */}
-            <div className='bg-white p-4 rounded-lg border shadow-sm'>
-              <div className='flex flex-wrap items-center gap-3'>
-                <Input
-                  type='text'
-                  placeholder='Search by serial, customer, or staff...'
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className='w-[300px]'
-                />
+            <div className='flex flex-wrap items-center gap-3 mb-4'>
+              <Input
+                type='text'
+                placeholder='Search by serial, customer, or staff...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='w-[300px]'
+              />
 
-                <div className='w-[130px]'>
-                  <DatePicker value={selectedDate} onChange={setSelectedDate} />
-                </div>
-
-                {hasActiveFilters() && (
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={clearFilters}
-                    className='text-muted-foreground hover:text-foreground cursor-pointer'>
-                    <X className='h-4 w-4' />
-                  </Button>
-                )}
+              <div className='w-[130px]'>
+                <DatePicker value={selectedDate} onChange={setSelectedDate} />
               </div>
+
+              {hasActiveFilters() && (
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  onClick={clearFilters}
+                  className='text-muted-foreground hover:text-foreground cursor-pointer'>
+                  <X className='h-4 w-4' />
+                </Button>
+              )}
             </div>
 
             {filteredReplacements && filteredReplacements.length > 0 ? (

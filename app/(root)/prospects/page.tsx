@@ -4,6 +4,7 @@ import SalesPersonProspectsList from "@/components/prospects/SalesPersonProspect
 import type { ClientProspect } from "@/lib/db/schema";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
+import { isSalesPerson } from "@/lib/utils/rolePermissions";
 
 export default async function ProspectsPage() {
   const session = await auth.api.getSession({
@@ -11,7 +12,7 @@ export default async function ProspectsPage() {
   });
   const userRole = (session?.user as any)?.appRole;
 
-  if (userRole === "sales_person") {
+  if (isSalesPerson(userRole)) {
     const prospects = (await getMyProspects()) as ClientProspect[];
     return <SalesPersonProspectsList initialProspects={prospects} />;
   }

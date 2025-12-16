@@ -5,6 +5,7 @@ import {
   updateAgentStatus,
   deleteAgent,
   getAgentInventory,
+  getAgentsMeterCountsByType,
 } from "@/lib/actions/agents";
 import AgentAnalytics from "./AgentAnalytics";
 import {
@@ -45,6 +46,16 @@ import { generateCSV } from "@/lib/utils/csvGenerator";
 import { generateXLSX } from "@/lib/utils/xlsxGenerator";
 import { pdf } from "@react-pdf/renderer";
 import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
+
+// Meter types for export
+const METER_TYPES = [
+  "integrated",
+  "split",
+  "gas",
+  "water",
+  "smart",
+  "3 phase",
+] as const;
 
 const EmptyState = () => (
   <div className='flex flex-col items-center justify-center p-8 text-gray-500'>
@@ -88,7 +99,7 @@ export default function Agents({ initialData }: AgentsProps) {
   const itemsPerPage = 10;
 
   const {
-    agentsData: { agents, currentUser, meterCounts },
+    agentsData: { agents, currentUser, meterCounts, agentMeterCounts },
     isLoading,
     isFetching,
     isError,
@@ -233,46 +244,81 @@ export default function Agents({ initialData }: AgentsProps) {
     return filtered;
   };
 
-  const formatAgentForExport = (agent: Agent) => ({
-    Name: agent.name,
-    "Phone Number": agent.phone_number,
-    Location: agent.location,
-    County: agent.county,
-    Type: agent.agent_type === "credit" ? "Credit" : "Cash",
-    "Total Meters": agent.total_meters ?? 0,
-    Status: agent.is_active ? "Active" : "Inactive",
-  });
-
-  const handleExportCSV = () => {
-    const exportData = getExportData().map(formatAgentForExport);
-    if (exportData.length === 0) {
-      toast.error("No agents to export");
-      return;
-    }
-    generateCSV(
-      exportData,
-      `agents-list-${new Date().toISOString().split("T")[0]}`
-    );
-    toast.success(`Exported ${exportData.length} agents to CSV`);
+  const formatAgentForExport = (
+    agent: Agent,
+    meterCountsByType: Record<string, Record<string, number>>
+  ) => {
+    const agentMeterCounts = meterCountsByType[agent.id] || {};
+    return {
+      Name: agent.name,
+      "Phone Number": agent.phone_number,
+      Location: agent.location,
+      County: agent.county,
+      Type: agent.agent_type === "credit" ? "Credit" : "Cash",
+      "Total Meters": agent.total_meters ?? 0,
+      Integrated: agentMeterCounts["integrated"] || 0,
+      Split: agentMeterCounts["split"] || 0,
+      Gas: agentMeterCounts["gas"] || 0,
+      Water: agentMeterCounts["water"] || 0,
+      Smart: agentMeterCounts["smart"] || 0,
+      "3 Phase": agentMeterCounts["3 phase"] || 0,
+      Status: agent.is_active ? "Active" : "Inactive",
+    };
   };
 
-  const handleExportXLSX = () => {
-    const exportData = getExportData().map(formatAgentForExport);
-    if (exportData.length === 0) {
-      toast.error("No agents to export");
-      return;
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const meterCountsByType = await getAgentsMeterCountsByType();
+      const exportData = getExportData().map((agent) =>
+        formatAgentForExport(agent, meterCountsByType)
+      );
+      if (exportData.length === 0) {
+        toast.error("No agents to export");
+        return;
+      }
+      generateCSV(
+        exportData,
+        `agents-list-${new Date().toISOString().split("T")[0]}`
+      );
+      toast.success(`Exported ${exportData.length} agents to CSV`);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      toast.error("Failed to export CSV");
+    } finally {
+      setIsExporting(false);
     }
-    generateXLSX(
-      exportData,
-      `agents-list-${new Date().toISOString().split("T")[0]}`,
-      "Agents"
-    );
-    toast.success(`Exported ${exportData.length} agents to Excel`);
+  };
+
+  const handleExportXLSX = async () => {
+    setIsExporting(true);
+    try {
+      const meterCountsByType = await getAgentsMeterCountsByType();
+      const exportData = getExportData().map((agent) =>
+        formatAgentForExport(agent, meterCountsByType)
+      );
+      if (exportData.length === 0) {
+        toast.error("No agents to export");
+        return;
+      }
+      generateXLSX(
+        exportData,
+        `agents-list-${new Date().toISOString().split("T")[0]}`,
+        "Agents"
+      );
+      toast.success(`Exported ${exportData.length} agents to Excel`);
+    } catch (error) {
+      console.error("Error exporting Excel:", error);
+      toast.error("Failed to export Excel");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
+      const meterCountsByType = await getAgentsMeterCountsByType();
       const exportData = getExportData();
       if (exportData.length === 0) {
         toast.error("No agents to export");
@@ -285,18 +331,33 @@ export default function Agents({ initialData }: AgentsProps) {
         "Location",
         "County",
         "Type",
-        "Meters",
+        "Total",
+        "Int",
+        "Split",
+        "Gas",
+        "Water",
+        "Smart",
+        "3Ph",
         "Status",
       ];
-      const data = exportData.map((agent) => [
-        agent.name,
-        agent.phone_number,
-        agent.location,
-        agent.county,
-        agent.agent_type === "credit" ? "Credit" : "Cash",
-        String(agent.total_meters ?? 0),
-        agent.is_active ? "Active" : "Inactive",
-      ]);
+      const data = exportData.map((agent) => {
+        const agentMeterCounts = meterCountsByType[agent.id] || {};
+        return [
+          agent.name,
+          agent.phone_number,
+          agent.location,
+          agent.county,
+          agent.agent_type === "credit" ? "Credit" : "Cash",
+          String(agent.total_meters ?? 0),
+          String(agentMeterCounts["integrated"] || 0),
+          String(agentMeterCounts["split"] || 0),
+          String(agentMeterCounts["gas"] || 0),
+          String(agentMeterCounts["water"] || 0),
+          String(agentMeterCounts["smart"] || 0),
+          String(agentMeterCounts["3 phase"] || 0),
+          agent.is_active ? "Active" : "Inactive",
+        ];
+      });
 
       const blob = await pdf(
         <TableReportPDF title='Agents List' headers={headers} data={data} />
@@ -379,6 +440,7 @@ export default function Agents({ initialData }: AgentsProps) {
                         key={agent.id}
                         agent={agent}
                         currentUser={currentUser}
+                        meterCountsByType={agentMeterCounts[agent.id]}
                         onEdit={handleEdit}
                         onSaleClose={handleSaleClose}
                         onToggleStatus={handleToggleStatus}
@@ -417,6 +479,7 @@ export default function Agents({ initialData }: AgentsProps) {
                         key={agent.id}
                         agent={agent}
                         currentUser={currentUser}
+                        meterCountsByType={agentMeterCounts[agent.id]}
                         onEdit={handleEdit}
                         onSaleClose={handleSaleClose}
                         onToggleStatus={handleToggleStatus}

@@ -23,8 +23,15 @@ import {
   File,
   FileSpreadsheet,
   FileText,
+  Trash2,
+  RotateCcw,
+  Archive,
 } from "lucide-react";
-import { getFaultyMeters } from "@/lib/actions/reports";
+import {
+  getFaultyMeters,
+  binFaultyMeter,
+  restoreBinnedMeter,
+} from "@/lib/actions/reports";
 import { EmptyState } from "./EmptyState";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -47,9 +54,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { updateFaultyMeterStatus } from "@/lib/actions/meters";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { isAdmin } from "@/lib/utils/rolePermissions";
 import { formatDate, formatISODate } from "@/lib/utils/dateUtils";
 import { generateCSV } from "@/lib/utils/csvGenerator";
 import { generateXLSX } from "@/lib/utils/xlsxGenerator";
@@ -64,6 +73,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { motion, AnimatePresence } from "framer-motion";
+import { Badge } from "@/components/ui/badge";
 
 interface FaultyMeter {
   id: string;
@@ -75,16 +86,117 @@ interface FaultyMeter {
   fault_description: string | null;
   status: string | null;
   original_sale_id: string | null;
+  is_binned: boolean | null;
+  binned_at: Date | null;
+  binned_by: string | null;
+  binned_by_name: string | null;
+}
+
+// Helper component props
+interface MeterActionsCellProps {
+  readonly meter: FaultyMeter;
+  readonly activeTab: "active" | "binned";
+  readonly userRole: string | null | undefined;
+  readonly isUpdating: boolean;
+  readonly binningMeterId: string | null;
+  readonly onStatusUpdate: (
+    meter: FaultyMeter,
+    status: "repaired" | "unrepairable" | "pending"
+  ) => void;
+  readonly onBin: (meter: FaultyMeter) => void;
+  readonly onRestore: (meter: FaultyMeter) => void;
+}
+
+// Helper component for rendering action buttons
+function MeterActionsCell({
+  meter,
+  activeTab,
+  userRole,
+  isUpdating,
+  binningMeterId,
+  onStatusUpdate,
+  onBin,
+  onRestore,
+}: MeterActionsCellProps) {
+  const userIsAdmin = isAdmin(userRole);
+
+  if (activeTab === "binned") {
+    if (!userIsAdmin) {
+      return <span className='text-muted-foreground text-sm'>—</span>;
+    }
+    return (
+      <Button
+        variant='outline'
+        size='sm'
+        className='cursor-pointer text-green-600 hover:text-green-700 hover:bg-green-50'
+        onClick={() => onRestore(meter)}
+        disabled={isUpdating}>
+        <RotateCcw className='h-4 w-4 mr-1' />
+        Restore
+      </Button>
+    );
+  }
+
+  if (!userIsAdmin) {
+    return <span className='text-muted-foreground text-sm'>—</span>;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant='outline'
+          size='sm'
+          className='cursor-pointer'
+          disabled={isUpdating || binningMeterId !== null}>
+          {binningMeterId === meter.id ? (
+            <Loader2 className='h-4 w-4 animate-spin' />
+          ) : (
+            "Actions"
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        <DropdownMenuItem
+          onClick={() => onStatusUpdate(meter, "repaired")}
+          disabled={meter.status === "repaired" || isUpdating}
+          className='cursor-pointer'>
+          <span className='text-green-600'>Mark as Repaired</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onStatusUpdate(meter, "unrepairable")}
+          disabled={meter.status === "unrepairable" || isUpdating}
+          className='cursor-pointer'>
+          <span className='text-red-600'>Mark as Unrepairable</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onStatusUpdate(meter, "pending")}
+          disabled={meter.status === "pending" || isUpdating}
+          className='cursor-pointer'>
+          <span className='text-yellow-600'>Mark as Pending</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onBin(meter)}
+          disabled={isUpdating}
+          className='cursor-pointer text-red-600 focus:text-red-600'>
+          <Trash2 className='h-4 w-4 mr-2' />
+          Send to Bin
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export default function FaultyMetersView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<CalendarDate | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("all");
+  const [activeTab, setActiveTab] = useState<"active" | "binned">("active");
+  const [binningMeterId, setBinningMeterId] = useState<string | null>(null);
   const { user } = useAuth();
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 7;
+  const itemsPerPage = 12;
 
   const {
     data: faultyMeters,
@@ -95,8 +207,8 @@ export default function FaultyMetersView() {
   } = useQuery<FaultyMeter[]>({
     queryKey: ["faultyMeters"],
     queryFn: getFaultyMeters,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   const handleRefresh = async () => {
@@ -111,7 +223,14 @@ export default function FaultyMetersView() {
 
   const isRefreshing = isFetching && !isLoading;
 
-  const filteredMeters = faultyMeters?.filter((meter) => {
+  // Separate active and binned meters
+  const activeMeters = faultyMeters?.filter((meter) => !meter.is_binned) || [];
+  const binnedMeters = faultyMeters?.filter((meter) => meter.is_binned) || [];
+
+  const currentMetersForTab =
+    activeTab === "active" ? activeMeters : binnedMeters;
+
+  const filteredMeters = currentMetersForTab.filter((meter) => {
     const matchesSearch =
       searchTerm === "" ||
       meter.serial_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -135,6 +254,14 @@ export default function FaultyMetersView() {
 
     return matchesSearch && matchesDate && matchesStatus;
   });
+
+  // Helper function to format the date column based on tab
+  const getDisplayDate = (meter: FaultyMeter): string => {
+    if (activeTab === "binned") {
+      return meter.binned_at ? formatDate(meter.binned_at) : "-";
+    }
+    return meter.returned_at ? formatDate(meter.returned_at) : "-";
+  };
 
   const handleStatusUpdate = async (
     meter: FaultyMeter,
@@ -168,6 +295,53 @@ export default function FaultyMetersView() {
     } catch (error) {
       console.error("Failed to update meter status:", error);
       toast.error("Failed to update meter status");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleBinMeter = async (meter: FaultyMeter) => {
+    if (!user) {
+      toast.error("You must be logged in to perform this action");
+      return;
+    }
+
+    try {
+      setBinningMeterId(meter.id);
+      // Wait for animation to complete
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      await binFaultyMeter(
+        meter.id,
+        user.id,
+        user.name || user.email || "System User"
+      );
+      await refetch({ throwOnError: true });
+
+      toast.success(`Meter ${meter.serial_number} has been sent to bin`);
+    } catch (error) {
+      console.error("Failed to bin meter:", error);
+      toast.error("Failed to send meter to bin");
+    } finally {
+      setBinningMeterId(null);
+    }
+  };
+
+  const handleRestoreMeter = async (meter: FaultyMeter) => {
+    if (!user) {
+      toast.error("You must be logged in to perform this action");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      await restoreBinnedMeter(meter.id, user.id);
+      await refetch({ throwOnError: true });
+
+      toast.success(`Meter ${meter.serial_number} has been restored from bin`);
+    } catch (error) {
+      console.error("Failed to restore meter:", error);
+      toast.error("Failed to restore meter from bin");
     } finally {
       setIsUpdating(false);
     }
@@ -316,6 +490,35 @@ export default function FaultyMetersView() {
             </Button>
           </div>
         </div>
+
+        {/* Tabs for Active/Binned */}
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => {
+            setActiveTab(v as "active" | "binned");
+            setCurrentPage(1);
+          }}>
+          <TabsList className='grid w-full max-w-[400px] grid-cols-2'>
+            <TabsTrigger value='active' className='cursor-pointer'>
+              <AlertTriangle className='h-4 w-4 mr-2' />
+              Active
+              {activeMeters.length > 0 && (
+                <Badge variant='secondary' className='ml-2'>
+                  {activeMeters.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value='binned' className='cursor-pointer'>
+              <Archive className='h-4 w-4 mr-2' />
+              Binned
+              {binnedMeters.length > 0 && (
+                <Badge variant='secondary' className='ml-2'>
+                  {binnedMeters.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className='flex-1 overflow-y-auto px-6 py-4 space-y-4'>
@@ -328,43 +531,39 @@ export default function FaultyMetersView() {
         ) : (
           <>
             {/* Filters */}
-            <div className='bg-white p-4 rounded-lg border shadow-sm'>
-              <div className='flex flex-wrap items-center gap-3'>
-                <Input
-                  type='text'
-                  placeholder='Search by serial, description, or staff...'
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className='w-[300px]'
-                />
-                <Select
-                  value={selectedStatus}
-                  onValueChange={setSelectedStatus}>
-                  <SelectTrigger className='w-[140px] cursor-pointer'>
-                    <SelectValue>Status</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='all'>All Status</SelectItem>
-                    <SelectItem value='pending'>Pending</SelectItem>
-                    <SelectItem value='repaired'>Repaired</SelectItem>
-                    <SelectItem value='unrepairable'>Unrepairable</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className='flex flex-wrap items-center gap-3 mb-4'>
+              <Input
+                type='text'
+                placeholder='Search by serial, description, or staff...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='w-[300px]'
+              />
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className='w-[140px] cursor-pointer'>
+                  <SelectValue>Status</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='all'>All Status</SelectItem>
+                  <SelectItem value='pending'>Pending</SelectItem>
+                  <SelectItem value='repaired'>Repaired</SelectItem>
+                  <SelectItem value='unrepairable'>Unrepairable</SelectItem>
+                </SelectContent>
+              </Select>
 
-                <div className='w-[130px]'>
-                  <DatePicker value={selectedDate} onChange={setSelectedDate} />
-                </div>
-
-                {hasActiveFilters() && (
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={clearFilters}
-                    className='text-muted-foreground hover:text-foreground cursor-pointer'>
-                    <X className='h-4 w-4' />
-                  </Button>
-                )}
+              <div className='w-[130px]'>
+                <DatePicker value={selectedDate} onChange={setSelectedDate} />
               </div>
+
+              {hasActiveFilters() && (
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  onClick={clearFilters}
+                  className='text-muted-foreground hover:text-foreground cursor-pointer'>
+                  <X className='h-4 w-4' />
+                </Button>
+              )}
             </div>
 
             {filteredMeters && filteredMeters.length > 0 ? (
@@ -375,111 +574,91 @@ export default function FaultyMetersView() {
                       <TableRow className='bg-gray-50'>
                         <TableHead>Serial Number</TableHead>
                         <TableHead>Type</TableHead>
-                        <TableHead>Returned By</TableHead>
-                        <TableHead>Return Date</TableHead>
+                        <TableHead>
+                          {activeTab === "binned" ? "Binned By" : "Returned By"}
+                        </TableHead>
+                        <TableHead>
+                          {activeTab === "binned"
+                            ? "Binned Date"
+                            : "Return Date"}
+                        </TableHead>
                         <TableHead>Fault Description</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(currentMeters || []).map((meter) => (
-                        <TableRow key={meter.id}>
-                          <TableCell className='font-mono'>
-                            {meter.serial_number}
-                          </TableCell>
-                          <TableCell className='capitalize'>
-                            {meter.type}
-                          </TableCell>
-                          <TableCell>{meter.returner_name}</TableCell>
-                          <TableCell>
-                            {meter.returned_at
-                              ? formatDate(meter.returned_at)
-                              : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {meter.fault_description || "-"}
-                          </TableCell>
-                          <TableCell>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant='outline'
-                                  className='w-full justify-start cursor-pointer'
-                                  disabled={isUpdating}>
-                                  <span
-                                    className={cn(
-                                      "capitalize",
-                                      meter.status === "pending" &&
-                                        "text-yellow-600",
-                                      meter.status === "repaired" &&
-                                        "text-green-600",
-                                      meter.status === "unrepairable" &&
-                                        "text-red-600"
-                                    )}>
-                                    {meter.status || "Unknown"}
-                                  </span>
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className='bg-gray-50 border-gray-200 px-2'>
-                                <DialogHeader>
-                                  <DialogTitle>Update Meter Status</DialogTitle>
-                                  <DialogDescription>
-                                    Select the new status for meter{" "}
-                                    {meter.serial_number}
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className='grid gap-3 py-4'>
-                                  <Button
-                                    variant='outline'
-                                    className='justify-start cursor-pointer'
-                                    onClick={() =>
-                                      handleStatusUpdate(meter, "repaired")
-                                    }
-                                    disabled={
-                                      meter.status === "repaired" || isUpdating
-                                    }>
-                                    <span className='text-green-600'>
-                                      Repaired
-                                    </span>
-                                    {meter.status === "repaired" &&
-                                      " (Current)"}
-                                  </Button>
-                                  <Button
-                                    variant='outline'
-                                    className='justify-start cursor-pointer'
-                                    onClick={() =>
-                                      handleStatusUpdate(meter, "unrepairable")
-                                    }
-                                    disabled={
-                                      meter.status === "unrepairable" ||
-                                      isUpdating
-                                    }>
-                                    <span className='text-red-600'>
-                                      Unrepairable
-                                    </span>
-                                    {meter.status === "unrepairable" &&
-                                      " (Current)"}
-                                  </Button>
-                                  <Button
-                                    variant='outline'
-                                    className='justify-start cursor-pointer'
-                                    onClick={() =>
-                                      handleStatusUpdate(meter, "pending")
-                                    }
-                                    disabled={
-                                      meter.status === "pending" || isUpdating
-                                    }>
-                                    <span className='text-yellow-600'>
-                                      Pending
-                                    </span>
-                                    {meter.status === "pending" && " (Current)"}
-                                  </Button>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      <AnimatePresence mode='popLayout'>
+                        {(currentMeters || []).map((meter) => (
+                          <motion.tr
+                            key={meter.id}
+                            layout
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{
+                              opacity: binningMeterId === meter.id ? 0 : 1,
+                              x: binningMeterId === meter.id ? 100 : 0,
+                              scale: binningMeterId === meter.id ? 0.8 : 1,
+                              rotate: binningMeterId === meter.id ? 10 : 0,
+                            }}
+                            exit={{
+                              opacity: 0,
+                              x: 100,
+                              scale: 0.5,
+                              rotate: 15,
+                              transition: { duration: 0.5 },
+                            }}
+                            transition={{
+                              duration: 0.5,
+                              type: "spring",
+                              stiffness: 100,
+                              damping: 15,
+                            }}
+                            className='border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted'>
+                            <TableCell className='font-mono'>
+                              {meter.serial_number}
+                            </TableCell>
+                            <TableCell className='capitalize'>
+                              {meter.type}
+                            </TableCell>
+                            <TableCell>
+                              {activeTab === "binned"
+                                ? meter.binned_by_name || "-"
+                                : meter.returner_name}
+                            </TableCell>
+                            <TableCell>{getDisplayDate(meter)}</TableCell>
+                            <TableCell>
+                              {meter.fault_description || "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant='outline'
+                                className={cn(
+                                  "capitalize",
+                                  meter.status === "pending" &&
+                                    "border-yellow-500 text-yellow-600",
+                                  meter.status === "repaired" &&
+                                    "border-green-500 text-green-600",
+                                  meter.status === "unrepairable" &&
+                                    "border-red-500 text-red-600"
+                                )}>
+                                {meter.status || "Unknown"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <MeterActionsCell
+                                meter={meter}
+                                activeTab={activeTab}
+                                userRole={user?.role}
+                                isUpdating={isUpdating}
+                                binningMeterId={binningMeterId}
+                                onStatusUpdate={handleStatusUpdate}
+                                onBin={handleBinMeter}
+                                onRestore={handleRestoreMeter}
+                              />
+                            </TableCell>
+                          </motion.tr>
+                        ))}
+                      </AnimatePresence>
                     </TableBody>
                   </Table>
                 </div>

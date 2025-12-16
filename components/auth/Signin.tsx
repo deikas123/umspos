@@ -13,13 +13,26 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+
+const EMAIL_DOMAINS = [
+  { value: "umskenya.com", label: "@umskenya.com" },
+  { value: "gmail.com", label: "@gmail.com" },
+] as const;
 
 const SignIn = () => {
   const router = useRouter();
   const { data: session } = useSession();
   const [emailPrefix, setEmailPrefix] = useState("");
+  const [emailDomain, setEmailDomain] = useState("umskenya.com");
   const [password, setPassword] = useState("");
   const [isVisible, setIsVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +57,7 @@ const SignIn = () => {
     setError(null);
     setIsLoading(true);
 
-    const email = `${emailPrefix}@umskenya.com`;
+    const email = `${emailPrefix}@${emailDomain}`;
 
     await signIn.email(
       {
@@ -125,9 +138,21 @@ const SignIn = () => {
                     required
                     disabled={isLoading}
                   />
-                  <span className='inline-flex items-center rounded-e-lg border border-input bg-white px-3 text-sm'>
-                    @umskenya.com
-                  </span>
+                  <Select
+                    value={emailDomain}
+                    onValueChange={setEmailDomain}
+                    disabled={isLoading}>
+                    <SelectTrigger className='w-[160px] rounded-s-none border-s-0'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMAIL_DOMAINS.map((domain) => (
+                        <SelectItem key={domain.value} value={domain.value}>
+                          {domain.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className='space-y-2'>

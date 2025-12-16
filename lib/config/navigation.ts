@@ -13,7 +13,13 @@ import {
   FileText,
   ClipboardList,
 } from "lucide-react";
-import type { UserRole } from "@/lib/utils/rolePermissions";
+import {
+  type UserRole,
+  isSalesPerson,
+  isAdmin,
+  isSuperAdmin,
+  hasReportsAccess,
+} from "@/lib/utils/rolePermissions";
 
 export interface NavItem {
   title: string;
@@ -112,7 +118,7 @@ export function hasNavigationAccess(
   userRole: UserRole
 ): boolean {
   // Sales person can ONLY see their Client Form page
-  if (userRole === "sales_person") {
+  if (isSalesPerson(userRole)) {
     return item.salesPersonOnly === true;
   }
 
@@ -122,34 +128,26 @@ export function hasNavigationAccess(
   }
 
   if (item.requiresProspectViewAccess) {
-    return userRole === "super_admin" || userRole === "admin";
+    return isAdmin(userRole);
   }
   if (item.requiresApprovalAccess) {
-    return userRole === "super_admin";
+    return isSuperAdmin(userRole);
   }
   if (item.requiresReportAccess) {
-    return (
-      userRole === "super_admin" ||
-      userRole === "admin" ||
-      userRole === "accountant"
-    );
+    return hasReportsAccess(userRole);
   }
   if (item.adminOnly) {
-    return userRole === "super_admin" || userRole === "admin";
+    return isAdmin(userRole);
   }
   return true;
 }
 
 export function hasActionAccess(item: ActionItem, userRole: UserRole): boolean {
   if (item.adminOnly) {
-    return userRole === "super_admin" || userRole === "admin";
+    return isAdmin(userRole);
   }
   if (item.requiresAuth) {
-    return (
-      userRole === "super_admin" ||
-      userRole === "admin" ||
-      userRole === "accountant"
-    );
+    return hasReportsAccess(userRole);
   }
   return true;
 }

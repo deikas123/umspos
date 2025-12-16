@@ -112,7 +112,7 @@ export function ActionItem({
 
   const TriggerButton = (
     <SidebarMenuButton className='w-full px-2 py-2.5 text-sm font-medium transition-colors hover:bg-gray-50 group cursor-pointer'>
-      <Icon className={`mr-3 h-4 w-4 ${getIconColorClass(title)}`} />
+      <Icon className={` h-4 w-4 ${getIconColorClass(title)}`} />
       <span>{title}</span>
     </SidebarMenuButton>
   );

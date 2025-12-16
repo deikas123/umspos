@@ -10,6 +10,7 @@ import {
   getAgentInventoryCount,
   getFaultyMetersByType,
 } from "@/lib/actions/reports";
+import { hasReportsAccess as checkHasReportsAccess } from "@/lib/utils/rolePermissions";
 import type { TopSeller } from "../types";
 
 // Define query keys
@@ -43,7 +44,7 @@ export function useReportsData(initialData?: ReportsPageData) {
   const { userRole } = useAuth();
 
   // Determine if user has reports access (avoid extra query)
-  const hasReportsAccess = userRole === "admin" || userRole === "accountant";
+  const hasReportsAccess = checkHasReportsAccess(userRole);
   const hasInitialData = !!initialData;
 
   // Remaining meters query - use initialData if available

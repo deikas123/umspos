@@ -1,5 +1,13 @@
 import { useMemo } from "react";
 import { navigationItems, actionItems } from "@/lib/config/navigation";
+import {
+  isSuperAdmin as checkIsSuperAdmin,
+  isAdmin as checkIsAdmin,
+  isAccountant as checkIsAccountant,
+  isSalesPerson as checkIsSalesPerson,
+  hasReportsAccess as checkHasReportsAccess,
+  hasApprovalAccess as checkHasApprovalAccess,
+} from "@/lib/utils/rolePermissions";
 
 interface RoleChecks {
   isSuperAdmin: boolean;
@@ -12,15 +20,15 @@ interface RoleChecks {
 }
 
 export function useRoleBasedFiltering(safeUserRole: string | null) {
-  // Memoize role checks
+  // Memoize role checks using centralized utilities
   const roleChecks = useMemo<RoleChecks>(() => {
-    const isSuperAdmin = safeUserRole === "super_admin";
-    const isAdmin = safeUserRole === "admin" || isSuperAdmin;
-    const isAccountant = safeUserRole === "accountant";
-    const isSalesPerson = safeUserRole === "sales_person";
-    const hasReportsAccess = isAdmin || isAccountant;
+    const isSuperAdmin = checkIsSuperAdmin(safeUserRole);
+    const isAdmin = checkIsAdmin(safeUserRole);
+    const isAccountant = checkIsAccountant(safeUserRole);
+    const isSalesPerson = checkIsSalesPerson(safeUserRole);
+    const hasReportsAccess = checkHasReportsAccess(safeUserRole);
     // Only super_admin can access approvals
-    const hasApprovalAccess = isSuperAdmin;
+    const hasApprovalAccess = checkHasApprovalAccess(safeUserRole);
     // Admin, super_admin, and sales_person can view prospects (filtered for sales_person)
     const hasProspectViewAccess = isAdmin || isSalesPerson;
 

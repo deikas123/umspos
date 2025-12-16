@@ -8,6 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
+import { getRoleBadgeVariant } from "@/lib/utils/rolePermissions";
 
 interface MobileUserSectionProps {
   user: {
@@ -19,9 +20,7 @@ interface MobileUserSectionProps {
 
 // Helper function for role badge colors
 const getRoleBadgeClass = (role: string | null): string => {
-  if (role === "admin") return "bg-green-100 text-green-700";
-  if (role === "accountant") return "bg-purple-100 text-purple-700";
-  return "bg-yellow-100 text-yellow-700";
+  return getRoleBadgeVariant(role);
 };
 
 export function MobileUserSection({

@@ -12,6 +12,10 @@ import { SearchBar } from "./SearchBar";
 import { UserProfileMenu } from "./UserProfileMenu";
 import { AgentInventorySheet } from "./AgentInventorySheet";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import {
+  isAdmin as checkIsAdmin,
+  isSalesPerson as checkIsSalesPerson,
+} from "@/lib/utils/rolePermissions";
 
 const Navbar: React.FC = () => {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -22,9 +26,8 @@ const Navbar: React.FC = () => {
   const { userRole, updateAuthState, user, isLoading } = useAuth();
   // Don't determine role-based visibility until auth is loaded
   const authReady = mounted && !isLoading && !!userRole;
-  const isAdmin =
-    authReady && (userRole === "admin" || userRole === "super_admin");
-  const isSalesPerson = authReady && userRole === "sales_person";
+  const isAdminUser = authReady && checkIsAdmin(userRole);
+  const isSalesPersonUser = authReady && checkIsSalesPerson(userRole);
 
   useEffect(() => {
     setMounted(true);
@@ -58,15 +61,15 @@ const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {authReady && !isSalesPerson && (
+        {authReady && !isSalesPersonUser && (
           <SearchBar onAgentInventoryOpen={handleAgentInventoryOpen} />
         )}
 
         <div className='flex items-center gap-4'>
           {!isMobile && authReady && (
             <>
-              {isAdmin && <StockAlert />}
-              {!isSalesPerson && <NotificationBell />}
+              {isAdminUser && <StockAlert />}
+              {!isSalesPersonUser && <NotificationBell />}
               <UserProfileMenu
                 user={user}
                 userRole={userRole}

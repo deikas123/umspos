@@ -6,6 +6,7 @@ import { betterAuthUser } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/constants/errors";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
+import { isAdmin as checkIsAdmin } from "@/lib/utils/rolePermissions";
 
 // Type for the user data from Better Auth user table
 export type UserRole = "admin" | "accountant" | "user";
@@ -37,7 +38,7 @@ export async function requireAdmin(): Promise<{
   }
 
   const user = session.user as any;
-  const isAppAdmin = user.appRole === "admin";
+  const isAppAdmin = checkIsAdmin(user.appRole);
   const isBetterAuthAdmin = user.role === "admin";
 
   // If user is an app admin but better-auth role is not admin, fix it
@@ -49,7 +50,7 @@ export async function requireAdmin(): Promise<{
     `);
   }
 
-  // Check if user has admin role
+  // Check if user has admin role (admin or super_admin)
   if (!isAppAdmin && !isBetterAuthAdmin) {
     throw new Error("Not authorized. Admin role required.");
   }

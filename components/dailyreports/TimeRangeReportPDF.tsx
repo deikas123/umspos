@@ -91,15 +91,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#000080",
   },
   tableHeaderCell: {
-    padding: 8,
+    padding: 6,
     flex: 1,
-    fontSize: 12,
+    fontSize: 9,
     color: "white",
   },
   tableCell: {
-    padding: 8,
+    padding: 6,
     flex: 1,
-    fontSize: 10,
+    fontSize: 8,
   },
   totalRow: {
     backgroundColor: "#f8f9fa",
@@ -298,172 +298,41 @@ const TimeRangeReportPDF = ({
         </View>
 
         <View style={styles.summarySection}>
-          <Text style={styles.subtitle}>Meters Status by Type</Text>
+          <Text style={styles.subtitle}>Detailed Transactions</Text>
           <View style={styles.table}>
             <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={styles.tableHeaderCell}>Meter Type</Text>
-              <Text style={styles.tableHeaderCell}>In Stock</Text>
-              <Text style={styles.tableHeaderCell}>With Agents</Text>
-              <Text style={styles.tableHeaderCell}>Sold in Period</Text>
-              <Text style={styles.tableHeaderCell}>Total Available</Text>
-            </View>
-            {allMeterTypes.map((item) => (
-              <View key={item.type} style={styles.tableRow}>
-                <Text style={styles.tableCell}>{item.type}</Text>
-                <Text style={styles.tableCell}>{item.remaining}</Text>
-                <Text style={styles.tableCell}>{item.withAgents}</Text>
-                <Text style={styles.tableCell}>{item.soldInPeriod}</Text>
-                <Text style={styles.tableCell}>
-                  {item.remaining + item.withAgents}
-                </Text>
-              </View>
-            ))}
-            <View style={[styles.tableRow, styles.totalRow]}>
-              <Text style={styles.totalCell}>Total</Text>
-              <Text style={styles.totalCell}>{totals.remaining}</Text>
-              <Text style={styles.totalCell}>{totals.withAgents}</Text>
-              <Text style={styles.totalCell}>{totals.soldInPeriod}</Text>
-              <Text style={styles.totalCell}>
-                {totals.remaining + totals.withAgents}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.summarySection}>
-          <Text style={styles.subtitle}>Daily Sales Breakdown</Text>
-          <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
+              <Text style={styles.tableHeaderCell}>Seller</Text>
+              <Text style={styles.tableHeaderCell}>Type</Text>
+              <Text style={styles.tableHeaderCell}>Qty</Text>
+              <Text style={styles.tableHeaderCell}>Total</Text>
               <Text style={styles.tableHeaderCell}>Date</Text>
-              <Text style={styles.tableHeaderCell}>Total Sales</Text>
-              <Text style={styles.tableHeaderCell}>Meters Sold</Text>
+              <Text style={styles.tableHeaderCell}>Recipient</Text>
+              <Text style={styles.tableHeaderCell}>Type</Text>
+              <Text style={styles.tableHeaderCell}>County</Text>
             </View>
-            {/* Group sales by date and show daily totals */}
-            {Object.entries(
-              sales.reduce((acc: any, sale) => {
-                const date = sale.sale_date
-                  ? format(new Date(sale.sale_date), "dd/MM/yyyy")
-                  : "N/A";
-                if (!acc[date]) {
-                  acc[date] = { totalSales: 0, metersSold: 0 };
-                }
-                acc[date].totalSales += sale.total_price;
-                acc[date].metersSold += sale.batch_amount;
-                return acc;
-              }, {})
-            ).map(([date, data]: [string, any]) => (
-              <View key={date} style={styles.tableRow}>
-                <Text style={styles.tableCell}>{date}</Text>
+            {sales.map((sale, index) => (
+              <View key={`${index}-${sale.id}`} style={styles.tableRow}>
+                <Text style={styles.tableCell}>{sale.user_name}</Text>
+                <Text style={styles.tableCell}>{sale.meter_type}</Text>
+                <Text style={styles.tableCell}>{sale.batch_amount}</Text>
                 <Text style={styles.tableCell}>
-                  KES {data.totalSales.toLocaleString()}
+                  {sale.total_price.toLocaleString()}
                 </Text>
-                <Text style={styles.tableCell}>{data.metersSold}</Text>
+                <Text style={styles.tableCell}>
+                  {sale.sale_date
+                    ? format(new Date(sale.sale_date), "dd/MM")
+                    : "-"}
+                </Text>
+                <Text style={styles.tableCell}>{sale.recipient || "-"}</Text>
+                <Text style={styles.tableCell}>
+                  {sale.customer_type || "-"}
+                </Text>
+                <Text style={styles.tableCell}>
+                  {sale.customer_county || "-"}
+                </Text>
               </View>
             ))}
           </View>
-        </View>
-        {/* Detailed Sales with Serial Numbers */}
-        <View break />
-
-        <View style={styles.summarySection}>
-          <Text style={styles.subtitle}>Details</Text>
-          {sales.map((sale) => {
-            const totalMetersCount = sale.meters?.length ?? 0;
-            const chunkedSerials = chunkArray(
-              sale.meters ?? [],
-              SERIAL_COLUMNS
-            );
-
-            return (
-              <View key={sale.id} style={styles.saleCard}>
-                <View style={styles.saleHeaderRow}>
-                  <View>
-                    <Text style={styles.saleTitle}>{sale.recipient}</Text>
-                    <Text style={styles.saleMeta}>
-                      {sale.meter_type} • {sale.batch_amount} meters
-                    </Text>
-                    <Text style={styles.saleMeta}>
-                      {sale.sale_date
-                        ? format(new Date(sale.sale_date), "dd/MM/yyyy HH:mm")
-                        : "N/A"}
-                    </Text>
-                  </View>
-                  <Text style={styles.saleTotal}>
-                    KES {sale.total_price.toLocaleString()}
-                  </Text>
-                </View>
-
-                <View style={styles.saleMetaGrid}>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>Sales Rep</Text>
-                    <Text style={styles.metaValue}>{sale.user_name}</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>Destination</Text>
-                    <Text style={styles.metaValue}>{sale.destination}</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>Contact</Text>
-                    <Text style={styles.metaValue}>
-                      {sale.customer_contact || "N/A"}
-                    </Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>County</Text>
-                    <Text style={styles.metaValue}>
-                      {sale.customer_county || "N/A"}
-                    </Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Text style={styles.metaLabel}>Customer Type</Text>
-                    <Text style={styles.metaValue}>
-                      {sale.customer_type
-                        ?.split(" ")
-                        .map(
-                          (word: string) =>
-                            word.charAt(0).toUpperCase() + word.slice(1)
-                        )
-                        .join(" ") || "N/A"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.serialsSection}>
-                  <Text style={styles.serialsTitle}>
-                    Serial Numbers ({totalMetersCount})
-                  </Text>
-                  {chunkedSerials.length > 0 ? (
-                    chunkedSerials.map((row, rowIndex) => (
-                      <View
-                        key={`${sale.id}-row-${rowIndex}`}
-                        style={styles.serialRow}>
-                        {row.map((meter) => (
-                          <Text
-                            key={`${sale.id}-${meter.serial_number}`}
-                            style={styles.serialCell}>
-                            {meter.serial_number}
-                          </Text>
-                        ))}
-                        {Array.from({
-                          length: SERIAL_COLUMNS - row.length,
-                        }).map((_, fillerIndex) => (
-                          <Text
-                            key={`${sale.id}-filler-${rowIndex}-${fillerIndex}`}
-                            style={styles.serialCell}>
-                            {" "}
-                          </Text>
-                        ))}
-                      </View>
-                    ))
-                  ) : (
-                    <Text style={styles.noSerialsText}>
-                      No meter serials recorded for this transaction.
-                    </Text>
-                  )}
-                </View>
-              </View>
-            );
-          })}
         </View>
 
         <Text style={styles.footer}>

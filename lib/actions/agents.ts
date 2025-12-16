@@ -494,6 +494,36 @@ export async function getAgentInventoryCount() {
   }
 }
 
+// Get meter counts grouped by type for each agent (for export)
+export async function getAgentsMeterCountsByType(): Promise<
+  Record<string, Record<string, number>>
+> {
+  try {
+    const data = await db
+      .select({
+        agent_id: agentInventory.agent_id,
+        type: agentInventory.type,
+        count: sql<number>`count(*)`.as("count"),
+      })
+      .from(agentInventory)
+      .groupBy(agentInventory.agent_id, agentInventory.type);
+
+    // Transform into a nested object: { agentId: { type: count } }
+    const result: Record<string, Record<string, number>> = {};
+    for (const item of data) {
+      if (!result[item.agent_id]) {
+        result[item.agent_id] = {};
+      }
+      result[item.agent_id][item.type.toLowerCase()] = Number(item.count);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error fetching agents meter counts by type:", error);
+    return {};
+  }
+}
+
 export async function getAgentTransactions(
   page: number = 1,
   limit: number = 10,

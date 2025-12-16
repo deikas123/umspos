@@ -1,5 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAgentsList, getAgentInventoryCount } from "@/lib/actions/agents";
+import {
+  getAgentsList,
+  getAgentInventoryCount,
+  getAgentsMeterCountsByType,
+} from "@/lib/actions/agents";
 import { getCurrentUser } from "@/lib/actions/users";
 
 // Define interfaces - matches the return type from getAgentsList
@@ -31,6 +35,7 @@ const AGENTS_KEYS = {
   all: ["agents"] as const,
   lists: () => [...AGENTS_KEYS.all, "list"] as const,
   meterCounts: () => [...AGENTS_KEYS.all, "meterCounts"] as const,
+  agentMeterCounts: () => [...AGENTS_KEYS.all, "agentMeterCounts"] as const,
 } as const;
 
 // 1 hour stale time since agent data changes less frequently
@@ -78,6 +83,14 @@ export function useAgentsData(initialData?: AgentsPageData) {
     {} as Record<string, number>
   );
 
+  // Query for meter counts by agent (for tooltip)
+  const { data: agentMeterCounts = {} } = useQuery({
+    queryKey: AGENTS_KEYS.agentMeterCounts(),
+    queryFn: getAgentsMeterCountsByType,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+  });
+
   // Query for current user - getCurrentUser now returns displayName directly
   const { data: currentUser } = useQuery({
     queryKey: ["currentUser"],
@@ -94,6 +107,7 @@ export function useAgentsData(initialData?: AgentsPageData) {
       agents,
       currentUser,
       meterCounts,
+      agentMeterCounts,
     },
     isLoading,
     isFetching,

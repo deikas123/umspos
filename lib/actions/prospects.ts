@@ -6,6 +6,12 @@ import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
+import {
+  isSalesPerson,
+  isAdmin,
+  canManageProspects,
+  canDeleteProspects,
+} from "@/lib/utils/rolePermissions";
 
 export interface ProspectFormData {
   client_name: string;
@@ -166,14 +172,11 @@ export async function updateProspect(
 
   const prospect = existingProspect[0];
 
-  if (
-    userRole === "sales_person" &&
-    prospect.sales_person_id !== session.user.id
-  ) {
+  if (isSalesPerson(userRole) && prospect.sales_person_id !== session.user.id) {
     throw new Error("Unauthorized: You can only update your own prospects");
   }
 
-  if (!["sales_person", "admin", "super_admin"].includes(userRole)) {
+  if (!canManageProspects(userRole)) {
     throw new Error("Unauthorized: Insufficient permissions");
   }
 
@@ -271,7 +274,7 @@ export async function getAllProspects() {
   }
 
   const userRole = (session.user as any).appRole;
-  if (!["admin", "super_admin"].includes(userRole)) {
+  if (!isAdmin(userRole)) {
     throw new Error("Unauthorized: Only admins can view all prospects");
   }
 
@@ -328,7 +331,7 @@ export async function getProspectById(prospectId: string) {
 
     // Sales person can only view their own prospects
     if (
-      userRole === "sales_person" &&
+      isSalesPerson(userRole) &&
       prospect[0].sales_person_id !== session.user.id
     ) {
       throw new Error("Unauthorized: You can only view your own prospects");
@@ -353,7 +356,7 @@ export async function deleteProspect(prospectId: string) {
   const userRole = (session.user as any).appRole;
 
   // Only admin or super_admin can delete
-  if (!["admin", "super_admin"].includes(userRole)) {
+  if (!canDeleteProspects(userRole)) {
     throw new Error("Unauthorized: Only admins can delete prospects");
   }
 

@@ -74,15 +74,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#000080",
   },
   tableHeaderCell: {
-    padding: 8,
+    padding: 6,
     flex: 1,
-    fontSize: 12,
+    fontSize: 9,
     color: "white",
   },
   tableCell: {
-    padding: 8,
+    padding: 6,
     flex: 1,
-    fontSize: 10,
+    fontSize: 8,
     color: "black",
   },
   totalRow: {
@@ -223,51 +223,17 @@ const DailyReportPDF = ({
         </View>
 
         <View style={styles.summarySection}>
-          <Text style={styles.subtitle}>Meters Inventory Status</Text>
-          <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={styles.tableHeaderCell}>Meter Type</Text>
-              <Text style={styles.tableHeaderCell}>In Stock</Text>
-              <Text style={styles.tableHeaderCell}>With Agents</Text>
-              <Text style={styles.tableHeaderCell}>Faulty</Text>
-              <Text style={styles.tableHeaderCell}>Sold Today</Text>
-              <Text style={styles.tableHeaderCell}>Total Available</Text>
-            </View>
-            {allMeterTypes.map((item) => (
-              <View key={item.type} style={styles.tableRow}>
-                <Text style={styles.tableCell}>{item.type}</Text>
-                <Text style={styles.tableCell}>{item.remaining}</Text>
-                <Text style={styles.tableCell}>{item.withAgents}</Text>
-                <Text style={styles.tableCell}>{item.faulty}</Text>
-                <Text style={styles.tableCell}>{item.soldToday}</Text>
-                <Text style={styles.tableCell}>
-                  {item.remaining + item.withAgents + item.faulty}
-                </Text>
-              </View>
-            ))}
-            <View style={[styles.tableRow, styles.totalRow]}>
-              <Text style={styles.totalCell}>Total</Text>
-              <Text style={styles.totalCell}>{totals.remaining}</Text>
-              <Text style={styles.totalCell}>{totals.withAgents}</Text>
-              <Text style={styles.totalCell}>{totals.faulty}</Text>
-              <Text style={styles.totalCell}>{totals.soldToday}</Text>
-              <Text style={styles.totalCell}>
-                {totals.remaining + totals.withAgents + totals.faulty}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.summarySection}>
           <Text style={styles.subtitle}>Detailed Sales Transactions</Text>
           <View style={styles.table}>
             <View style={[styles.tableRow, styles.tableHeader]}>
               <Text style={styles.tableHeaderCell}>Seller</Text>
               <Text style={styles.tableHeaderCell}>Type</Text>
-              <Text style={styles.tableHeaderCell}>Amount</Text>
-              <Text style={styles.tableHeaderCell}>Total Price</Text>
+              <Text style={styles.tableHeaderCell}>Qty</Text>
+              <Text style={styles.tableHeaderCell}>Total</Text>
               <Text style={styles.tableHeaderCell}>Time</Text>
               <Text style={styles.tableHeaderCell}>Recipient</Text>
+              <Text style={styles.tableHeaderCell}>Type</Text>
+              <Text style={styles.tableHeaderCell}>County</Text>
             </View>
             {todaySales.map((sale) => (
               <View key={sale.id} style={styles.tableRow}>
@@ -275,7 +241,7 @@ const DailyReportPDF = ({
                 <Text style={styles.tableCell}>{sale.meter_type}</Text>
                 <Text style={styles.tableCell}>{sale.batch_amount}</Text>
                 <Text style={styles.tableCell}>
-                  KES {sale.total_price.toLocaleString()}
+                  {sale.total_price.toLocaleString()}
                 </Text>
                 <Text style={styles.tableCell}>
                   {sale.sale_date
@@ -283,40 +249,15 @@ const DailyReportPDF = ({
                     : "N/A"}
                 </Text>
                 <Text style={styles.tableCell}>{sale.recipient}</Text>
+                <Text style={styles.tableCell}>
+                  {sale.customer_type || "-"}
+                </Text>
+                <Text style={styles.tableCell}>
+                  {sale.customer_county || "-"}
+                </Text>
               </View>
             ))}
           </View>
-        </View>
-
-        {/* Serial Numbers Section */}
-        <View style={styles.summarySection}>
-          <Text style={styles.subtitle}>Details</Text>
-          {todaySales.map((sale) => (
-            <View key={`serials-${sale.id}`} style={{ marginBottom: 15 }}>
-              <Text style={styles.comparisonText}>
-                Sale to {sale.recipient} - {sale.meter_type} (
-                {sale.batch_amount} meters)
-              </Text>
-              <View style={styles.table}>
-                <View style={[styles.tableRow, styles.tableHeader]}>
-                  <Text style={styles.tableHeaderCell}>Serial Number</Text>
-                  <Text style={styles.tableHeaderCell}>Destination</Text>
-                  <Text style={styles.tableHeaderCell}>Contact</Text>
-                </View>
-                {sale.meters.map((meter, idx) => (
-                  <View
-                    key={`${sale.id}-${meter.serial_number}`}
-                    style={styles.tableRow}>
-                    <Text style={styles.tableCell}>{meter.serial_number}</Text>
-                    <Text style={styles.tableCell}>{meter.destination}</Text>
-                    <Text style={styles.tableCell}>
-                      {meter.customer_contact || "N/A"}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
         </View>
 
         <Text style={styles.footer}>

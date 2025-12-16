@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { isAdmin } from "@/lib/utils/rolePermissions";
 import {
   MoreVertical,
   Edit2,
@@ -65,8 +66,7 @@ export default function AgentActionsMenu({
   onDelete,
   onSaleClose,
 }: Readonly<AgentActionsMenuProps>) {
-  const canManageAgents =
-    currentUser?.role === "admin" || currentUser?.role === "super_admin";
+  const canManageAgents = isAdmin(currentUser?.role);
 
   return (
     <DropdownMenu>

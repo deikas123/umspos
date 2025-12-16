@@ -56,6 +56,7 @@ import {
 } from "@/lib/actions/sale-updates";
 import { updateSaleBatchPickupInfo } from "@/lib/actions/sales";
 import { useAuth } from "@/contexts/AuthContext";
+import { isSuperAdmin as checkIsSuperAdmin } from "@/lib/utils/rolePermissions";
 
 import type { SaleBatch } from "./hooks/useMeterSalesData";
 
@@ -84,7 +85,7 @@ export function EditSaleDialog({
 }: Readonly<EditSaleDialogProps>) {
   const { user, userRole } = useAuth();
   const queryClient = useQueryClient();
-  const isSuperAdmin = userRole === "super_admin";
+  const isSuperAdmin = checkIsSuperAdmin(userRole);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [isCheckingPending, setIsCheckingPending] = useState(true);

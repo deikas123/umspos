@@ -240,6 +240,10 @@ export const faultyReturns = pgTable("faulty_returns", {
   original_sale_id: text("original_sale_id").references(() => soldMeters.id, {
     onDelete: "cascade",
   }),
+  is_binned: boolean("is_binned").default(false),
+  binned_at: timestamp("binned_at"),
+  binned_by: text("binned_by"),
+  binned_by_name: text("binned_by_name"),
 });
 
 // Notifications Table

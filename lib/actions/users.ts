@@ -4,7 +4,8 @@ import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
-import { requireAdmin, type UserRole } from "./utils";
+import { requireAdmin, getCurrentSession, type UserRole } from "./utils";
+import { isAdmin, isSuperAdmin } from "@/lib/utils/rolePermissions";
 
 // Note: User management now uses Better Auth's user table directly
 // Custom fields (appRole, isActive, displayName) are stored in the user table
@@ -54,6 +55,15 @@ export async function updateUserProfile(
     // Require admin role to update user profiles
     await requireAdmin();
 
+    // Only super_admin can promote users to super_admin
+    if (updates.role === "super_admin") {
+      const session = await getCurrentSession();
+      const currentUserRole = (session?.user as any)?.appRole;
+      if (!isSuperAdmin(currentUserRole)) {
+        throw new Error("Only super admins can promote users to super admin");
+      }
+    }
+
     // Build the update data for Better Auth API (only fields it supports)
     const updateData: Record<string, any> = {};
 
@@ -62,11 +72,7 @@ export async function updateUserProfile(
       updateData.name = updates.name;
     }
 
-    if (updates.role !== undefined) {
-      updateData.appRole = updates.role;
-    }
-
-    // Only call Better Auth API if there are fields it can update
+    // Only call Better Auth API if there are fields it can update (name only)
     if (Object.keys(updateData).length > 0) {
       await auth.api.updateUser({
         headers: await headers(),
@@ -86,13 +92,13 @@ export async function updateUserProfile(
       `);
     }
 
-    // Update the Better Auth role directly in the database
-    // This is necessary because the API doesn't allow setting role directly
+    // Update role directly in the database
+    // Both appRole (our custom field) and role (Better Auth field) need to be updated
     if (updates.role !== undefined) {
-      const newRole = updates.role === "admin" ? "admin" : "user";
+      const newBetterAuthRole = isAdmin(updates.role) ? "admin" : "user";
       await db.execute(sql`
         UPDATE "user" 
-        SET role = ${newRole}
+        SET role = ${newBetterAuthRole}, "appRole" = ${updates.role}
         WHERE id = ${userId}
       `);
     }
@@ -164,8 +170,16 @@ export async function createUser(
     // Require admin role to create users
     await requireAdmin();
 
-    const betterAuthRole =
-      role === "admin" || role === "super_admin" ? "admin" : "user";
+    // Only super_admin can create users with super_admin role
+    if (role === "super_admin") {
+      const session = await getCurrentSession();
+      const currentUserRole = (session?.user as any)?.appRole;
+      if (!isSuperAdmin(currentUserRole)) {
+        throw new Error("Only super admins can create super admin users");
+      }
+    }
+
+    const betterAuthRole = isAdmin(role) ? "admin" : "user";
 
     const result = await auth.api.createUser({
       headers: await headers(),

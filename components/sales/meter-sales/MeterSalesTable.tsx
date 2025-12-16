@@ -167,18 +167,22 @@ function DesktopBatchRow({
             )}
           </Button>
         </TableCell>
-        <TableCell>{batch.user_name}</TableCell>
+        <TableCell className='whitespace-nowrap'>
+          {batch.user_name?.split(" ")[0] || batch.user_name}
+        </TableCell>
         <TableCell>{batch.meter_type}</TableCell>
         <TableCell className='text-center'>{batch.batch_amount}</TableCell>
-        <TableCell>
+        <TableCell className='whitespace-nowrap'>
           KES {Math.round(batch.total_price).toLocaleString()}
         </TableCell>
-        <TableCell>{formatDate(batch.sale_date)}</TableCell>
-        <TableCell className='max-w-[200px] truncate'>
+        <TableCell className='whitespace-nowrap'>
+          {formatDate(batch.sale_date)}
+        </TableCell>
+        <TableCell className='max-w-[150px] truncate' title={batch.recipient}>
           {batch.recipient}
         </TableCell>
         <TableCell>
-          <Badge variant='outline' className='bg-blue-100'>
+          <Badge variant='outline' className='bg-blue-100 whitespace-nowrap'>
             {batch.customer_type
               ?.split(" ")
               .map(
@@ -187,8 +191,11 @@ function DesktopBatchRow({
               .join(" ")}
           </Badge>
         </TableCell>
-        <TableCell>
-          <Badge variant='outline' className='bg-green-100'>
+        <TableCell className='max-w-[100px]'>
+          <Badge
+            variant='outline'
+            className='bg-green-100 max-w-full truncate block'
+            title={batch.customer_county}>
             {batch.customer_county}
           </Badge>
         </TableCell>
