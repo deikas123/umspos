@@ -48,7 +48,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   } = authClient.useSession();
 
   const isLoading = isSessionLoading;
-  const isAuthenticated = !!user;
+  const isAuthenticated = !!session?.user && !sessionError;
 
   const updateAuthState = useCallback((state: Partial<AuthContextType>) => {
     if (state.user !== undefined) setUser(state.user);
