@@ -31,6 +31,11 @@ globalForDb.authPool = authPool;
 export const auth = betterAuth({
   database: authPool,
   appName: "UMS POS",
+  trustedOrigins: [
+    "https://pos.umskenya.com",
+    "https://alphaums.vercel.app",
+    "http://localhost:3000",
+  ],
   emailAndPassword: {
     enabled: true,
     // Use bcrypt for password hashing (Supabase uses bcrypt)

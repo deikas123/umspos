@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -10,12 +12,21 @@ interface AuthGateProps {
 /**
  * AuthGate blocks page content from rendering until auth state is known.
  * This prevents users from seeing pages they may not have permission to view.
+ * Redirects to signin if no session is found after loading.
  */
 export function AuthGate({ children }: AuthGateProps) {
-  const { isLoading, userRole } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
 
-  // Show loading skeleton until auth is fully loaded
-  if (isLoading || !userRole) {
+  // Redirect to signin if not authenticated after loading completes
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/signin");
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  // Show loading skeleton while auth is loading
+  if (isLoading) {
     return (
       <div className='p-4 md:p-6 space-y-6'>
         {/* Header skeleton */}
@@ -40,7 +51,10 @@ export function AuthGate({ children }: AuthGateProps) {
               <Skeleton className='h-4 w-20' />
               <Skeleton className='h-4 w-28' />
             </div>
-            {Array.from({ length: 5 }, (_, index) => `skeleton-${Date.now()}-${index}`).map((uniqueKey) => (
+            {Array.from(
+              { length: 5 },
+              (_, index) => `skeleton-${Date.now()}-${index}`
+            ).map((uniqueKey) => (
               <div key={uniqueKey} className='flex gap-4'>
                 <Skeleton className='h-4 w-24' />
                 <Skeleton className='h-4 w-32' />
@@ -49,6 +63,18 @@ export function AuthGate({ children }: AuthGateProps) {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show skeleton while redirecting (not authenticated)
+  if (!isAuthenticated) {
+    return (
+      <div className='p-4 md:p-6 space-y-6'>
+        <div className='flex items-center justify-between'>
+          <Skeleton className='h-8 w-48' />
+          <Skeleton className='h-10 w-32' />
         </div>
       </div>
     );
