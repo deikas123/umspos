@@ -15,10 +15,11 @@ const isProduction = process.env.NODE_ENV === "production";
 const client =
   globalForDb.client ??
   postgres(connectionString, {
-    prepare: false, // Required for PgBouncer transaction mode
+    prepare: false,
     max: isProduction ? 1 : 5, // Minimal connections in serverless, more in dev
     idle_timeout: 20,
     connect_timeout: 10,
+    max_lifetime: 60 * 30,
   });
 
 if (!isProduction) {
