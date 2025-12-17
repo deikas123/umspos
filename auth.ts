@@ -15,30 +15,25 @@ import { send2FAOTP } from "@/lib/services/smsService";
 // DATABASE_URL should be the pooler URL (port 6543 with pgbouncer=true)
 const connectionString = process.env.DATABASE_URL;
 
-// Singleton pattern for development hot reloads
+// Singleton pattern - always reuse pool
 const globalForDb = globalThis as unknown as {
   authPool: Pool | undefined;
 };
 
-const isProduction = process.env.NODE_ENV === "production";
-
-// Create pool with serverless-optimized settings
+// Create pool with settings compatible with Supabase Transaction Pooler
 function createAuthPool() {
+  console.log("[Auth] Creating new connection pool...");
   return new Pool({
     connectionString,
-    max: 1, // Single connection for auth
-    idleTimeoutMillis: 0, // Disable - let Supabase manage
+    max: 3, // Allow a few connections for auth
+    idleTimeoutMillis: 30000, // 30s idle timeout
     connectionTimeoutMillis: 10000, // 10s to connect
-    statement_timeout: 10000, // 10s query timeout
+    statement_timeout: 15000, // 15s query timeout
   });
 }
 
-// In development, reuse pool across hot reloads
-// In production, each cold start gets fresh pool
+// Always reuse the pool - critical for serverless
 function getAuthPool() {
-  if (isProduction) {
-    return createAuthPool();
-  }
   globalForDb.authPool ??= createAuthPool();
   return globalForDb.authPool;
 }
