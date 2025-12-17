@@ -15,27 +15,35 @@ import { send2FAOTP } from "@/lib/services/smsService";
 // DATABASE_URL should be the pooler URL (port 6543 with pgbouncer=true)
 const connectionString = process.env.DATABASE_URL;
 
-// Singleton pattern to prevent connection leaks during hot reloads
+// Singleton pattern for development hot reloads
 const globalForDb = globalThis as unknown as {
   authPool: Pool | undefined;
 };
 
-// For serverless (Vercel), use minimal connections with the pooler
 const isProduction = process.env.NODE_ENV === "production";
 
-const authPool =
-  globalForDb.authPool ??
-  new Pool({
+// Create pool with serverless-optimized settings
+function createAuthPool() {
+  return new Pool({
     connectionString,
-    max: isProduction ? 1 : 2, // Minimal connections for auth
-    idleTimeoutMillis: 5000, // Close idle connections faster
-    connectionTimeoutMillis: 5000, // Fail fast if can't connect
-    statement_timeout: 10000, // 10s query timeout for auth queries
+    max: 1, // Single connection for auth
+    idleTimeoutMillis: 0, // Disable - let Supabase manage
+    connectionTimeoutMillis: 10000, // 10s to connect
+    statement_timeout: 10000, // 10s query timeout
   });
-
-if (!isProduction) {
-  globalForDb.authPool = authPool;
 }
+
+// In development, reuse pool across hot reloads
+// In production, each cold start gets fresh pool
+function getAuthPool() {
+  if (isProduction) {
+    return createAuthPool();
+  }
+  globalForDb.authPool ??= createAuthPool();
+  return globalForDb.authPool;
+}
+
+const authPool = getAuthPool();
 
 export const auth = betterAuth({
   database: authPool,
