@@ -12,21 +12,29 @@ import {
 } from "@/lib/auth/permissions";
 import { send2FAOTP } from "@/lib/services/smsService";
 
+// DATABASE_URL should be the pooler URL (port 6543 with pgbouncer=true)
+const connectionString = process.env.DATABASE_URL;
+
 // Singleton pattern to prevent connection leaks during hot reloads
 const globalForDb = globalThis as unknown as {
   authPool: Pool | undefined;
 };
 
+// For serverless (Vercel), use minimal connections with the pooler
+const isProduction = process.env.NODE_ENV === "production";
+
 const authPool =
   globalForDb.authPool ??
   new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 5,
-    idleTimeoutMillis: 20000,
+    connectionString,
+    max: isProduction ? 1 : 3,
+    idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,
   });
 
-globalForDb.authPool = authPool;
+if (!isProduction) {
+  globalForDb.authPool = authPool;
+}
 
 export const auth = betterAuth({
   database: authPool,
