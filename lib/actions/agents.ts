@@ -59,12 +59,12 @@ export async function getAgentsList() {
             agents.created_at
           )
           .orderBy(desc(agents.created_at)),
-      20000, // 20 second timeout
+      15000, // 15 second timeout (reduced)
       null // Return null to indicate timeout
     );
 
     if (agentsData === null) {
-      console.error("getAgentsList query timed out after 20 seconds");
+      console.error("getAgentsList query timed out after 15 seconds");
       return [];
     }
 

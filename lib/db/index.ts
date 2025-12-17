@@ -15,15 +15,16 @@ const isProduction = process.env.NODE_ENV === "production";
 const client =
   globalForDb.client ??
   postgres(connectionString, {
-    prepare: false,
-    max: isProduction ? 3 : 5,
-    idle_timeout: 20,
-    connect_timeout: 10,
-    max_lifetime: 60 * 30,
+    prepare: false, // Required for pgbouncer transaction mode
+    max: isProduction ? 2 : 3, // Reduce connections to avoid pool exhaustion
+    idle_timeout: 10, // Close idle connections faster
+    connect_timeout: 5, // Fail fast if can't connect in 5s
+    max_lifetime: 60 * 10, // 10 minutes max lifetime
     connection: {
-      statement_timeout: 30000,
-      idle_in_transaction_session_timeout: 30000,
+      statement_timeout: 15000, // 15s query timeout (reduced from 30s)
+      idle_in_transaction_session_timeout: 10000, // 10s idle in transaction
     },
+    debug: !isProduction, // Log queries in development
   });
 
 if (!isProduction) {

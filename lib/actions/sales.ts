@@ -209,7 +209,7 @@ export async function getSaleBatches(
 
   // Run count and data queries in parallel for better performance
   // Wrapped with timeout to prevent hung queries
-  const [countResult, data] = await withTimeout(
+  const result = await withTimeout(
     () =>
       Promise.all([
         db.select({ count: count() }).from(saleBatches).where(whereClause),
@@ -221,10 +221,16 @@ export async function getSaleBatches(
           .limit(limit)
           .offset(offset),
       ]),
-    20000, // 20 second timeout
-    [[{ count: 0 }], []] // Return empty data on timeout
+    15000, // 15 second timeout (reduced)
+    null // Return null on timeout
   );
 
+  if (result === null) {
+    console.error("getSaleBatches query timed out after 15 seconds");
+    return { batches: [], total: 0 };
+  }
+
+  const [countResult, data] = result;
   const total = Number(countResult[0]?.count || 0);
 
   // Convert numeric fields to numbers and cast to our custom SaleBatch type
@@ -376,9 +382,14 @@ export async function getSalesChartData(days: number = 30) {
           .where(gte(saleBatches.sale_date, cutoffDate))
           .groupBy(sql`DATE(${saleBatches.sale_date})`, saleBatches.meter_type)
           .orderBy(desc(sql`DATE(${saleBatches.sale_date})`)),
-      20000, // 20 second timeout
-      [] // Return empty array on timeout
+      15000, // 15 second timeout (reduced)
+      null // Return null on timeout
     );
+
+    if (data === null) {
+      console.error("getSalesChartData query timed out after 15 seconds");
+      return [];
+    }
 
     // Transform the data into the chart format
     const transformedData = data.map((row) => {

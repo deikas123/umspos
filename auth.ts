@@ -27,10 +27,10 @@ const authPool =
   globalForDb.authPool ??
   new Pool({
     connectionString,
-    max: isProduction ? 2 : 3,
-    idleTimeoutMillis: 10000,
-    connectionTimeoutMillis: 10000,
-    statement_timeout: 30000,
+    max: isProduction ? 1 : 2, // Minimal connections for auth
+    idleTimeoutMillis: 5000, // Close idle connections faster
+    connectionTimeoutMillis: 5000, // Fail fast if can't connect
+    statement_timeout: 10000, // 10s query timeout for auth queries
   });
 
 if (!isProduction) {
