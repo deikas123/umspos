@@ -29,12 +29,18 @@ interface CurrentUser {
 }
 
 export async function getAgentsList() {
+  const startTime = Date.now();
+  console.log("[getAgentsList] Starting query...");
+
   try {
     // Get agents with their meter counts using LEFT JOIN and GROUP BY
     // Wrapped with timeout to prevent hung queries
+    console.log("[getAgentsList] Executing Drizzle query with LEFT JOIN...");
     const agentsData = await withTimeout(
-      () =>
-        db
+      async () => {
+        const queryStart = Date.now();
+        console.log("[getAgentsList] Inside withTimeout, query starting...");
+        const result = await db
           .select({
             id: agents.id,
             name: agents.name,
@@ -58,19 +64,32 @@ export async function getAgentsList() {
             agents.is_active,
             agents.created_at
           )
-          .orderBy(desc(agents.created_at)),
+          .orderBy(desc(agents.created_at));
+        console.log(
+          `[getAgentsList] Query completed in ${Date.now() - queryStart}ms, got ${result.length} agents`
+        );
+        return result;
+      },
       15000, // 15 second timeout (reduced)
       null // Return null to indicate timeout
     );
 
     if (agentsData === null) {
-      console.error("getAgentsList query timed out after 15 seconds");
+      console.error(
+        `[getAgentsList] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+      );
       return [];
     }
 
+    console.log(
+      `[getAgentsList] Success! Returning ${agentsData.length} agents (total time: ${Date.now() - startTime}ms)`
+    );
     return agentsData;
   } catch (error) {
-    console.error("Error fetching agents:", error);
+    console.error(
+      `[getAgentsList] Error after ${Date.now() - startTime}ms:`,
+      error
+    );
     return [];
   }
 }

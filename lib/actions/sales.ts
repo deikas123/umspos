@@ -161,6 +161,11 @@ export async function getSaleBatches(
     specificDate?: Date;
   }
 ) {
+  const startTime = Date.now();
+  console.log(
+    `[getSaleBatches] Starting query (page=${page}, limit=${limit})...`
+  );
+
   const offset = (page - 1) * limit;
 
   // Build where conditions
@@ -209,9 +214,12 @@ export async function getSaleBatches(
 
   // Run count and data queries in parallel for better performance
   // Wrapped with timeout to prevent hung queries
+  console.log("[getSaleBatches] Executing parallel count + data queries...");
   const result = await withTimeout(
-    () =>
-      Promise.all([
+    async () => {
+      const queryStart = Date.now();
+      console.log("[getSaleBatches] Inside withTimeout, queries starting...");
+      const res = await Promise.all([
         db.select({ count: count() }).from(saleBatches).where(whereClause),
         db
           .select()
@@ -220,13 +228,20 @@ export async function getSaleBatches(
           .orderBy(desc(saleBatches.sale_date))
           .limit(limit)
           .offset(offset),
-      ]),
+      ]);
+      console.log(
+        `[getSaleBatches] Queries completed in ${Date.now() - queryStart}ms`
+      );
+      return res;
+    },
     15000, // 15 second timeout (reduced)
     null // Return null on timeout
   );
 
   if (result === null) {
-    console.error("getSaleBatches query timed out after 15 seconds");
+    console.error(
+      `[getSaleBatches] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+    );
     return {
       batches: [],
       pagination: {
@@ -240,6 +255,9 @@ export async function getSaleBatches(
 
   const [countResult, data] = result;
   const total = Number(countResult[0]?.count || 0);
+  console.log(
+    `[getSaleBatches] Success! Got ${data.length} batches, total=${total} (total time: ${Date.now() - startTime}ms)`
+  );
 
   // Convert numeric fields to numbers and cast to our custom SaleBatch type
   const batches = data.map((batch) => ({
@@ -362,15 +380,23 @@ export async function getAllSaleBatchesForExport(filters?: {
 }
 
 export async function getSalesChartData(days: number = 30) {
+  const startTime = Date.now();
+  console.log(`[getSalesChartData] Starting query (days=${days})...`);
+
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
     // Aggregate sales data by date and meter type directly in the database
     // Wrapped with timeout to prevent hung queries
+    console.log("[getSalesChartData] Executing aggregation query...");
     const data = await withTimeout(
-      () =>
-        db
+      async () => {
+        const queryStart = Date.now();
+        console.log(
+          "[getSalesChartData] Inside withTimeout, query starting..."
+        );
+        const res = await db
           .select({
             date: sql<string>`DATE(${saleBatches.sale_date})`.as("date"),
             meter_type: saleBatches.meter_type,
@@ -389,13 +415,20 @@ export async function getSalesChartData(days: number = 30) {
           .from(saleBatches)
           .where(gte(saleBatches.sale_date, cutoffDate))
           .groupBy(sql`DATE(${saleBatches.sale_date})`, saleBatches.meter_type)
-          .orderBy(desc(sql`DATE(${saleBatches.sale_date})`)),
+          .orderBy(desc(sql`DATE(${saleBatches.sale_date})`));
+        console.log(
+          `[getSalesChartData] Query completed in ${Date.now() - queryStart}ms, got ${res.length} rows`
+        );
+        return res;
+      },
       15000, // 15 second timeout (reduced)
       null // Return null on timeout
     );
 
     if (data === null) {
-      console.error("getSalesChartData query timed out after 15 seconds");
+      console.error(
+        `[getSalesChartData] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+      );
       return [];
     }
 
@@ -433,11 +466,15 @@ export async function getSalesChartData(days: number = 30) {
       };
     });
 
+    console.log(
+      `[getSalesChartData] Success! Returning ${transformedData.length} chart data points (total time: ${Date.now() - startTime}ms)`
+    );
     return transformedData;
   } catch (error) {
-    if (error instanceof Error) {
-      console.error("Error fetching sales chart data:", error.message);
-    }
+    console.error(
+      `[getSalesChartData] Error after ${Date.now() - startTime}ms:`,
+      error instanceof Error ? error.message : error
+    );
     return [];
   }
 }

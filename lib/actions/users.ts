@@ -132,12 +132,18 @@ export async function deleteUserProfile(userId: string) {
 }
 
 export async function getUsersList() {
+  const startTime = Date.now();
+  console.log("[getUsersList] Starting query...");
+
   try {
     // Query Better Auth user table directly
     // Wrapped with timeout to prevent hung queries
+    console.log("[getUsersList] Executing raw SQL query...");
     const result = await withTimeout(
-      () =>
-        db.execute(sql`
+      async () => {
+        const queryStart = Date.now();
+        console.log("[getUsersList] Inside withTimeout, query starting...");
+        const res = await db.execute(sql`
           SELECT 
             id, 
             email, 
@@ -147,17 +153,27 @@ export async function getUsersList() {
             "isActive"
           FROM "user" 
           ORDER BY "createdAt" ASC
-        `),
+        `);
+        console.log(
+          `[getUsersList] Query completed in ${Date.now() - queryStart}ms`
+        );
+        return res;
+      },
       15000, // 15 second timeout
       null // Return null on timeout
     );
 
     if (!result) {
-      console.error("getUsersList query timed out after 15 seconds");
+      console.error(
+        `[getUsersList] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+      );
       return [];
     }
 
     const rows = result as unknown as any[];
+    console.log(
+      `[getUsersList] Success! Returning ${rows.length} users (total time: ${Date.now() - startTime}ms)`
+    );
     return rows.map((user) => ({
       id: user.id,
       email: user.email,
@@ -166,7 +182,10 @@ export async function getUsersList() {
       isActive: user.isActive ?? true,
     }));
   } catch (error) {
-    console.error("Error getting users list:", error);
+    console.error(
+      `[getUsersList] Error after ${Date.now() - startTime}ms:`,
+      error
+    );
     return [];
   }
 }
