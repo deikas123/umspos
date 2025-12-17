@@ -11,6 +11,7 @@ CREATE INDEX IF NOT EXISTS idx_sale_batches_user_id ON sale_batches(user_id);
 CREATE INDEX IF NOT EXISTS idx_sold_meters_serial_number ON sold_meters(serial_number);
 CREATE INDEX IF NOT EXISTS idx_sold_meters_batch_id ON sold_meters(batch_id);
 CREATE INDEX IF NOT EXISTS idx_sold_meters_sold_at ON sold_meters(sold_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sold_meters_status ON sold_meters(status);
 
 -- Agent inventory indexes (for JOIN performance)
 CREATE INDEX IF NOT EXISTS idx_agent_inventory_agent_id ON agent_inventory(agent_id);

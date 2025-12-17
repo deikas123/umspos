@@ -12,6 +12,7 @@ import {
   lte,
 } from "drizzle-orm";
 import { db } from "../db";
+import { withTimeout } from "../db/utils";
 import {
   agents,
   agentInventory,
@@ -30,31 +31,42 @@ interface CurrentUser {
 export async function getAgentsList() {
   try {
     // Get agents with their meter counts using LEFT JOIN and GROUP BY
-    const agentsData = await db
-      .select({
-        id: agents.id,
-        name: agents.name,
-        phone_number: agents.phone_number,
-        location: agents.location,
-        county: agents.county,
-        agent_type: agents.agent_type,
-        is_active: agents.is_active,
-        created_at: agents.created_at,
-        total_meters: count(agentInventory.id),
-      })
-      .from(agents)
-      .leftJoin(agentInventory, eq(agents.id, agentInventory.agent_id))
-      .groupBy(
-        agents.id,
-        agents.name,
-        agents.phone_number,
-        agents.location,
-        agents.county,
-        agents.agent_type,
-        agents.is_active,
-        agents.created_at
-      )
-      .orderBy(desc(agents.created_at));
+    // Wrapped with timeout to prevent hung queries
+    const agentsData = await withTimeout(
+      () =>
+        db
+          .select({
+            id: agents.id,
+            name: agents.name,
+            phone_number: agents.phone_number,
+            location: agents.location,
+            county: agents.county,
+            agent_type: agents.agent_type,
+            is_active: agents.is_active,
+            created_at: agents.created_at,
+            total_meters: count(agentInventory.id),
+          })
+          .from(agents)
+          .leftJoin(agentInventory, eq(agents.id, agentInventory.agent_id))
+          .groupBy(
+            agents.id,
+            agents.name,
+            agents.phone_number,
+            agents.location,
+            agents.county,
+            agents.agent_type,
+            agents.is_active,
+            agents.created_at
+          )
+          .orderBy(desc(agents.created_at)),
+      20000, // 20 second timeout
+      null // Return null to indicate timeout
+    );
+
+    if (agentsData === null) {
+      console.error("getAgentsList query timed out after 20 seconds");
+      return [];
+    }
 
     return agentsData;
   } catch (error) {

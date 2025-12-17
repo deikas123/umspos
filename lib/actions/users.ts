@@ -2,6 +2,7 @@
 
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { withTimeout } from "@/lib/db/utils";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
 import { requireAdmin, getCurrentSession, type UserRole } from "./utils";
@@ -133,17 +134,28 @@ export async function deleteUserProfile(userId: string) {
 export async function getUsersList() {
   try {
     // Query Better Auth user table directly
-    const result = await db.execute(sql`
-      SELECT 
-        id, 
-        email, 
-        name,
-        "displayName",
-        "appRole",
-        "isActive"
-      FROM "user" 
-      ORDER BY "createdAt" ASC
-    `);
+    // Wrapped with timeout to prevent hung queries
+    const result = await withTimeout(
+      () =>
+        db.execute(sql`
+          SELECT 
+            id, 
+            email, 
+            name,
+            "displayName",
+            "appRole",
+            "isActive"
+          FROM "user" 
+          ORDER BY "createdAt" ASC
+        `),
+      15000, // 15 second timeout
+      null // Return null on timeout
+    );
+
+    if (!result) {
+      console.error("getUsersList query timed out after 15 seconds");
+      return [];
+    }
 
     const rows = result as unknown as any[];
     return rows.map((user) => ({

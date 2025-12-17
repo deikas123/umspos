@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "../db";
+import { withFallback } from "../db/utils";
 import {
   saleBatches,
   meters,
@@ -973,10 +974,12 @@ export async function getInventorySummary(): Promise<{
 /**
  * Consolidated function to fetch all Reports page data in a single call
  * This reduces multiple POST requests to a single server-side fetch
+ * Uses timeouts and fallbacks to prevent page hangs
  */
 export async function getReportsPageData() {
   try {
-    // Run all queries in parallel for maximum efficiency
+    // Run all queries in parallel with individual timeouts and fallbacks
+    // This ensures one slow query doesn't block the entire page
     const [
       remainingMetersByType,
       agentInventoryData,
@@ -986,13 +989,13 @@ export async function getReportsPageData() {
       regionDistributionData,
       earningsByMeterType,
     ] = await Promise.all([
-      getRemainingMetersByType(),
-      getAgentInventoryCount(),
-      getFaultyMetersByType(),
-      getMostSellingProduct(),
-      getCustomerTypeCounts(),
-      getRegionDistribution(),
-      getEarningsByMeterType(),
+      withFallback(() => getRemainingMetersByType(), [], 15000),
+      withFallback(() => getAgentInventoryCount(), [], 15000),
+      withFallback(() => getFaultyMetersByType(), [], 15000),
+      withFallback(() => getMostSellingProduct(), "", 15000),
+      withFallback(() => getCustomerTypeCounts(), [], 15000),
+      withFallback(() => getRegionDistribution(), [], 15000),
+      withFallback(() => getEarningsByMeterType(), [], 15000),
     ]);
 
     return {
@@ -1026,10 +1029,11 @@ export async function getReportsPageData() {
 /**
  * Consolidated function to fetch all Daily Reports page data in a single call
  * This reduces multiple POST requests to a single server-side fetch
+ * Uses timeouts and fallbacks to prevent page hangs
  */
 export async function getDailyReportsPageData() {
   try {
-    // Run all queries in parallel for maximum efficiency
+    // Run all queries in parallel with individual timeouts and fallbacks
     const [
       todaySales,
       yesterdaySales,
@@ -1037,11 +1041,11 @@ export async function getDailyReportsPageData() {
       agentInventoryData,
       faultyMetersByTypeData,
     ] = await Promise.all([
-      getDetailedSalesToday(),
-      getDetailedSalesYesterday(),
-      getRemainingMetersByType(),
-      getAgentInventoryCount(),
-      getFaultyMetersByType(),
+      withFallback(() => getDetailedSalesToday(), [], 15000),
+      withFallback(() => getDetailedSalesYesterday(), [], 15000),
+      withFallback(() => getRemainingMetersByType(), [], 15000),
+      withFallback(() => getAgentInventoryCount(), [], 15000),
+      withFallback(() => getFaultyMetersByType(), [], 15000),
     ]);
 
     return {

@@ -26,6 +26,10 @@ const withPWA = pwa({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable instrumentation for OpenTelemetry tracing
+  experimental: {
+    instrumentationHook: true,
+  },
   images: {
     remotePatterns: [
       {

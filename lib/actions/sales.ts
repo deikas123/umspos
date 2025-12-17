@@ -18,6 +18,7 @@ import { createNotification } from "./notifications";
 import { clearMetersCache } from "./meters";
 import { withActiveUserCheck } from "./utils";
 import { db } from "../db";
+import { withTimeout } from "../db/utils";
 import {
   soldMeters,
   saleBatches,
@@ -207,16 +208,22 @@ export async function getSaleBatches(
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   // Run count and data queries in parallel for better performance
-  const [countResult, data] = await Promise.all([
-    db.select({ count: count() }).from(saleBatches).where(whereClause),
-    db
-      .select()
-      .from(saleBatches)
-      .where(whereClause)
-      .orderBy(desc(saleBatches.sale_date))
-      .limit(limit)
-      .offset(offset),
-  ]);
+  // Wrapped with timeout to prevent hung queries
+  const [countResult, data] = await withTimeout(
+    () =>
+      Promise.all([
+        db.select({ count: count() }).from(saleBatches).where(whereClause),
+        db
+          .select()
+          .from(saleBatches)
+          .where(whereClause)
+          .orderBy(desc(saleBatches.sale_date))
+          .limit(limit)
+          .offset(offset),
+      ]),
+    20000, // 20 second timeout
+    [[{ count: 0 }], []] // Return empty data on timeout
+  );
 
   const total = Number(countResult[0]?.count || 0);
 
@@ -346,26 +353,32 @@ export async function getSalesChartData(days: number = 30) {
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
     // Aggregate sales data by date and meter type directly in the database
-    const data = await db
-      .select({
-        date: sql<string>`DATE(${saleBatches.sale_date})`.as("date"),
-        meter_type: saleBatches.meter_type,
-        total_amount: sql<number>`SUM(${saleBatches.batch_amount})`.as(
-          "total_amount"
-        ),
-        user_names:
-          sql<string>`ARRAY_AGG(DISTINCT ${saleBatches.user_name})`.as(
-            "user_names"
-          ),
-        user_amounts:
-          sql<string>`ARRAY_AGG(${saleBatches.user_name} || ':' || ${saleBatches.batch_amount})`.as(
-            "user_amounts"
-          ),
-      })
-      .from(saleBatches)
-      .where(gte(saleBatches.sale_date, cutoffDate))
-      .groupBy(sql`DATE(${saleBatches.sale_date})`, saleBatches.meter_type)
-      .orderBy(desc(sql`DATE(${saleBatches.sale_date})`));
+    // Wrapped with timeout to prevent hung queries
+    const data = await withTimeout(
+      () =>
+        db
+          .select({
+            date: sql<string>`DATE(${saleBatches.sale_date})`.as("date"),
+            meter_type: saleBatches.meter_type,
+            total_amount: sql<number>`SUM(${saleBatches.batch_amount})`.as(
+              "total_amount"
+            ),
+            user_names:
+              sql<string>`ARRAY_AGG(DISTINCT ${saleBatches.user_name})`.as(
+                "user_names"
+              ),
+            user_amounts:
+              sql<string>`ARRAY_AGG(${saleBatches.user_name} || ':' || ${saleBatches.batch_amount})`.as(
+                "user_amounts"
+              ),
+          })
+          .from(saleBatches)
+          .where(gte(saleBatches.sale_date, cutoffDate))
+          .groupBy(sql`DATE(${saleBatches.sale_date})`, saleBatches.meter_type)
+          .orderBy(desc(sql`DATE(${saleBatches.sale_date})`)),
+      20000, // 20 second timeout
+      [] // Return empty array on timeout
+    );
 
     // Transform the data into the chart format
     const transformedData = data.map((row) => {

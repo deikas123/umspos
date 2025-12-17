@@ -16,10 +16,14 @@ const client =
   globalForDb.client ??
   postgres(connectionString, {
     prepare: false,
-    max: isProduction ? 1 : 5, // Minimal connections in serverless, more in dev
+    max: isProduction ? 3 : 5,
     idle_timeout: 20,
     connect_timeout: 10,
     max_lifetime: 60 * 30,
+    connection: {
+      statement_timeout: 30000,
+      idle_in_transaction_session_timeout: 30000,
+    },
   });
 
 if (!isProduction) {

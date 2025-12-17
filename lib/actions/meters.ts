@@ -22,17 +22,15 @@ import {
   betterAuthUser,
 } from "@/lib/db/schema";
 import { withActiveUserCheck } from "./utils";
+import {
+  getCachedMeters,
+  setCachedMeters,
+  getCachedMeterDetails,
+  setCachedMeterDetails,
+  clearMetersRedisCache,
+} from "@/lib/cache/redis";
 
 type MeterRecord = typeof meters.$inferSelect;
-
-/**
- * WARNING: These module-level caches only work within a single serverless instance.
- * In production, each cold start will reset these caches.
- * For true persistence, consider using Redis/Upstash or rely on React Query client-side caching.
- * Current implementation provides optimization during warm instances only.
- */
-let metersCache: string[] | null = null;
-const meterDetailsCache = new Map<string, MeterRecord | null>();
 
 type MeterStatus = "in_stock" | "with_agent" | "sold" | "replaced" | "faulty";
 
@@ -369,18 +367,31 @@ function normalizeSerialNumber(serialNumber: string): string {
 }
 
 export async function getAllMeters() {
+  // Try to get from Redis cache first
+  const cached = await getCachedMeters();
+  if (cached) {
+    return cached;
+  }
+
+  // Fetch from database
   const data = await db
     .select({ serial_number: meters.serial_number })
     .from(meters);
 
-  return data?.map((m) => normalizeSerialNumber(m.serial_number)) || [];
+  const meterSerials =
+    data?.map((m) => normalizeSerialNumber(m.serial_number)) || [];
+
+  // Cache in Redis for future requests
+  await setCachedMeters(meterSerials);
+
+  return meterSerials;
 }
 
 export async function checkMeterExists(serialNumber: string): Promise<boolean> {
   try {
-    metersCache ??= await getAllMeters();
+    const allMeters = await getAllMeters();
     const normalizedSerial = normalizeSerialNumber(serialNumber);
-    return metersCache.includes(normalizedSerial);
+    return allMeters.includes(normalizedSerial);
   } catch (error) {
     console.error("Error checking meter existence:", error);
     throw error;
@@ -388,8 +399,7 @@ export async function checkMeterExists(serialNumber: string): Promise<boolean> {
 }
 
 export async function clearMetersCache() {
-  metersCache = null;
-  meterDetailsCache.clear();
+  await clearMetersRedisCache();
 }
 
 export async function updateFaultyMeterStatus(
@@ -473,8 +483,10 @@ export async function getMeterBySerial(serialNumber: string) {
     return null;
   }
 
-  if (meterDetailsCache.has(normalizedSerial)) {
-    return meterDetailsCache.get(normalizedSerial) ?? null;
+  // Try to get from Redis cache first
+  const cached = await getCachedMeterDetails<MeterRecord>(normalizedSerial);
+  if (cached) {
+    return cached;
   }
 
   const [record] = await db
@@ -484,7 +496,11 @@ export async function getMeterBySerial(serialNumber: string) {
     .limit(1);
 
   const result = record ?? null;
-  meterDetailsCache.set(normalizedSerial, result);
+
+  // Cache the result in Redis
+  if (result) {
+    await setCachedMeterDetails(normalizedSerial, result);
+  }
 
   return result;
 }
