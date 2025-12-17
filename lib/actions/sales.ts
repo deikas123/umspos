@@ -227,7 +227,15 @@ export async function getSaleBatches(
 
   if (result === null) {
     console.error("getSaleBatches query timed out after 15 seconds");
-    return { batches: [], total: 0 };
+    return {
+      batches: [],
+      pagination: {
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      },
+    };
   }
 
   const [countResult, data] = result;
