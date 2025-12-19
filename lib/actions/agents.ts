@@ -21,6 +21,7 @@ import {
 } from "../db/schema";
 import { KENYA_COUNTIES, type KenyaCounty } from "../constants/locationData";
 import { clearMetersCache } from "./meters";
+import { getEndOfDayInAppTimezone } from "../utils/dateUtils";
 
 interface CurrentUser {
   id: string;
@@ -608,10 +609,12 @@ export async function getAgentTransactions(
     }
 
     if (filters?.endDate) {
-      // Set end date to end of day
-      const endOfDay = new Date(filters.endDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      conditions.push(lte(agentTransactions.transaction_date, endOfDay));
+      // Use timezone-aware helper to ensure consistent filtering
+      // regardless of server timezone (Vercel runs in UTC)
+      const endOfDay = getEndOfDayInAppTimezone(filters.endDate);
+      if (endOfDay) {
+        conditions.push(lte(agentTransactions.transaction_date, endOfDay));
+      }
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

@@ -184,3 +184,61 @@ export function formatISODate(date: DateInput): string {
 
   return formatter.format(localDate);
 }
+
+/**
+ * Creates a start-of-day Date object for the given date in the app timezone (Africa/Nairobi).
+ * This ensures consistent date filtering across client and server regardless of server timezone.
+ *
+ * @param date - The date to get start of day for
+ * @returns Date object representing 00:00:00 in Africa/Nairobi timezone
+ */
+export function getStartOfDayInAppTimezone(date: DateInput): Date | null {
+  if (!date) return null;
+
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(dateObj.getTime())) return null;
+
+  // Get the date parts in the app timezone
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: APP_TIMEZONE,
+  });
+
+  const [year, month, day] = formatter.format(dateObj).split("-").map(Number);
+
+  // Create a date string that represents midnight in Africa/Nairobi
+  // Africa/Nairobi is UTC+3, so midnight there is 21:00 UTC the previous day
+  const isoString = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+03:00`;
+  return new Date(isoString);
+}
+
+/**
+ * Creates an end-of-day Date object for the given date in the app timezone (Africa/Nairobi).
+ * This ensures consistent date filtering across client and server regardless of server timezone.
+ *
+ * @param date - The date to get end of day for
+ * @returns Date object representing 23:59:59.999 in Africa/Nairobi timezone
+ */
+export function getEndOfDayInAppTimezone(date: DateInput): Date | null {
+  if (!date) return null;
+
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(dateObj.getTime())) return null;
+
+  // Get the date parts in the app timezone
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: APP_TIMEZONE,
+  });
+
+  const [year, month, day] = formatter.format(dateObj).split("-").map(Number);
+
+  // Create a date string that represents end of day in Africa/Nairobi
+  // Africa/Nairobi is UTC+3
+  const isoString = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T23:59:59.999+03:00`;
+  return new Date(isoString);
+}

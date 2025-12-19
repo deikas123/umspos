@@ -28,6 +28,7 @@ import {
   max,
   or,
 } from "drizzle-orm";
+import { getStartOfDayInAppTimezone } from "../utils/dateUtils";
 
 /**
  * Gets the total count of meters in stock
@@ -566,9 +567,13 @@ export async function getDetailedSalesYesterday() {
  */
 export async function getSalesThisWeek() {
   const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setHours(0, 0, 0, 0);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Start from Sunday
+  const startOfWeekDate = new Date(now);
+  startOfWeekDate.setDate(now.getDate() - now.getDay()); // Start from Sunday
+
+  const startOfWeek = getStartOfDayInAppTimezone(startOfWeekDate);
+  if (!startOfWeek) {
+    return [];
+  }
 
   return getSalesByDateRange(startOfWeek, now);
 }
@@ -588,9 +593,13 @@ export async function getSalesThisMonth() {
  */
 export async function getSalesLastXDays(days: number) {
   const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(now.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
+  const startDateRaw = new Date(now);
+  startDateRaw.setDate(now.getDate() - days);
+
+  const startDate = getStartOfDayInAppTimezone(startDateRaw);
+  if (!startDate) {
+    return [];
+  }
 
   return getSalesByDateRange(startDate, now);
 }
@@ -734,9 +743,13 @@ export async function getDailySalesSummary(days: number = 7): Promise<
 > {
   try {
     const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0);
+    const startDateRaw = new Date();
+    startDateRaw.setDate(endDate.getDate() - days);
+
+    const startDate = getStartOfDayInAppTimezone(startDateRaw);
+    if (!startDate) {
+      return [];
+    }
 
     const sales = await getSalesByDateRange(startDate, endDate);
 

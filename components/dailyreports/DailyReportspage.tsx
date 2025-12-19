@@ -27,6 +27,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  getStartOfDayInAppTimezone,
+  getEndOfDayInAppTimezone,
+} from "@/lib/utils/dateUtils";
 import type {
   AgentInventory,
   DateRange,
@@ -140,11 +144,18 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
   const handleYesterdayReport = async () => {
     try {
       setIsGeneratingOther(true);
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      yesterday.setHours(0, 0, 0, 0);
-      const today = new Date(yesterday);
-      today.setDate(today.getDate() + 1);
+      // Use timezone-aware helpers for consistent date handling
+      const now = new Date();
+      const yesterdayDate = new Date(now);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+
+      const yesterday = getStartOfDayInAppTimezone(yesterdayDate);
+      const today = getEndOfDayInAppTimezone(yesterdayDate);
+
+      if (!yesterday || !today) {
+        toast.error("Failed to calculate date range");
+        return;
+      }
 
       const yesterdaySales = await getDetailedSalesByDateRange(
         yesterday,
@@ -304,24 +315,29 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
 
     try {
       setIsGeneratingOther(true);
-      const selectedDate = new Date(
+      // Use timezone-aware helpers for consistent date handling
+      const dateObj = new Date(
         specificDate.year,
         specificDate.month - 1,
         specificDate.day
       );
-      selectedDate.setHours(0, 0, 0, 0);
-      const nextDay = new Date(selectedDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      const selectedDateStart = getStartOfDayInAppTimezone(dateObj);
+      const selectedDateEnd = getEndOfDayInAppTimezone(dateObj);
+
+      if (!selectedDateStart || !selectedDateEnd) {
+        toast.error("Failed to calculate date range");
+        return;
+      }
 
       const filteredSales = await getDetailedSalesByDateRange(
-        selectedDate,
-        nextDay
+        selectedDateStart,
+        selectedDateEnd
       );
 
       const metrics = calculateReportMetrics(
         filteredSales,
-        selectedDate,
-        selectedDate
+        selectedDateStart,
+        selectedDateStart
       );
 
       const blob = await pdf(

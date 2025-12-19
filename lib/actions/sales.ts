@@ -20,6 +20,10 @@ import { withActiveUserCheck } from "./utils";
 import { db } from "../db";
 import { withTimeout } from "../db/utils";
 import {
+  getStartOfDayInAppTimezone,
+  getEndOfDayInAppTimezone,
+} from "../utils/dateUtils";
+import {
   soldMeters,
   saleBatches,
   salesTransactions,
@@ -189,25 +193,32 @@ export async function getSaleBatches(
   }
 
   if (filters?.dateRange) {
-    conditions.push(
-      and(
-        gte(saleBatches.sale_date, filters.dateRange.start),
-        lte(saleBatches.sale_date, filters.dateRange.end)
-      )
-    );
+    // Use timezone-aware helpers for dateRange filtering
+    const rangeStart = getStartOfDayInAppTimezone(filters.dateRange.start);
+    const rangeEnd = getEndOfDayInAppTimezone(filters.dateRange.end);
+    if (rangeStart && rangeEnd) {
+      conditions.push(
+        and(
+          gte(saleBatches.sale_date, rangeStart),
+          lte(saleBatches.sale_date, rangeEnd)
+        )
+      );
+    }
   }
 
   if (filters?.specificDate) {
-    const startOfDay = new Date(filters.specificDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(filters.specificDate);
-    endOfDay.setHours(23, 59, 59, 999);
-    conditions.push(
-      and(
-        gte(saleBatches.sale_date, startOfDay),
-        lte(saleBatches.sale_date, endOfDay)
-      )
-    );
+    // Use timezone-aware helpers to ensure consistent filtering
+    // regardless of server timezone (Vercel runs in UTC)
+    const startOfDay = getStartOfDayInAppTimezone(filters.specificDate);
+    const endOfDay = getEndOfDayInAppTimezone(filters.specificDate);
+    if (startOfDay && endOfDay) {
+      conditions.push(
+        and(
+          gte(saleBatches.sale_date, startOfDay),
+          lte(saleBatches.sale_date, endOfDay)
+        )
+      );
+    }
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -333,25 +344,32 @@ export async function getAllSaleBatchesForExport(filters?: {
   }
 
   if (filters?.dateRange) {
-    conditions.push(
-      and(
-        gte(saleBatches.sale_date, filters.dateRange.start),
-        lte(saleBatches.sale_date, filters.dateRange.end)
-      )
-    );
+    // Use timezone-aware helpers for dateRange filtering
+    const rangeStart = getStartOfDayInAppTimezone(filters.dateRange.start);
+    const rangeEnd = getEndOfDayInAppTimezone(filters.dateRange.end);
+    if (rangeStart && rangeEnd) {
+      conditions.push(
+        and(
+          gte(saleBatches.sale_date, rangeStart),
+          lte(saleBatches.sale_date, rangeEnd)
+        )
+      );
+    }
   }
 
   if (filters?.specificDate) {
-    const startOfDay = new Date(filters.specificDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(filters.specificDate);
-    endOfDay.setHours(23, 59, 59, 999);
-    conditions.push(
-      and(
-        gte(saleBatches.sale_date, startOfDay),
-        lte(saleBatches.sale_date, endOfDay)
-      )
-    );
+    // Use timezone-aware helpers to ensure consistent filtering
+    // regardless of server timezone (Vercel runs in UTC)
+    const startOfDay = getStartOfDayInAppTimezone(filters.specificDate);
+    const endOfDay = getEndOfDayInAppTimezone(filters.specificDate);
+    if (startOfDay && endOfDay) {
+      conditions.push(
+        and(
+          gte(saleBatches.sale_date, startOfDay),
+          lte(saleBatches.sale_date, endOfDay)
+        )
+      );
+    }
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
