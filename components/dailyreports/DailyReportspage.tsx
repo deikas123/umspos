@@ -344,8 +344,8 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
         <TimeRangeReportPDF
           sales={filteredSales}
           dateRange={{
-            startDate: selectedDate,
-            endDate: selectedDate,
+            startDate: selectedDateStart,
+            endDate: selectedDateStart,
             label: "UMS Report",
           }}
           metrics={metrics}
