@@ -2,7 +2,6 @@
 import DailyReports from "./DailyReports";
 import { Button } from "@/components/ui/button";
 import { pdf } from "@react-pdf/renderer";
-import DailyReportPDF from "./DailyReportPDF";
 import { useEffect, useState } from "react";
 import { getDetailedSalesByDateRange } from "@/lib/actions/reports";
 import { toast } from "sonner";
@@ -16,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Download } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import TimeRangeReportPDF from "./TimeRangeReportPDF";
 import { calculateReportMetrics } from "@/lib/services/reportService";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
@@ -31,12 +30,7 @@ import {
   getStartOfDayInAppTimezone,
   getEndOfDayInAppTimezone,
 } from "@/lib/utils/dateUtils";
-import type {
-  AgentInventory,
-  DateRange,
-  RemainingMetersByType,
-  SaleWithMeters,
-} from "./types";
+import type { DateRange } from "./types";
 
 interface DailyReportsPageProps {
   readonly initialData?: DailyReportsPageData;
@@ -44,32 +38,15 @@ interface DailyReportsPageProps {
 
 const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
   // Use React Query for all data fetching - pass initialData to avoid POST requests
-  const {
-    todaySales,
-    yesterdaySales,
-    remainingMeters,
-    agentInventory,
-    faultyMeters,
-  } = useAllReportsData(initialData);
+  const { remainingMeters, agentInventory } = useAllReportsData(initialData);
 
   const [isClient, setIsClient] = useState(false);
-  const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
   const [isGeneratingOther, setIsGeneratingOther] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | null>(
     null
   );
   const [customDateRange, setCustomDateRange] = useState<any>(null);
   const [specificDate, setSpecificDate] = useState<CalendarDate | null>(null);
-
-  // Calculate totals from React Query data
-  const todayTotalEarnings = todaySales.reduce(
-    (sum, sale) => sum + sale.total_price,
-    0
-  );
-  const yesterdayTotalEarnings = yesterdaySales.reduce(
-    (sum, sale) => sum + sale.total_price,
-    0
-  );
 
   const getDateRange = (option: string): DateRange => {
     const endDate = new Date();
@@ -101,42 +78,6 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
           endDate: new Date(),
           label: "Today's Report",
         };
-    }
-  };
-
-  // Keep this handler exclusively for daily reports
-  const handleDownloadDailyReport = async () => {
-    try {
-      setIsGeneratingDaily(true);
-      const blob = await pdf(
-        <DailyReportPDF
-          todaySales={todaySales}
-          yesterdaySales={yesterdaySales}
-          remainingMetersByType={remainingMeters}
-          todayTotalEarnings={todayTotalEarnings}
-          yesterdayTotalEarnings={yesterdayTotalEarnings}
-          agentInventory={agentInventory}
-          faultyMetersByType={faultyMeters}
-        />
-      ).toBlob();
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `daily-report-${
-        new Date().toISOString().split("T")[0]
-      }.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast.success("Daily report downloaded successfully!");
-    } catch (error) {
-      console.error("Error downloading report:", error);
-      toast.error("Failed to download daily report. Please try again.");
-    } finally {
-      setIsGeneratingDaily(false);
     }
   };
 
@@ -256,7 +197,7 @@ const DailyReportsPage = ({ initialData }: DailyReportsPageProps) => {
     link.download = `${filename}-${new Date().toISOString().split("T")[0]}.pdf`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
     URL.revokeObjectURL(url);
 
     toast.success("Report downloaded successfully!");

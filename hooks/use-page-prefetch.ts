@@ -238,7 +238,7 @@ export function usePagePrefetch() {
   const prefetchAgents = useCallback(async () => {
     await queryClient.prefetchQuery({
       queryKey: ["agents", "list"],
-      queryFn: getAgentsList,
+      queryFn: () => getAgentsList({ isStore: false }),
       staleTime: 60 * 60 * 1000, // 1 hour - agents data rarely changes
     });
   }, [queryClient]);

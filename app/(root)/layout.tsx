@@ -21,6 +21,7 @@ export default function AppLayout({
         <Navbar />
       </Suspense>
 
+
       <div className='flex pt-16 w-full h-full px-2'>
         <AppSidebar />
         <SidebarInset>

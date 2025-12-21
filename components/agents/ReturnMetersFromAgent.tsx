@@ -31,6 +31,7 @@ interface ReturnMetersFromAgentProps {
     id: string;
     name?: string;
   };
+  isStore?: boolean;
 }
 
 interface MeterToReturn {
@@ -43,14 +44,17 @@ interface MeterToReturn {
 export default function ReturnMetersFromAgent({
   agent,
   currentUser,
-}: ReturnMetersFromAgentProps) {
+  isStore = false,
+}: Readonly<ReturnMetersFromAgentProps>) {
   const [serialNumber, setSerialNumber] = useState("");
   const [meters, setMeters] = useState<MeterToReturn[]>([]);
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [isChecking, setIsChecking] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const serialInputRef = useRef<HTMLInputElement>(null);
+
+  const meterSuffix = meters.length === 1 ? "" : "s";
+  const entityLabel = isStore ? "Store" : "Agent";
 
   useEffect(() => {
     if (serialInputRef.current) {
@@ -85,7 +89,6 @@ export default function ReturnMetersFromAgent({
         return;
       }
 
-      setIsChecking(true);
       try {
         const meter = await getAgentInventoryBySerial(serialNumber, agent.id);
         if (!meter) {
@@ -111,8 +114,6 @@ export default function ReturnMetersFromAgent({
         console.error("Error retrieving meter:", error);
         setErrorMessage("Failed to retrieve meter. Please try again.");
         setSerialNumber("");
-      } finally {
-        setIsChecking(false);
       }
     };
 
@@ -182,7 +183,7 @@ export default function ReturnMetersFromAgent({
       }.pdf`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       URL.revokeObjectURL(url);
 
       localStorage.removeItem("lastReturnDetails");
@@ -196,7 +197,7 @@ export default function ReturnMetersFromAgent({
   };
 
   return (
-    <div className='bg-white rounded-lg p-6'>
+    <div className='bg-white rounded-lg px-4 pb-4 '>
       <div className='flex flex-col min-h-[600px]'>
         <div className='flex-1'>
           <div className='space-y-4 mb-6'>
@@ -243,9 +244,7 @@ export default function ReturnMetersFromAgent({
                     Processing Return...
                   </>
                 ) : (
-                  `Return ${meters.length} Meter${
-                    meters.length !== 1 ? "s" : ""
-                  } from Agent`
+                  `Return ${meters.length} Meter${meterSuffix} from ${entityLabel}`
                 )}
               </Button>
 
@@ -255,7 +254,7 @@ export default function ReturnMetersFromAgent({
                     Meters to Return
                   </h3>
                   <span className='text-sm text-gray-500'>
-                    Total: {meters.length} meter{meters.length !== 1 ? "s" : ""}
+                    Total: {meters.length} meter{meters.length === 1 ? "" : "s"}
                   </span>
                 </div>
                 <div className='max-h-[400px] overflow-y-auto border border-gray-200 rounded-md'>
@@ -269,14 +268,16 @@ export default function ReturnMetersFromAgent({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {meters.map((meter, index) => (
-                        <TableRow key={index}>
+                      {meters.map((meter) => (
+                        <TableRow key={meter.serialNumber}>
                           <TableCell>{meter.serialNumber}</TableCell>
                           <TableCell>{meter.type}</TableCell>
                           <TableCell>{formatDate(meter.assignedAt)}</TableCell>
                           <TableCell>
                             <Button
-                              onClick={() => handleRemoveMeter(index)}
+                              onClick={() =>
+                                handleRemoveMeter(meters.indexOf(meter))
+                              }
                               variant='ghost'
                               size='sm'
                               className='hover:bg-red-100 cursor-pointer'>

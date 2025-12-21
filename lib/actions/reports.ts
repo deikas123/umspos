@@ -245,9 +245,9 @@ export async function getFaultyMeters(): Promise<
     id: string;
     serial_number: string;
     type: string;
-    returned_by: string;
+    returned_by: string | null;
     returned_at: Date | null;
-    returner_name: string;
+    returner_name: string | null;
     fault_description: string | null;
     status: string | null;
     original_sale_id: string | null;

@@ -46,12 +46,14 @@ interface AssignMetersToAgentProps {
     readonly location: string;
   };
   readonly isSheetOpen?: boolean;
+  readonly isStore?: boolean;
 }
 
 export default function AssignMetersToAgent({
   currentUser,
   preSelectedAgent,
   isSheetOpen = false,
+  isStore = false,
 }: Readonly<AssignMetersToAgentProps>) {
   const [serialNumber, setSerialNumber] = useState("");
   const [meters, setMeters] = useState<
@@ -64,8 +66,11 @@ export default function AssignMetersToAgent({
     preSelectedAgent?.id || ""
   );
   const [agents, setAgents] = useState<Agent[]>([]);
+  const entityName = isStore ? "store" : "agent";
+  const EntityName = isStore ? "Store" : "Agent";
+
   const [errorMessage, setErrorMessage] = useState<string | React.ReactNode>(
-    "Select an agent and scan meters"
+    `Select a ${entityName} and scan meters`
   );
   const [isSubmitted, setIsSubmitted] = useState(false);
   const serialInputRef = useRef<HTMLInputElement>(null);
@@ -87,7 +92,7 @@ export default function AssignMetersToAgent({
     if (open && agents.length === 0 && !preSelectedAgent) {
       setIsLoadingAgents(true);
       try {
-        const agentsList = await getAgentsList();
+        const agentsList = await getAgentsList({ isStore: false });
         setAgents(agentsList.filter((agent) => agent.is_active));
       } catch (error) {
         console.error("Error loading agents:", error);
@@ -190,7 +195,7 @@ export default function AssignMetersToAgent({
 
   const handleAssignMeters = async () => {
     if (!selectedAgent) {
-      setErrorMessage("Please select an agent");
+      setErrorMessage(`Please select a ${entityName}`);
       return;
     }
 
@@ -203,7 +208,7 @@ export default function AssignMetersToAgent({
     try {
       const selectedAgentDetails = agents.find((a) => a.id === selectedAgent);
       if (!selectedAgentDetails) {
-        throw new Error("Agent not found");
+        throw new Error(`${EntityName} not found`);
       }
 
       await assignMetersToAgent({
@@ -260,7 +265,7 @@ export default function AssignMetersToAgent({
       }.pdf`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       URL.revokeObjectURL(url);
 
       localStorage.removeItem("lastAssignmentDetails");
@@ -274,7 +279,7 @@ export default function AssignMetersToAgent({
   };
 
   return (
-    <div className='bg-white rounded-lg p-6'>
+    <div className='bg-white rounded-lg px-4 pb-4 '>
       <div className='flex flex-col min-h-[600px]'>
         <div className='flex-1'>
           <div className='space-y-4 mb-6'>
@@ -397,10 +402,10 @@ export default function AssignMetersToAgent({
                 ) : (
                   (() => {
                     const meterText = meters.length > 1 ? "Meters" : "Meter";
-                    const agentName =
+                    const targetName =
                       agents.find((a) => a.id === selectedAgent)?.name ||
-                      "Agent";
-                    return `Assign ${meters.length} ${meterText} to ${agentName}`;
+                      EntityName;
+                    return `Assign ${meters.length} ${meterText} to ${targetName}`;
                   })()
                 )}
               </Button>

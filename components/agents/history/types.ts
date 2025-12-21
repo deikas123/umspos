@@ -7,10 +7,20 @@ export interface Agent {
 
 export interface Transaction {
   id: string | number;
+  agent_id?: string | null;
   transaction_date: string | Date | null;
   agent_name: string | null;
   transaction_type: string;
   meter_type: string;
+  quantity: number;
+}
+
+export interface TransactionInfo {
+  agentId: string;
+  agentName?: string;
+  transactionDate: Date | string;
+  transactionType: string;
+  meterType: string;
   quantity: number;
 }
 
@@ -50,14 +60,18 @@ export interface HistoryFiltersBarProps {
   onExportPDF: () => void;
   isExporting: boolean;
   hasTransactions: boolean;
+  hideAgentFilter?: boolean;
+  hideSearch?: boolean;
 }
 
 export interface HistoryTableProps {
   transactions: Transaction[];
+  onQuantityClick?: (info: TransactionInfo) => void;
 }
 
 export interface HistoryMobileListProps {
   transactions: Transaction[];
+  onQuantityClick?: (info: TransactionInfo) => void;
 }
 
 export interface HistoryPaginationProps {

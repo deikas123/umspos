@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   FileText,
   ClipboardList,
+  Store,
 } from "lucide-react";
 import {
   type UserRole,
@@ -53,6 +54,7 @@ export const navigationItems: NavItem[] = [
   },
   { title: "Users", url: "/users", icon: Users },
   { title: "Agents", url: "/agents", icon: HandPlatter },
+  { title: "Stores", url: "/stores", icon: Store, adminOnly: true },
   {
     title: "Approvals",
     url: "/approvals",

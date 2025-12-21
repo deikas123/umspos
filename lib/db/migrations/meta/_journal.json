@@ -57,6 +57,34 @@
       "when": 1765904606015,
       "tag": "0007_solid_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1766309363415,
+      "tag": "0008_salty_zodiak",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1766318401917,
+      "tag": "0009_nappy_baron_zemo",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1766318768285,
+      "tag": "0010_ordinary_santa_claus",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1766319211477,
+      "tag": "0011_tearful_mindworm",
+      "breakpoints": true
     }
   ]
 }

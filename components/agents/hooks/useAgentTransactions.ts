@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getAgentTransactions } from "@/lib/actions/agents";
 
 const GC_TIME = 1000 * 60 * 10; // 10 minutes
@@ -23,6 +23,7 @@ export function useAgentTransactions(
     queryFn: () => getAgentTransactions(page, limit, searchTerm, filters),
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
+    placeholderData: keepPreviousData,
   });
 }
 

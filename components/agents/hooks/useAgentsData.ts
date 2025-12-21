@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   getAgentsList,
   getAgentInventoryCount,
@@ -15,6 +15,7 @@ export interface Agent {
   county: string;
   agent_type: string;
   is_active: boolean | null;
+  is_store: boolean | null;
   created_at: Date | null;
   total_meters: number;
 }
@@ -43,7 +44,6 @@ const STALE_TIME = 60 * 60 * 1000; // 1 hour
 const GC_TIME = STALE_TIME * 2; // 2 hours
 
 export function useAgentsData(initialData?: AgentsPageData) {
-  const queryClient = useQueryClient();
   const hasInitialData = !!initialData;
 
   // Note: Real-time subscriptions removed during Supabase to Better Auth migration
@@ -59,7 +59,7 @@ export function useAgentsData(initialData?: AgentsPageData) {
     refetch,
   } = useQuery({
     queryKey: AGENTS_KEYS.lists(),
-    queryFn: getAgentsList,
+    queryFn: () => getAgentsList({ isStore: false }),
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     initialData: initialData?.agents,

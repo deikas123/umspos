@@ -58,29 +58,33 @@ export const HistoryFiltersBar = memo(function HistoryFiltersBar({
   onExportPDF,
   isExporting,
   hasTransactions,
+  hideAgentFilter = false,
+  hideSearch = false,
 }: Readonly<HistoryFiltersBarProps>) {
   const hasActiveFilters =
     filters.transactionType ||
     filters.meterType ||
-    filters.selectedAgentId ||
+    (!hideAgentFilter && filters.selectedAgentId) ||
     filters.dateRange ||
     filters.singleDate ||
-    filters.searchTerm;
+    (!hideSearch && filters.searchTerm);
 
   return (
     <div className='flex flex-col gap-4'>
       {/* Row 1: Search and Actions */}
       <div className='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
-        <div className='relative flex-1 w-full sm:max-w-sm'>
-          <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
-          <Input
-            type='text'
-            placeholder='Search by agent name...'
-            value={filters.searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className='pl-10'
-          />
-        </div>
+        {!hideSearch && (
+          <div className='relative flex-1 w-full sm:max-w-sm'>
+            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+            <Input
+              type='text'
+              placeholder='Search by agent name...'
+              value={filters.searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className='pl-10'
+            />
+          </div>
+        )}
 
         <div className='flex items-center gap-2'>
           <div className='text-sm text-gray-600'>
@@ -179,11 +183,13 @@ export const HistoryFiltersBar = memo(function HistoryFiltersBar({
         </Select>
 
         {/* Agent Filter with Search */}
-        <AgentFilterSelect
-          agents={agents}
-          selectedAgentId={filters.selectedAgentId}
-          onAgentChange={onAgentChange}
-        />
+        {!hideAgentFilter && (
+          <AgentFilterSelect
+            agents={agents}
+            selectedAgentId={filters.selectedAgentId}
+            onAgentChange={onAgentChange}
+          />
+        )}
 
         {/* Single Date Picker */}
         <DatePicker

@@ -25,7 +25,8 @@ import {
   HistoryPagination,
   ITEMS_PER_PAGE,
 } from "./history";
-import type { HistoryFilters, Agent } from "./history";
+import type { HistoryFilters, Agent, TransactionInfo } from "./history";
+import TransactionMetersDialog from "@/components/sharedcomponents/TransactionMetersDialog";
 
 const capitalizeMeterType = (type: string) => {
   if (type === "3 phase") return "3 Phase";
@@ -50,6 +51,11 @@ export default function AgentHistory() {
   } | null>(null);
   const [singleDate, setSingleDate] = useState<DateValue | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Dialog state for viewing meter serial numbers
+  const [metersDialogOpen, setMetersDialogOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<TransactionInfo | null>(null);
 
   // Get agents for filter dropdown
   const { agentsData } = useAgentsData();
@@ -279,6 +285,11 @@ export default function AgentHistory() {
     setCurrentPage(page);
   }, []);
 
+  const handleQuantityClick = useCallback((info: TransactionInfo) => {
+    setSelectedTransaction(info);
+    setMetersDialogOpen(true);
+  }, []);
+
   if (isError) {
     return <div>Error: {error?.message}</div>;
   }
@@ -316,8 +327,14 @@ export default function AgentHistory() {
         </div>
       ) : (
         <>
-          <HistoryTable transactions={transactions} />
-          <HistoryMobileList transactions={transactions} />
+          <HistoryTable
+            transactions={transactions}
+            onQuantityClick={handleQuantityClick}
+          />
+          <HistoryMobileList
+            transactions={transactions}
+            onQuantityClick={handleQuantityClick}
+          />
         </>
       )}
 
@@ -325,6 +342,12 @@ export default function AgentHistory() {
         pagination={pagination}
         currentPage={currentPage}
         onPageChange={handlePageChange}
+      />
+
+      <TransactionMetersDialog
+        open={metersDialogOpen}
+        onOpenChange={setMetersDialogOpen}
+        transactionInfo={selectedTransaction}
       />
     </div>
   );

@@ -17,6 +17,7 @@ import {
   agents,
   agentInventory,
   agentTransactions,
+  agentTransactionMeters,
   meters,
 } from "../db/schema";
 import { KENYA_COUNTIES, type KenyaCounty } from "../constants/locationData";
@@ -29,11 +30,17 @@ interface CurrentUser {
   email?: string;
 }
 
-export async function getAgentsList() {
+export async function getAgentsList(options?: { isStore?: boolean }) {
   const startTime = Date.now();
   console.log("[getAgentsList] Starting query...");
 
   try {
+    // Build where clause based on options
+    const whereCondition =
+      options?.isStore === undefined
+        ? undefined
+        : eq(agents.is_store, options.isStore);
+
     // Get agents with their meter counts using LEFT JOIN and GROUP BY
     // Wrapped with timeout to prevent hung queries
     console.log("[getAgentsList] Executing Drizzle query with LEFT JOIN...");
@@ -41,7 +48,8 @@ export async function getAgentsList() {
       async () => {
         const queryStart = Date.now();
         console.log("[getAgentsList] Inside withTimeout, query starting...");
-        const result = await db
+
+        const query = db
           .select({
             id: agents.id,
             name: agents.name,
@@ -50,11 +58,19 @@ export async function getAgentsList() {
             county: agents.county,
             agent_type: agents.agent_type,
             is_active: agents.is_active,
+            is_store: agents.is_store,
             created_at: agents.created_at,
             total_meters: count(agentInventory.id),
           })
           .from(agents)
-          .leftJoin(agentInventory, eq(agents.id, agentInventory.agent_id))
+          .leftJoin(agentInventory, eq(agents.id, agentInventory.agent_id));
+
+        // Apply where condition if provided
+        const filteredQuery = whereCondition
+          ? query.where(whereCondition)
+          : query;
+
+        const result = await filteredQuery
           .groupBy(
             agents.id,
             agents.name,
@@ -63,6 +79,7 @@ export async function getAgentsList() {
             agents.county,
             agents.agent_type,
             agents.is_active,
+            agents.is_store,
             agents.created_at
           )
           .orderBy(desc(agents.created_at));
@@ -159,6 +176,7 @@ export async function createAgent(agentData: {
   location: string;
   county: KenyaCounty;
   agent_type?: "cash" | "credit";
+  is_store?: boolean;
 }) {
   try {
     // Validate county
@@ -180,6 +198,7 @@ export async function createAgent(agentData: {
         ...agentData,
         agent_type: agentData.agent_type || "cash",
         is_active: true,
+        is_store: agentData.is_store || false,
       })
       .returning();
 
@@ -294,7 +313,30 @@ export async function assignMetersToAgent({
       );
 
       if (transactionsPayload.length > 0) {
-        await tx.insert(agentTransactions).values(transactionsPayload);
+        // Insert transactions and get the IDs back
+        const insertedTransactions = await tx
+          .insert(agentTransactions)
+          .values(transactionsPayload)
+          .returning({
+            id: agentTransactions.id,
+            meter_type: agentTransactions.meter_type,
+          });
+
+        // Create a map of meter_type to transaction_id
+        const typeToTransactionId = new Map(
+          insertedTransactions.map((t) => [t.meter_type, t.id])
+        );
+
+        // Insert individual meter details into junction table
+        const meterDetailsPayload = availableMeters.map((meter) => ({
+          transaction_id: typeToTransactionId.get(meter.type)!,
+          meter_id: meter.id,
+          serial_number: meter.serial_number,
+        }));
+
+        if (meterDetailsPayload.length > 0) {
+          await tx.insert(agentTransactionMeters).values(meterDetailsPayload);
+        }
       }
 
       const removedMeters = await tx
@@ -402,14 +444,48 @@ export async function returnMetersFromAgent({
       }
 
       if (meterList.length > 0) {
-        const transactionData = meterList.map((meter) => ({
-          agent_id: agentId,
-          transaction_type: "return" as const,
-          meter_type: meter.type,
-          quantity: 1,
+        // Group meters by type for transaction records
+        const typeCounts = new Map<string, typeof meterList>();
+        for (const meter of meterList) {
+          if (!typeCounts.has(meter.type)) {
+            typeCounts.set(meter.type, []);
+          }
+          typeCounts.get(meter.type)!.push(meter);
+        }
+
+        // Create one transaction per meter type
+        const transactionData = Array.from(typeCounts.entries()).map(
+          ([type, metersOfType]) => ({
+            agent_id: agentId,
+            transaction_type: "return" as const,
+            meter_type: type,
+            quantity: metersOfType.length,
+          })
+        );
+
+        const insertedTransactions = await tx
+          .insert(agentTransactions)
+          .values(transactionData)
+          .returning({
+            id: agentTransactions.id,
+            meter_type: agentTransactions.meter_type,
+          });
+
+        // Create a map of meter_type to transaction_id
+        const typeToTransactionId = new Map(
+          insertedTransactions.map((t) => [t.meter_type, t.id])
+        );
+
+        // Insert individual meter details into junction table
+        const meterDetailsPayload = meterList.map((meter) => ({
+          transaction_id: typeToTransactionId.get(meter.type)!,
+          meter_id: meter.meter_id,
+          serial_number: meter.serial_number,
         }));
 
-        await tx.insert(agentTransactions).values(transactionData);
+        if (meterDetailsPayload.length > 0) {
+          await tx.insert(agentTransactionMeters).values(meterDetailsPayload);
+        }
       }
     });
 
@@ -685,12 +761,81 @@ export async function getAgentTransactions(
 }
 
 /**
+ * Fetch individual meter serial numbers for a specific transaction group
+ * (grouped by agent_id, transaction_date, transaction_type, meter_type)
+ */
+export async function getTransactionMeters(params: {
+  agentId: string;
+  transactionDate: Date | string;
+  transactionType: string;
+  meterType: string;
+}) {
+  try {
+    const { agentId, transactionDate, transactionType, meterType } = params;
+
+    // Convert string date to Date if needed
+    const txDate =
+      typeof transactionDate === "string"
+        ? new Date(transactionDate)
+        : transactionDate;
+
+    // Get the start and end of the day for the transaction date (to match aggregated rows)
+    const startOfDay = new Date(txDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(txDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // First, get all transaction IDs that match the criteria
+    const matchingTransactions = await db
+      .select({ id: agentTransactions.id })
+      .from(agentTransactions)
+      .where(
+        and(
+          eq(agentTransactions.agent_id, agentId),
+          eq(
+            agentTransactions.transaction_type,
+            transactionType as "assignment" | "return"
+          ),
+          eq(agentTransactions.meter_type, meterType),
+          gte(agentTransactions.transaction_date, startOfDay),
+          lte(agentTransactions.transaction_date, endOfDay)
+        )
+      );
+
+    if (matchingTransactions.length === 0) {
+      return { meters: [], total: 0 };
+    }
+
+    const transactionIds = matchingTransactions.map((t) => t.id);
+
+    // Now get all meters for these transactions
+    const meterDetails = await db
+      .select({
+        id: agentTransactionMeters.id,
+        serial_number: agentTransactionMeters.serial_number,
+        meter_id: agentTransactionMeters.meter_id,
+      })
+      .from(agentTransactionMeters)
+      .where(inArray(agentTransactionMeters.transaction_id, transactionIds));
+
+    return {
+      meters: meterDetails,
+      total: meterDetails.length,
+    };
+  } catch (error) {
+    console.error("Error fetching transaction meters:", error);
+    return { meters: [], total: 0 };
+  }
+}
+
+/**
  * Consolidated function to fetch all Agents page data in a single call
  * This reduces multiple POST requests to a single server-side fetch
+ * @param options.isStore - If true, fetches stores; if false, fetches agents; if undefined, fetches all
  */
-export async function getAgentsPageData() {
+export async function getAgentsPageData(options?: { isStore?: boolean }) {
   try {
-    const agentsList = await getAgentsList();
+    const agentsList = await getAgentsList(options);
 
     return {
       agents: agentsList,

@@ -34,7 +34,7 @@ import {
 } from "../db/schema";
 
 interface SoldMeterData {
-  meter_id?: string;
+  meter_id: string;
   sold_by: string;
   sold_at: Date;
   destination: string;
@@ -51,18 +51,16 @@ interface SoldMeterData {
 export async function addSoldMeter(soldMeter: Omit<SoldMeterData, "id">) {
   return withActiveUserCheck(soldMeter.sold_by, async () => {
     // Verify the meter_id is not already in sold_meters
-    if (soldMeter.meter_id) {
-      const [existing] = await db
-        .select({ id: soldMeters.id })
-        .from(soldMeters)
-        .where(eq(soldMeters.meter_id, soldMeter.meter_id))
-        .limit(1);
+    const [existing] = await db
+      .select({ id: soldMeters.id })
+      .from(soldMeters)
+      .where(eq(soldMeters.meter_id, soldMeter.meter_id))
+      .limit(1);
 
-      if (existing) {
-        throw new Error(
-          `Meter ${soldMeter.serial_number} is already in sold_meters table`
-        );
-      }
+    if (existing) {
+      throw new Error(
+        `Meter ${soldMeter.serial_number} is already in sold_meters table`
+      );
     }
 
     // Verify serial number is not already in sold_meters
@@ -245,8 +243,8 @@ export async function getSaleBatches(
       );
       return res;
     },
-    15000, // 15 second timeout (reduced)
-    null // Return null on timeout
+    15000,
+    null
   );
 
   if (result === null) {
@@ -1583,7 +1581,7 @@ export async function processAgentMeterSale({
             if (!acc[row.type]) {
               acc[row.type] = [];
             }
-            acc[row.type]!.push(row);
+            acc[row.type].push(row);
             return acc;
           },
           {} as Record<string, Array<(typeof inventoryRows)[number]>>
@@ -1596,7 +1594,7 @@ export async function processAgentMeterSale({
           const typeUnitPrice = Number.parseFloat(saleDetails.unitPrices[type]);
 
           if (!Number.isFinite(typeUnitPrice)) {
-            throw new Error(`Invalid unit price for meter type ${type}`);
+            throw new TypeError(`Invalid unit price for meter type ${type}`);
           }
 
           unitPriceByType.set(type, typeUnitPrice);

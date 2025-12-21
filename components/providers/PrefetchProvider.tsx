@@ -34,7 +34,7 @@ export function PrefetchProvider({
       Promise.allSettled([
         queryClient.prefetchQuery({
           queryKey: ["agents", "list"],
-          queryFn: () => getAgentsList(),
+          queryFn: () => getAgentsList({ isStore: false }),
           staleTime: 60 * 60 * 1000, // 1 hour - agents rarely change
           gcTime: CACHE_TIME,
         }),

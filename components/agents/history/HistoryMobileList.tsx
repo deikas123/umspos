@@ -2,18 +2,42 @@
 
 import { memo } from "react";
 import { formatDateTimeShort } from "@/lib/utils/dateUtils";
+import { Button } from "@/components/ui/button";
 import {
   EmptyState,
   getTransactionTypeBadge,
   getMeterTypeBadge,
 } from "./HistoryTable";
-import type { HistoryMobileListProps, Transaction } from "./types";
+import type {
+  HistoryMobileListProps,
+  Transaction,
+  TransactionInfo,
+} from "./types";
 
 const MobileTransactionCard = memo(function MobileTransactionCard({
   transaction,
+  onQuantityClick,
 }: {
   transaction: Transaction;
+  onQuantityClick?: (info: TransactionInfo) => void;
 }) {
+  const handleQuantityClick = () => {
+    if (
+      onQuantityClick &&
+      transaction.agent_id &&
+      transaction.transaction_date
+    ) {
+      onQuantityClick({
+        agentId: transaction.agent_id,
+        agentName: transaction.agent_name ?? undefined,
+        transactionDate: transaction.transaction_date,
+        transactionType: transaction.transaction_type,
+        meterType: transaction.meter_type,
+        quantity: transaction.quantity,
+      });
+    }
+  };
+
   return (
     <div className='border rounded-lg p-4 space-y-3'>
       <div className='flex items-start justify-between'>
@@ -28,7 +52,17 @@ const MobileTransactionCard = memo(function MobileTransactionCard({
           </p>
         </div>
         <div className='text-right'>
-          <p className='text-lg font-bold'>{transaction.quantity}</p>
+          {onQuantityClick && transaction.agent_id ? (
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={handleQuantityClick}
+              className='font-bold text-lg text-primary hover:text-primary hover:underline h-auto p-0 cursor-pointer'>
+              {transaction.quantity}
+            </Button>
+          ) : (
+            <p className='text-lg font-bold'>{transaction.quantity}</p>
+          )}
           <p className='text-xs text-gray-500'>Meters</p>
         </div>
       </div>
@@ -43,6 +77,7 @@ const MobileTransactionCard = memo(function MobileTransactionCard({
 
 export const HistoryMobileList = memo(function HistoryMobileList({
   transactions,
+  onQuantityClick,
 }: Readonly<HistoryMobileListProps>) {
   return (
     <div className='block md:hidden space-y-4'>
@@ -51,6 +86,7 @@ export const HistoryMobileList = memo(function HistoryMobileList({
           <MobileTransactionCard
             key={transaction.id}
             transaction={transaction}
+            onQuantityClick={onQuantityClick}
           />
         ))
       ) : (

@@ -10,9 +10,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { History } from "lucide-react";
 import { formatDateTimeShort } from "@/lib/utils/dateUtils";
-import type { HistoryTableProps, Transaction } from "./types";
+import type { HistoryTableProps, Transaction, TransactionInfo } from "./types";
 
 const EmptyState = () => (
   <div className='flex flex-col items-center justify-center p-8 text-gray-500'>
@@ -65,9 +66,28 @@ const getMeterTypeBadge = (type: string) => {
 
 const TransactionRow = memo(function TransactionRow({
   transaction,
+  onQuantityClick,
 }: {
   transaction: Transaction;
+  onQuantityClick?: (info: TransactionInfo) => void;
 }) {
+  const handleQuantityClick = () => {
+    if (
+      onQuantityClick &&
+      transaction.agent_id &&
+      transaction.transaction_date
+    ) {
+      onQuantityClick({
+        agentId: transaction.agent_id,
+        agentName: transaction.agent_name ?? undefined,
+        transactionDate: transaction.transaction_date,
+        transactionType: transaction.transaction_type,
+        meterType: transaction.meter_type,
+        quantity: transaction.quantity,
+      });
+    }
+  };
+
   return (
     <TableRow>
       <TableCell>
@@ -82,8 +102,18 @@ const TransactionRow = memo(function TransactionRow({
         {getTransactionTypeBadge(transaction.transaction_type)}
       </TableCell>
       <TableCell>{getMeterTypeBadge(transaction.meter_type)}</TableCell>
-      <TableCell className='text-right font-semibold'>
-        {transaction.quantity}
+      <TableCell className='text-right'>
+        {onQuantityClick && transaction.agent_id ? (
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={handleQuantityClick}
+            className='font-semibold text-primary hover:text-primary hover:underline h-auto py-1 px-2 cursor-pointer'>
+            {transaction.quantity}
+          </Button>
+        ) : (
+          <span className='font-semibold'>{transaction.quantity}</span>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -91,6 +121,7 @@ const TransactionRow = memo(function TransactionRow({
 
 export const HistoryTable = memo(function HistoryTable({
   transactions,
+  onQuantityClick,
 }: Readonly<HistoryTableProps>) {
   return (
     <div className='hidden md:block'>
@@ -107,7 +138,11 @@ export const HistoryTable = memo(function HistoryTable({
         <TableBody>
           {transactions.length > 0 ? (
             transactions.map((transaction) => (
-              <TransactionRow key={transaction.id} transaction={transaction} />
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                onQuantityClick={onQuantityClick}
+              />
             ))
           ) : (
             <TableRow>

@@ -51,6 +51,7 @@ interface EditAgentDialogProps {
     readonly county: string;
     readonly agent_type?: string;
   };
+  readonly isStore?: boolean;
 }
 
 export default function EditAgentDialog({
@@ -58,6 +59,7 @@ export default function EditAgentDialog({
   onClose,
   onAgentUpdated,
   agent,
+  isStore = false,
 }: Readonly<EditAgentDialogProps>) {
   const [formData, setFormData] = useState<{
     name: string;
@@ -74,6 +76,8 @@ export default function EditAgentDialog({
   });
   const [isLoading, setIsLoading] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
+
+  const entityName = isStore ? "Store" : "Agent";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,12 +98,14 @@ export default function EditAgentDialog({
         agent_type: formData.agent_type,
       });
 
-      toast.success("Agent updated successfully");
+      toast.success(`${entityName} updated successfully`);
 
       onAgentUpdated();
       onClose();
     } catch (error: any) {
-      toast.error(error.message || "Failed to update agent");
+      toast.error(
+        error.message || `Failed to update ${entityName.toLowerCase()}`
+      );
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +115,7 @@ export default function EditAgentDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className='sm:max-w-[425px] bg-gray-50 border-gray-200 px-2'>
         <DialogHeader>
-          <DialogTitle>Edit Agent Details</DialogTitle>
+          <DialogTitle>Edit {entityName} Details</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className='space-y-4 mt-4'>
           <div className='space-y-2'>
@@ -120,7 +126,7 @@ export default function EditAgentDialog({
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder='Agent Name'
+              placeholder={`${entityName} Name`}
               required
             />
           </div>
@@ -144,7 +150,7 @@ export default function EditAgentDialog({
               onChange={(e) =>
                 setFormData({ ...formData, location: e.target.value })
               }
-              placeholder='Agent Location'
+              placeholder={`${entityName} Location`}
               required
             />
           </div>
@@ -198,26 +204,30 @@ export default function EditAgentDialog({
               </PopoverContent>
             </Popover>
           </div>
-          <div className='space-y-2'>
-            <Label>Agent Type</Label>
-            <Select
-              value={formData.agent_type}
-              onValueChange={(value: AgentType) =>
-                setFormData({ ...formData, agent_type: value })
-              }>
-              <SelectTrigger className='w-full bg-white'>
-                <SelectValue placeholder='Select agent type' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='cash'>
-                  <span className='font-medium'>Cash</span>
-                </SelectItem>
-                <SelectItem value='credit'>
-                  <span className='font-medium'>Credit</span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {!isStore && (
+            <div className='space-y-2'>
+              <Label>{entityName} Type</Label>
+              <Select
+                value={formData.agent_type}
+                onValueChange={(value: AgentType) =>
+                  setFormData({ ...formData, agent_type: value })
+                }>
+                <SelectTrigger className='w-full bg-white cursor-pointer'>
+                  <SelectValue
+                    placeholder={`Select ${entityName.toLowerCase()} type`}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='cash' className='cursor-pointer'>
+                    <span className='font-medium'>Cash</span>
+                  </SelectItem>
+                  <SelectItem value='credit' className='cursor-pointer'>
+                    <span className='font-medium'>Credit</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <DialogFooter>
             <Button
               type='button'
@@ -231,7 +241,7 @@ export default function EditAgentDialog({
               type='submit'
               disabled={isLoading}
               className='bg-primary hover:bg-[#000066] cursor-pointer'>
-              {isLoading ? "Updating..." : "Update Agent"}
+              {isLoading ? "Updating..." : `Update ${entityName}`}
             </Button>
           </DialogFooter>
         </form>

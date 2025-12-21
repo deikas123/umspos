@@ -80,9 +80,9 @@ interface FaultyMeter {
   id: string;
   serial_number: string;
   type: string;
-  returned_by: string;
+  returned_by: string | null;
   returned_at: Date | null;
-  returner_name: string;
+  returner_name: string | null;
   fault_description: string | null;
   status: string | null;
   original_sale_id: string | null;
@@ -234,7 +234,8 @@ export default function FaultyMetersView() {
     const matchesSearch =
       searchTerm === "" ||
       meter.serial_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      meter.returner_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (meter.returner_name?.toLowerCase().includes(searchTerm.toLowerCase()) ??
+        false) ||
       meter.fault_description
         ?.toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
@@ -417,7 +418,7 @@ export default function FaultyMetersView() {
       m.serial_number,
       m.type,
       m.status || "-",
-      m.returner_name,
+      m.returner_name || "-",
       m.returned_at ? formatDate(m.returned_at) : "-",
     ]);
 
