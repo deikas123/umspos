@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Search, Loader2, X, ShoppingCart } from "lucide-react";
+import { Search, Loader2, X, ShoppingCart, Edit2 } from "lucide-react";
 import { getAgentInventory } from "@/lib/actions/agents";
 import { processAgentMeterSale } from "@/lib/actions/sales";
 import { getUserProfile } from "@/lib/actions/users";
@@ -27,10 +27,11 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { DatePicker } from "@/components/ui/date-picker";
-import { today, getLocalTimeZone } from "@internationalized/date";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import SaleDetailsDialog, {
+  type SaleDetails,
+} from "@/components/sellmeter/SaleDetailsDialog";
 
 interface RecordStoreSaleProps {
   store: {
@@ -71,11 +72,11 @@ export default function RecordStoreSale({
   const [selectedMeters, setSelectedMeters] = useState<MeterInventory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [unitPrices, setUnitPrices] = useState<{ [key: string]: string }>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [userName, setUserName] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedDate, setSelectedDate] = useState(today(getLocalTimeZone()));
+  const [saleDetailsOpen, setSaleDetailsOpen] = useState(false);
+  const [saleDetails, setSaleDetails] = useState<SaleDetails | null>(null);
 
   useEffect(() => {
     const fetchInventory = async () => {
@@ -105,6 +106,16 @@ export default function RecordStoreSale({
     fetchUserProfile();
   }, [currentUser]);
 
+  // Get unique meter types from selected meters
+  const meterTypes = useMemo(() => {
+    return Array.from(new Set(selectedMeters.map((m) => m.type)));
+  }, [selectedMeters]);
+
+  // Handle sale details submission from dialog
+  const handleSaleDetailsSubmit = (details: SaleDetails) => {
+    setSaleDetails(details);
+  };
+
   const handleCheckMeter = (meter: MeterInventory) => {
     if (selectedMeters.some((m) => m.id === meter.id)) {
       setSelectedMeters(selectedMeters.filter((m) => m.id !== meter.id));
@@ -120,20 +131,9 @@ export default function RecordStoreSale({
   const isMeterSelected = (meterId: string) =>
     selectedMeters.some((m) => m.id === meterId);
 
-  const handleUnitPriceChange = (type: string, price: string) => {
-    setUnitPrices({ ...unitPrices, [type]: price });
-  };
-
   const handleSubmit = async () => {
     if (!currentUser?.id) {
       toast.error("Please log in to continue");
-      return;
-    }
-
-    const uniqueTypes = Array.from(new Set(selectedMeters.map((m) => m.type)));
-    const missingPrices = uniqueTypes.filter((type) => !unitPrices[type]);
-    if (missingPrices.length > 0) {
-      toast.error(`Please set unit prices for: ${missingPrices.join(", ")}`);
       return;
     }
 
@@ -142,12 +142,29 @@ export default function RecordStoreSale({
       return;
     }
 
+    if (!saleDetails) {
+      toast.error("Please fill in sale details first");
+      setSaleDetailsOpen(true);
+      return;
+    }
+
+    // Validate unit prices for all meter types
+    const uniqueTypes = Array.from(new Set(selectedMeters.map((m) => m.type)));
+    const missingPrices = uniqueTypes.filter(
+      (type) => !saleDetails.unitPrices[type]
+    );
+    if (missingPrices.length > 0) {
+      toast.error(`Please set unit prices for: ${missingPrices.join(", ")}`);
+      setSaleDetailsOpen(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const saleDate = new Date(
-        selectedDate.year,
-        selectedDate.month - 1,
-        selectedDate.day
+        saleDetails.saleDate.year,
+        saleDetails.saleDate.month - 1,
+        saleDetails.saleDate.day
       );
 
       const result = await processAgentMeterSale({
@@ -160,12 +177,13 @@ export default function RecordStoreSale({
         currentUser: { id: currentUser.id },
         userName,
         saleDetails: {
-          destination: store.location,
-          recipient: store.name,
-          unitPrices,
-          customerType: "agent",
-          customerCounty: store.county,
-          customerContact: store.phone_number,
+          destination: saleDetails.destination,
+          recipient: saleDetails.recipient,
+          unitPrices: saleDetails.unitPrices,
+          customerType: saleDetails.customerType,
+          customerRegion: saleDetails.customerRegion,
+          customerCounty: saleDetails.customerCounty,
+          customerContact: saleDetails.customerContact,
           saleDate,
         },
       });
@@ -180,15 +198,18 @@ export default function RecordStoreSale({
           serialNumber: meter.serial_number,
           type: meter.type,
         })),
-        destination: store.location,
-        recipient: store.name,
-        unitPrices,
+        destination: saleDetails.destination,
+        recipient: saleDetails.recipient,
+        unitPrices: saleDetails.unitPrices,
         userName: currentUser.name || currentUser.email,
-        customerType: "store" as const,
-        customerCounty: store.county,
-        customerContact: store.phone_number,
+        customerType: saleDetails.customerType,
+        customerRegion: saleDetails.customerRegion,
+        customerCounty: saleDetails.customerCounty,
+        customerContact: saleDetails.customerContact,
         saleDate: saleDate.toISOString(),
         referenceNumber: result.referenceNumber,
+        referral: saleDetails.referral,
+        pickup: saleDetails.pickup,
       };
 
       localStorage.setItem(
@@ -197,6 +218,7 @@ export default function RecordStoreSale({
       );
 
       setSelectedMeters([]);
+      setSaleDetails(null);
       setIsSubmitted(true);
 
       toast.success("Sale recorded successfully!");
@@ -224,6 +246,7 @@ export default function RecordStoreSale({
           unitPrices={lastSubmittedData.unitPrices}
           userName={lastSubmittedData.userName}
           customerType={lastSubmittedData.customerType}
+          customerRegion={lastSubmittedData.customerRegion}
           customerCounty={lastSubmittedData.customerCounty}
           customerContact={lastSubmittedData.customerContact}
           saleDate={lastSubmittedData.saleDate}
@@ -297,11 +320,12 @@ export default function RecordStoreSale({
     filteredInventory.length > 0 &&
     filteredInventory.every((m) => isMeterSelected(m.id));
 
-  const uniqueTypes = Array.from(new Set(selectedMeters.map((m) => m.type)));
-
   const calculateTotal = () => {
+    if (!saleDetails?.unitPrices) return 0;
     return selectedMeters.reduce((total, meter) => {
-      const price = Number.parseFloat(unitPrices[meter.type] || "0");
+      const price = Number.parseFloat(
+        saleDetails.unitPrices[meter.type] || "0"
+      );
       return total + price;
     }, 0);
   };
@@ -454,7 +478,6 @@ export default function RecordStoreSale({
               <span className='font-semibold'>Cart</span>
               <Badge variant='secondary'>{selectedMeters.length}</Badge>
             </div>
-            <DatePicker value={selectedDate} onChange={setSelectedDate} />
           </div>
 
           {selectedMeters.length > 0 ? (
@@ -482,40 +505,80 @@ export default function RecordStoreSale({
                 </div>
               </ScrollArea>
 
-              {/* Unit prices */}
-              <div className='space-y-2 mb-3'>
-                {uniqueTypes.map((type) => (
-                  <div key={type} className='flex items-center gap-2'>
-                    <span className='text-sm min-w-24'>{type}:</span>
-                    <Input
-                      type='number'
-                      placeholder='Unit price'
-                      value={unitPrices[type] || ""}
-                      onChange={(e) =>
-                        handleUnitPriceChange(type, e.target.value)
-                      }
-                      className='flex-1 h-8'
-                    />
-                    <span className='text-sm text-muted-foreground'>
-                      × {selectedMeters.filter((m) => m.type === type).length}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {/* Sale Details Section */}
+              {saleDetails ? (
+                <div className='flex flex-wrap items-center gap-2 p-3 bg-gray-50 rounded-lg mb-3'>
+                  <Badge
+                    variant='secondary'
+                    className='bg-gradient-to-r from-green-500/50 to-blue-500/50 text-black'>
+                    Destination: {saleDetails.destination}
+                  </Badge>
+                  <Badge
+                    variant='secondary'
+                    className='bg-gradient-to-r from-orange-500/50 to-yellow-500/50 text-black'>
+                    Recipient: {saleDetails.recipient}
+                  </Badge>
+                  <Badge
+                    variant='secondary'
+                    className='bg-gradient-to-r from-purple-500/50 to-pink-500/50 text-black'>
+                    Contact: {saleDetails.customerContact}
+                  </Badge>
+                  <Badge
+                    variant='secondary'
+                    className='bg-gradient-to-r from-blue-500/50 to-indigo-500/50 text-black'>
+                    Type: {saleDetails.customerType}
+                  </Badge>
+                  <Badge
+                    variant='secondary'
+                    className='bg-gradient-to-r from-red-500/50 to-orange-500/50 text-black'>
+                    County: {saleDetails.customerCounty}
+                  </Badge>
+                  {Object.entries(saleDetails.unitPrices).map(
+                    ([type, price]) => (
+                      <Badge
+                        key={type}
+                        variant='secondary'
+                        className='bg-gradient-to-r from-indigo-500/50 to-purple-500/50 text-black'>
+                        {type}: KES {price}
+                      </Badge>
+                    )
+                  )}
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => setSaleDetailsOpen(true)}
+                    className='ml-auto bg-yellow-500/50 text-black cursor-pointer'>
+                    <Edit2 className='h-4 w-4 mr-1' />
+                    Edit Details
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type='button'
+                  variant='secondary'
+                  className='w-full mb-3 cursor-pointer bg-primary hover:bg-primary/90 text-white'
+                  onClick={() => setSaleDetailsOpen(true)}>
+                  Add Sale Details
+                </Button>
+              )}
 
               {/* Total */}
-              <div className='flex items-center justify-between text-sm font-medium border-t pt-2 mb-3'>
-                <span>Total ({selectedMeters.length} meters)</span>
-                <span className='text-lg'>
-                  KES {calculateTotal().toLocaleString()}
-                </span>
-              </div>
+              {saleDetails && (
+                <div className='flex items-center justify-between text-sm font-medium border-t pt-2 mb-3'>
+                  <span>Total ({selectedMeters.length} meters)</span>
+                  <span className='text-lg'>
+                    KES {calculateTotal().toLocaleString()}
+                  </span>
+                </div>
+              )}
 
               {/* Submit button */}
               <Button
                 onClick={handleSubmit}
                 className='w-full cursor-pointer'
-                disabled={isSubmitting || selectedMeters.length === 0}>
+                disabled={
+                  isSubmitting || selectedMeters.length === 0 || !saleDetails
+                }>
                 {isSubmitting ? (
                   <>
                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
@@ -551,6 +614,15 @@ export default function RecordStoreSale({
           )}
         </div>
       </div>
+
+      {/* Sale Details Dialog */}
+      <SaleDetailsDialog
+        isOpen={saleDetailsOpen}
+        onOpenChange={setSaleDetailsOpen}
+        onSubmit={handleSaleDetailsSubmit}
+        initialData={saleDetails}
+        meterTypes={meterTypes}
+      />
     </div>
   );
 }
