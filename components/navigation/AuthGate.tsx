@@ -51,11 +51,8 @@ export function AuthGate({ children }: AuthGateProps) {
               <Skeleton className='h-4 w-20' />
               <Skeleton className='h-4 w-28' />
             </div>
-            {Array.from(
-              { length: 5 },
-              (_, index) => `skeleton-${Date.now()}-${index}`
-            ).map((uniqueKey) => (
-              <div key={uniqueKey} className='flex gap-4'>
+            {Array.from({ length: 5 }, (_, index) => (
+              <div key={`skeleton-row-${index}`} className='flex gap-4'>
                 <Skeleton className='h-4 w-24' />
                 <Skeleton className='h-4 w-32' />
                 <Skeleton className='h-4 w-20' />
