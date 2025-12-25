@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -39,7 +38,7 @@ import StoreEmptyState from "./StoreEmptyState";
 import StoreHeader from "./StoreHeader";
 import StoreInventoryTab from "./StoreInventoryTab";
 import StoreHistory from "./StoreHistory";
-import RecordStoreSale from "./RecordStoreSale";
+import ScanStoreSale from "./ScanStoreSale";
 
 interface StoresProps {
   readonly initialData?: StoresPageData;
@@ -248,12 +247,9 @@ export default function Stores({ initialData }: StoresProps) {
       <Sheet open={assignSheetOpen} onOpenChange={setAssignSheetOpen}>
         <SheetContent
           side='right'
-          className='w-full bg-white sm:max-w-lg overflow-y-auto'>
+          className='w-full bg-white min-w-[40vw] overflow-y-auto'>
           <SheetHeader>
             <SheetTitle>Assign Meters to {store.name}</SheetTitle>
-            <SheetDescription>
-              Scan or enter meter serial numbers to assign to this store
-            </SheetDescription>
           </SheetHeader>
           <AssignMetersToAgent
             currentUser={{
@@ -275,12 +271,9 @@ export default function Stores({ initialData }: StoresProps) {
       <Sheet open={returnSheetOpen} onOpenChange={setReturnSheetOpen}>
         <SheetContent
           side='right'
-          className='w-full bg-white sm:max-w-lg overflow-y-auto'>
+          className='w-full bg-white min-w-[40vw] overflow-y-auto'>
           <SheetHeader>
             <SheetTitle>Return Meters from {store.name}</SheetTitle>
-            <SheetDescription>
-              Scan meters to return from this store to main inventory
-            </SheetDescription>
           </SheetHeader>
           <ReturnMetersFromAgent
             agent={{
@@ -301,14 +294,11 @@ export default function Stores({ initialData }: StoresProps) {
       <Sheet open={saleSheetOpen} onOpenChange={setSaleSheetOpen}>
         <SheetContent
           side='right'
-          className='w-full bg-white sm:max-w-2xl p-0 overflow-hidden'>
+          className='w-full bg-white min-w-[40vw] p-0 overflow-hidden'>
           <SheetHeader className='px-4 pt-4 pb-2 border-b'>
             <SheetTitle>Record Sale - {store.name}</SheetTitle>
-            <SheetDescription>
-              Select meters from inventory to record a sale
-            </SheetDescription>
           </SheetHeader>
-          <RecordStoreSale
+          <ScanStoreSale
             store={{
               id: store.id,
               name: store.name,

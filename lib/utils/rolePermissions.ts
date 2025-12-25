@@ -78,6 +78,24 @@ export function canDeleteProspects(role: string | null | undefined): boolean {
 }
 
 /**
+ * Check if role can access stores (admin, super_admin, or user)
+ * Users with 'user' role work at stores and need full store access
+ */
+export function canAccessStores(role: string | null | undefined): boolean {
+  return isAdmin(role) || role === "user";
+}
+
+/**
+ * Check if role can perform store operations (sell, assign, return meters)
+ * This is specifically for store-based operations
+ */
+export function canManageStoreOperations(
+  role: string | null | undefined
+): boolean {
+  return isAdmin(role) || role === "user";
+}
+
+/**
  * Check if role can manage users (admin or super_admin)
  */
 export function canManageUsers(role: string | null | undefined): boolean {
@@ -138,6 +156,8 @@ interface Permission {
   viewApprovals: boolean;
   createProspect: boolean;
   viewAllProspects: boolean;
+  viewStores: boolean;
+  manageStores: boolean;
 }
 
 export const rolePermissions: Record<UserRole, Permission> = {
@@ -157,6 +177,8 @@ export const rolePermissions: Record<UserRole, Permission> = {
     viewApprovals: true,
     createProspect: false,
     viewAllProspects: true,
+    viewStores: true,
+    manageStores: true,
   },
   admin: {
     createUser: true,
@@ -174,6 +196,8 @@ export const rolePermissions: Record<UserRole, Permission> = {
     viewApprovals: false,
     createProspect: false,
     viewAllProspects: true,
+    viewStores: true,
+    manageStores: true,
   },
   accountant: {
     createUser: false,
@@ -191,6 +215,8 @@ export const rolePermissions: Record<UserRole, Permission> = {
     viewApprovals: false,
     createProspect: false,
     viewAllProspects: false,
+    viewStores: false,
+    manageStores: false,
   },
   sales_person: {
     createUser: false,
@@ -208,6 +234,8 @@ export const rolePermissions: Record<UserRole, Permission> = {
     viewApprovals: false,
     createProspect: true,
     viewAllProspects: false,
+    viewStores: false,
+    manageStores: false,
   },
   user: {
     createUser: false,
@@ -225,6 +253,8 @@ export const rolePermissions: Record<UserRole, Permission> = {
     viewApprovals: false,
     createProspect: false,
     viewAllProspects: false,
+    viewStores: true,
+    manageStores: true,
   },
 };
 

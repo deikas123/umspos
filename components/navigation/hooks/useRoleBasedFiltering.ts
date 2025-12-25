@@ -7,6 +7,7 @@ import {
   isSalesPerson as checkIsSalesPerson,
   hasReportsAccess as checkHasReportsAccess,
   hasApprovalAccess as checkHasApprovalAccess,
+  canAccessStores as checkCanAccessStores,
 } from "@/lib/utils/rolePermissions";
 
 interface RoleChecks {
@@ -17,6 +18,7 @@ interface RoleChecks {
   hasReportsAccess: boolean;
   hasApprovalAccess: boolean;
   hasProspectViewAccess: boolean;
+  canAccessStores: boolean;
 }
 
 export function useRoleBasedFiltering(safeUserRole: string | null) {
@@ -31,6 +33,8 @@ export function useRoleBasedFiltering(safeUserRole: string | null) {
     const hasApprovalAccess = checkHasApprovalAccess(safeUserRole);
     // Admin, super_admin, and sales_person can view prospects (filtered for sales_person)
     const hasProspectViewAccess = isAdmin || isSalesPerson;
+    // Admin, super_admin, and user can access stores
+    const canAccessStores = checkCanAccessStores(safeUserRole);
 
     return {
       isSuperAdmin,
@@ -40,6 +44,7 @@ export function useRoleBasedFiltering(safeUserRole: string | null) {
       hasReportsAccess,
       hasApprovalAccess,
       hasProspectViewAccess,
+      canAccessStores,
     };
   }, [safeUserRole]);
 
@@ -48,6 +53,15 @@ export function useRoleBasedFiltering(safeUserRole: string | null) {
     () =>
       navigationItems.filter((item) => {
         if (!safeUserRole) return false;
+
+        // User role can only see Dashboard, Sales, and Stores
+        if (safeUserRole === "user") {
+          return (
+            item.title === "Dashboard" ||
+            item.title === "Sales" ||
+            item.requiresStoreAccess === true
+          );
+        }
 
         // Sales person can see their Client Form page AND Prospects List
         if (roleChecks.isSalesPerson) {
@@ -60,6 +74,7 @@ export function useRoleBasedFiltering(safeUserRole: string | null) {
         // Sales person only pages are not visible to other roles
         if (item.salesPersonOnly) return false;
 
+        if (item.requiresStoreAccess) return roleChecks.canAccessStores;
         if (item.requiresProspectViewAccess)
           return roleChecks.hasProspectViewAccess;
         if (item.requiresApprovalAccess) return roleChecks.hasApprovalAccess;

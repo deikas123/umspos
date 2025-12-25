@@ -31,6 +31,7 @@ export interface NavItem {
   requiresApprovalAccess?: boolean;
   salesPersonOnly?: boolean;
   requiresProspectViewAccess?: boolean;
+  requiresStoreAccess?: boolean;
 }
 
 export interface ActionItem {
@@ -54,7 +55,7 @@ export const navigationItems: NavItem[] = [
   },
   { title: "Users", url: "/users", icon: Users },
   { title: "Agents", url: "/agents", icon: HandPlatter },
-  { title: "Stores", url: "/stores", icon: Store, adminOnly: true },
+  { title: "Stores", url: "/stores", icon: Store, requiresStoreAccess: true },
   {
     title: "Approvals",
     url: "/approvals",
