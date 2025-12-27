@@ -54,11 +54,12 @@ export function useRoleBasedFiltering(safeUserRole: string | null) {
       navigationItems.filter((item) => {
         if (!safeUserRole) return false;
 
-        // User role can only see Dashboard, Sales, and Stores
+        // User role can only see Dashboard, Sales, Agents, and Stores
         if (safeUserRole === "user") {
           return (
             item.title === "Dashboard" ||
             item.title === "Sales" ||
+            item.title === "Agents" ||
             item.requiresStoreAccess === true
           );
         }
