@@ -22,21 +22,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Loader2, User, Phone, Shield, Power } from "lucide-react";
 import { isAdmin, isSuperAdmin } from "@/lib/utils/rolePermissions";
-
-interface UserData {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  isActive: boolean;
-  phoneNumber?: string;
-}
+import type { User as UserType, CurrentUser } from "../hooks/useUsersData";
 
 interface EditUserDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  user: UserData | null;
-  currentUser: { id: string; role: string } | null;
+  user: UserType | null;
+  currentUser: CurrentUser | null | undefined;
   onSave: (
     userId: string,
     updates: {

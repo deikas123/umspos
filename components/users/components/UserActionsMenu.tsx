@@ -9,14 +9,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Edit2, MoreVertical, Key } from "lucide-react";
 import { isAdmin } from "@/lib/utils/rolePermissions";
+import type { User, CurrentUser } from "../hooks/useUsersData";
 
 interface UserActionsMenuProps {
-  user: any;
-  currentUser: any;
-  onEditUser: (user: any) => void;
+  user: User;
+  currentUser: CurrentUser | null | undefined;
+  onEditUser: (user: User) => void;
   onChangePassword: (userId: string, userName: string) => void;
-  onChangeRole: (user: any, role: string) => void;
-  onToggleStatus: (user: any) => void;
+  onChangeRole: (user: User, role: string) => void;
+  onToggleStatus: (user: User) => void;
 }
 
 export function UserActionsMenu({

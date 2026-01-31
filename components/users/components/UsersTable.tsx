@@ -12,14 +12,15 @@ import { Badge } from "@/components/ui/badge";
 import { UserRoleBadge } from "./UserRoleBadge";
 import { UserStatusBadge } from "./UserStatusBadge";
 import { UserActionsMenu } from "./UserActionsMenu";
+import type { User, CurrentUser } from "../hooks/useUsersData";
 
 interface UsersTableProps {
-  users: any[];
-  currentUser: any;
-  onEditUser: (user: any) => void;
+  users: User[];
+  currentUser: CurrentUser | null | undefined;
+  onEditUser: (user: User) => void;
   onChangePassword: (userId: string, userName: string) => void;
-  onChangeRole: (user: any, role: string) => void;
-  onToggleStatus: (user: any) => void;
+  onChangeRole: (user: User, role: string) => void;
+  onToggleStatus: (user: User) => void;
 }
 
 export function UsersTable({

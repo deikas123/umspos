@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useUsersData, type UsersPageData } from "./hooks/useUsersData";
+import {
+  useUsersData,
+  type UsersPageData,
+  type User,
+} from "./hooks/useUsersData";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,7 +37,7 @@ interface UsersProps {
 }
 
 export default function UsersPage({ initialData }: UsersProps) {
-  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [showDeactivated, setShowDeactivated] = useState(false);
@@ -80,7 +84,7 @@ export default function UsersPage({ initialData }: UsersProps) {
     }
   };
 
-  const handleChangeRole = async (user: any, newRole: string) => {
+  const handleChangeRole = async (user: User, newRole: string) => {
     try {
       await updateUser({
         userId: user.id,
@@ -94,7 +98,7 @@ export default function UsersPage({ initialData }: UsersProps) {
     }
   };
 
-  const handleToggleStatus = async (user: any) => {
+  const handleToggleStatus = async (user: User) => {
     try {
       const newStatus = !user.isActive;
       await updateUser({
@@ -119,7 +123,7 @@ export default function UsersPage({ initialData }: UsersProps) {
     setShowChangePasswordDialog(true);
   };
 
-  const openEditUserDialog = (user: any) => {
+  const openEditUserDialog = (user: User) => {
     setEditingUser(user);
     setShowEditUserDialog(true);
   };

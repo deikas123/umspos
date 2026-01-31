@@ -8,13 +8,22 @@ import {
 // Real-time subscriptions removed as we're migrating from Supabase
 
 // Interface matches the return type from getUsersList (Better Auth user table)
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
   role: string;
   isActive: boolean;
   phoneNumber?: string;
+}
+
+// Interface for current user (from getCurrentUser action)
+export interface CurrentUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  is_active: boolean;
 }
 
 // Type for initial data from server
@@ -62,7 +71,7 @@ export function useUsersData(
   });
 
   // Query for current user
-  const { data: currentUser } = useQuery({
+  const { data: currentUser } = useQuery<CurrentUser | null>({
     queryKey: ["currentUser"],
     queryFn: getCurrentUser,
     staleTime: STALE_TIME,
@@ -76,9 +85,19 @@ export function useUsersData(
       updates,
     }: {
       userId: string;
-      updates: any;
+      updates: {
+        name?: string;
+        phoneNumber?: string;
+        role?: string;
+        is_active?: boolean;
+      };
     }) => {
-      const result = await updateUserProfile(userId, updates);
+      // The server action accepts UserRole, but we pass string from UI
+      // The server validates the role value
+      const result = await updateUserProfile(
+        userId,
+        updates as Parameters<typeof updateUserProfile>[1],
+      );
       return result;
     },
     onSuccess: () => {
