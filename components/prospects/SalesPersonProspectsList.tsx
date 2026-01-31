@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Fragment } from "react";
+import { useState, useEffect, Fragment, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -27,6 +27,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import {
   ChevronDown,
   ChevronUp,
   Edit,
@@ -35,6 +44,7 @@ import {
   File,
   FileSpreadsheet,
   FileText,
+  Loader2,
 } from "lucide-react";
 import type { ClientProspect } from "@/lib/db/schema";
 import { STATUS_COLORS, STATUS_LABELS } from "./types";
@@ -45,13 +55,20 @@ import { generateCSV } from "@/lib/utils/csvGenerator";
 import { generateXLSX } from "@/lib/utils/xlsxGenerator";
 import { pdf } from "@react-pdf/renderer";
 import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
+import {
+  getMyProspectsPaginated,
+  type PaginatedProspectsResult,
+} from "@/lib/actions/prospects";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface SalesPersonProspectsListProps {
-  readonly initialProspects: readonly ClientProspect[];
+  readonly initialData: PaginatedProspectsResult;
 }
 
+const PAGE_SIZE = 10;
+
 export default function SalesPersonProspectsList({
-  initialProspects,
+  initialData,
 }: SalesPersonProspectsListProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
@@ -61,27 +78,47 @@ export default function SalesPersonProspectsList({
   const [selectedProspect, setSelectedProspect] =
     useState<ClientProspect | null>(null);
 
-  // Use initialProspects directly since we refresh on updates
-  const prospects = initialProspects;
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginatedData, setPaginatedData] =
+    useState<PaginatedProspectsResult>(initialData);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Filter prospects
-  const filteredProspects = useMemo(
-    () =>
-      prospects.filter((prospect) => {
-        const matchesSearch =
-          prospect.client_name
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          prospect.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          prospect.contact.toLowerCase().includes(searchTerm.toLowerCase());
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
-        const matchesStatus =
-          statusFilter === "all" || prospect.status === statusFilter;
+  // Fetch data when filters or page changes
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await getMyProspectsPaginated({
+        page: currentPage,
+        pageSize: PAGE_SIZE,
+        search: debouncedSearch || undefined,
+        status: statusFilter === "all" ? undefined : statusFilter,
+      });
+      setPaginatedData(result);
+    } catch (error) {
+      console.error("Error fetching prospects:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, debouncedSearch, statusFilter]);
 
-        return matchesSearch && matchesStatus;
-      }),
-    [prospects, searchTerm, statusFilter]
-  );
+  useEffect(() => {
+    // Skip initial fetch since we have initialData
+    if (currentPage === 1 && !debouncedSearch && statusFilter === "all") {
+      setPaginatedData(initialData);
+      return;
+    }
+    fetchData();
+  }, [currentPage, debouncedSearch, statusFilter, fetchData, initialData]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter]);
+
+  const { prospects, totalCount, totalPages } = paginatedData;
 
   const handleEditClick = (e: React.MouseEvent, prospect: ClientProspect) => {
     e.stopPropagation();
@@ -90,13 +127,13 @@ export default function SalesPersonProspectsList({
   };
 
   const handleEditSuccess = () => {
-    // Refresh the page to get updated data
-    router.refresh();
+    // Refresh the data
+    fetchData();
   };
 
   const handleExportCSV = () => {
-    const data = filteredProspects.map((p, index) => ({
-      "#": index + 1,
+    const data = prospects.map((p, index) => ({
+      "#": (currentPage - 1) * PAGE_SIZE + index + 1,
       "Client Name": p.client_name,
       Contact: p.contact,
       Location: p.location,
@@ -109,8 +146,8 @@ export default function SalesPersonProspectsList({
   };
 
   const handleExportXLSX = () => {
-    const data = filteredProspects.map((p, index) => ({
-      "#": index + 1,
+    const data = prospects.map((p, index) => ({
+      "#": (currentPage - 1) * PAGE_SIZE + index + 1,
       "Client Name": p.client_name,
       Contact: p.contact,
       Location: p.location,
@@ -124,8 +161,8 @@ export default function SalesPersonProspectsList({
 
   const handleExportPDF = async () => {
     const headers = ["#", "Client", "Contact", "Location", "Status"];
-    const data = filteredProspects.map((p, index) => [
-      String(index + 1),
+    const data = prospects.map((p, index) => [
+      String((currentPage - 1) * PAGE_SIZE + index + 1),
       p.client_name,
       p.contact,
       p.location,
@@ -137,7 +174,7 @@ export default function SalesPersonProspectsList({
         title='My Prospects Report'
         headers={headers}
         data={data}
-      />
+      />,
     ).toBlob();
 
     const url = URL.createObjectURL(blob);
@@ -150,18 +187,45 @@ export default function SalesPersonProspectsList({
     URL.revokeObjectURL(url);
   };
 
+  // Generate page numbers to display
+  const getPageNumbers = (): (number | "ellipsis")[] => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, "ellipsis", totalPages];
+    }
+
+    if (currentPage >= totalPages - 2) {
+      return [
+        1,
+        "ellipsis",
+        ...Array.from({ length: 4 }, (_, i) => totalPages - 3 + i),
+      ];
+    }
+
+    return [
+      1,
+      "ellipsis",
+      currentPage - 1,
+      currentPage,
+      currentPage + 1,
+      "ellipsis",
+      totalPages,
+    ];
+  };
+
   return (
     <div className='min-h-screen bg-gray-50 p-4 md:p-6'>
       <div className='max-w-5xl mx-auto'>
         <div className='mb-6 flex justify-between items-start'>
           <div>
             <h1 className='text-2xl font-bold text-gray-900'>My Prospects</h1>
-            <p className='text-gray-600'>
-              View and manage your client prospects
-            </p>
+            <p className='text-gray-600'>{totalCount} total prospects</p>
           </div>
           <div className='flex gap-2'>
-            {filteredProspects.length > 0 && (
+            {prospects.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant='outline'>
@@ -199,7 +263,7 @@ export default function SalesPersonProspectsList({
           onStatusChange={setStatusFilter}
         />
 
-        <ProspectStats prospects={filteredProspects} />
+        <ProspectStats prospects={prospects} />
 
         <Card>
           <CardHeader>
@@ -209,7 +273,12 @@ export default function SalesPersonProspectsList({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className='overflow-x-auto'>
+            <div className='overflow-x-auto relative'>
+              {isLoading && (
+                <div className='absolute inset-0 bg-white/50 flex items-center justify-center z-10'>
+                  <Loader2 className='h-6 w-6 animate-spin text-primary' />
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -221,7 +290,7 @@ export default function SalesPersonProspectsList({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProspects.length === 0 ? (
+                  {prospects.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={5}
@@ -230,13 +299,13 @@ export default function SalesPersonProspectsList({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredProspects.map((prospect) => (
+                    prospects.map((prospect) => (
                       <Fragment key={prospect.id}>
                         <TableRow
                           className='cursor-pointer hover:bg-gray-50'
                           onClick={() =>
                             setExpandedRow(
-                              expandedRow === prospect.id ? null : prospect.id
+                              expandedRow === prospect.id ? null : prospect.id,
                             )
                           }>
                           <TableCell>
@@ -260,7 +329,7 @@ export default function SalesPersonProspectsList({
                             {prospect.updated_at
                               ? format(
                                   new Date(prospect.updated_at),
-                                  "MMM d, yyyy HH:mm"
+                                  "MMM d, yyyy HH:mm",
                                 )
                               : "-"}
                           </TableCell>
@@ -331,7 +400,7 @@ export default function SalesPersonProspectsList({
                                       {prospect.created_at
                                         ? format(
                                             new Date(prospect.created_at),
-                                            "MMM d, yyyy HH:mm"
+                                            "MMM d, yyyy HH:mm",
                                           )
                                         : "-"}
                                     </p>
@@ -347,6 +416,58 @@ export default function SalesPersonProspectsList({
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className='mt-4 flex items-center justify-center'>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        className={
+                          currentPage === 1
+                            ? "pointer-events-none opacity-50"
+                            : ""
+                        }
+                      />
+                    </PaginationItem>
+
+                    {getPageNumbers().map((page, idx) =>
+                      page === "ellipsis" ? (
+                        <PaginationItem
+                          key={`ellipsis-${page}-${idx}-${currentPage}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      ) : (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}>
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ),
+                    )}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        className={
+                          currentPage === totalPages
+                            ? "pointer-events-none opacity-50"
+                            : ""
+                        }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </CardContent>
         </Card>
 

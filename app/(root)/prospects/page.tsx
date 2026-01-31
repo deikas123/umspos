@@ -1,10 +1,15 @@
-import { getAllProspects, getMyProspects } from "@/lib/actions/prospects";
+import {
+  getAllProspectsPaginated,
+  getMyProspectsPaginated,
+  getUniqueSalesPersons,
+} from "@/lib/actions/prospects";
 import AdminProspectsList from "@/components/prospects/AdminProspectsList";
 import SalesPersonProspectsList from "@/components/prospects/SalesPersonProspectsList";
-import type { ClientProspect } from "@/lib/db/schema";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
 import { isSalesPerson } from "@/lib/utils/rolePermissions";
+
+const PAGE_SIZE = 10;
 
 export default async function ProspectsPage() {
   const session = await auth.api.getSession({
@@ -13,10 +18,22 @@ export default async function ProspectsPage() {
   const userRole = (session?.user as any)?.appRole;
 
   if (isSalesPerson(userRole)) {
-    const prospects = (await getMyProspects()) as ClientProspect[];
-    return <SalesPersonProspectsList initialProspects={prospects} />;
+    const initialData = await getMyProspectsPaginated({
+      page: 1,
+      pageSize: PAGE_SIZE,
+    });
+    return <SalesPersonProspectsList initialData={initialData} />;
   }
 
-  const prospects = (await getAllProspects()) as ClientProspect[];
-  return <AdminProspectsList initialProspects={prospects} />;
+  const [initialData, salesPersons] = await Promise.all([
+    getAllProspectsPaginated({
+      page: 1,
+      pageSize: PAGE_SIZE,
+    }),
+    getUniqueSalesPersons(),
+  ]);
+
+  return (
+    <AdminProspectsList initialData={initialData} salesPersons={salesPersons} />
+  );
 }

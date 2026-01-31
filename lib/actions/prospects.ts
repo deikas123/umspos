@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { clientProspects } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count, and, or, ilike } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
@@ -271,72 +271,6 @@ export async function updateProspect(
   }
 }
 
-export async function getMyProspects() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    throw new Error("Unauthorized: You must be logged in");
-  }
-
-  try {
-    const prospects = await db
-      .select()
-      .from(clientProspects)
-      .where(eq(clientProspects.sales_person_id, session.user.id))
-      .orderBy(desc(clientProspects.updated_at));
-
-    return prospects;
-  } catch (error: any) {
-    console.error("Error fetching prospects:", error);
-    throw new Error(`Failed to fetch prospects: ${error.message}`);
-  }
-}
-
-export async function getAllProspects() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    throw new Error("Unauthorized: You must be logged in");
-  }
-
-  const userRole = (session.user as any).appRole;
-  if (!isAdmin(userRole)) {
-    throw new Error("Unauthorized: Only admins can view all prospects");
-  }
-
-  try {
-    const prospects = await db
-      .select({
-        id: clientProspects.id,
-        sales_person_id: clientProspects.sales_person_id,
-        sales_person_name: clientProspects.sales_person_name,
-        client_name: clientProspects.client_name,
-        location: clientProspects.location,
-        contact: clientProspects.contact,
-        status: clientProspects.status,
-        other_remarks: clientProspects.other_remarks,
-        meter_type: clientProspects.meter_type,
-        number_of_meters: clientProspects.number_of_meters,
-        latitude: clientProspects.latitude,
-        longitude: clientProspects.longitude,
-        created_at: clientProspects.created_at,
-        updated_at: clientProspects.updated_at,
-        change_history: clientProspects.change_history,
-      })
-      .from(clientProspects)
-      .orderBy(desc(clientProspects.updated_at));
-
-    return prospects;
-  } catch (error: any) {
-    console.error("Error fetching all prospects:", error);
-    throw new Error(`Failed to fetch prospects: ${error.message}`);
-  }
-}
-
 export async function getProspectById(prospectId: string) {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -398,5 +332,205 @@ export async function deleteProspect(prospectId: string) {
   } catch (error: any) {
     console.error("Error deleting prospect:", error);
     throw new Error(`Failed to delete prospect: ${error.message}`);
+  }
+}
+
+// ============================================
+// PAGINATED QUERIES
+// ============================================
+
+export interface PaginatedProspectsParams {
+  page: number;
+  pageSize: number;
+  search?: string;
+  status?: string;
+  salesPerson?: string;
+}
+
+export interface PaginatedProspectsResult {
+  prospects: any[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
+
+export async function getMyProspectsPaginated(
+  params: PaginatedProspectsParams,
+): Promise<PaginatedProspectsResult> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    throw new Error("Unauthorized: You must be logged in");
+  }
+
+  const { page, pageSize, search, status } = params;
+  const offset = (page - 1) * pageSize;
+
+  try {
+    // Build where conditions
+    const conditions = [eq(clientProspects.sales_person_id, session.user.id)];
+
+    if (status && status !== "all") {
+      conditions.push(eq(clientProspects.status, status));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(clientProspects.client_name, `%${search}%`),
+          ilike(clientProspects.location, `%${search}%`),
+          ilike(clientProspects.contact, `%${search}%`),
+        )!,
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    // Get total count
+    const countResult = await db
+      .select({ count: count() })
+      .from(clientProspects)
+      .where(whereClause);
+
+    const totalCount = countResult[0]?.count || 0;
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    // Get paginated prospects
+    const prospects = await db
+      .select()
+      .from(clientProspects)
+      .where(whereClause)
+      .orderBy(desc(clientProspects.updated_at))
+      .limit(pageSize)
+      .offset(offset);
+
+    return {
+      prospects,
+      totalCount,
+      totalPages,
+      currentPage: page,
+    };
+  } catch (error: any) {
+    console.error("Error fetching paginated prospects:", error);
+    throw new Error(`Failed to fetch prospects: ${error.message}`);
+  }
+}
+
+export async function getAllProspectsPaginated(
+  params: PaginatedProspectsParams,
+): Promise<PaginatedProspectsResult> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    throw new Error("Unauthorized: You must be logged in");
+  }
+
+  const userRole = (session.user as any).appRole;
+  if (!isAdmin(userRole)) {
+    throw new Error("Unauthorized: Only admins can view all prospects");
+  }
+
+  const { page, pageSize, search, status, salesPerson } = params;
+  const offset = (page - 1) * pageSize;
+
+  try {
+    // Build where conditions
+    const conditions: any[] = [];
+
+    if (status && status !== "all") {
+      conditions.push(eq(clientProspects.status, status));
+    }
+
+    if (salesPerson && salesPerson !== "all") {
+      conditions.push(eq(clientProspects.sales_person_name, salesPerson));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(clientProspects.client_name, `%${search}%`),
+          ilike(clientProspects.location, `%${search}%`),
+          ilike(clientProspects.contact, `%${search}%`),
+          ilike(clientProspects.sales_person_name, `%${search}%`),
+        )!,
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count
+    const countResult = await db
+      .select({ count: count() })
+      .from(clientProspects)
+      .where(whereClause);
+
+    const totalCount = countResult[0]?.count || 0;
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    // Get paginated prospects
+    const prospects = await db
+      .select({
+        id: clientProspects.id,
+        sales_person_id: clientProspects.sales_person_id,
+        sales_person_name: clientProspects.sales_person_name,
+        client_name: clientProspects.client_name,
+        location: clientProspects.location,
+        contact: clientProspects.contact,
+        status: clientProspects.status,
+        other_remarks: clientProspects.other_remarks,
+        meter_type: clientProspects.meter_type,
+        number_of_meters: clientProspects.number_of_meters,
+        latitude: clientProspects.latitude,
+        longitude: clientProspects.longitude,
+        created_at: clientProspects.created_at,
+        updated_at: clientProspects.updated_at,
+        change_history: clientProspects.change_history,
+      })
+      .from(clientProspects)
+      .where(whereClause)
+      .orderBy(desc(clientProspects.updated_at))
+      .limit(pageSize)
+      .offset(offset);
+
+    return {
+      prospects,
+      totalCount,
+      totalPages,
+      currentPage: page,
+    };
+  } catch (error: any) {
+    console.error("Error fetching all paginated prospects:", error);
+    throw new Error(`Failed to fetch prospects: ${error.message}`);
+  }
+}
+
+export async function getUniqueSalesPersons(): Promise<string[]> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    throw new Error("Unauthorized: You must be logged in");
+  }
+
+  const userRole = (session.user as any).appRole;
+  if (!isAdmin(userRole)) {
+    throw new Error("Unauthorized: Only admins can view sales persons");
+  }
+
+  try {
+    const result = await db
+      .selectDistinct({ sales_person_name: clientProspects.sales_person_name })
+      .from(clientProspects)
+      .orderBy(clientProspects.sales_person_name);
+
+    return result.map((r) => r.sales_person_name);
+  } catch (error: any) {
+    console.error("Error fetching sales persons:", error);
+    throw new Error(`Failed to fetch sales persons: ${error.message}`);
   }
 }

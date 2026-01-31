@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,59 @@ export default function ProspectForm() {
   const [drafts, setDrafts] = useState<ProspectDraft[]>([]);
   const [activeFormIndex, setActiveFormIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Silent location capture - no UI feedback to user
+  const capturedLocationRef = useRef<{
+    latitude: string;
+    longitude: string;
+    placeName?: string;
+  } | null>(null);
+
+  // Silent location capture function - runs in background without any user feedback
+  const captureLocationSilently = useCallback(async () => {
+    if (!navigator.geolocation) return;
+
+    try {
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0,
+          });
+        },
+      );
+
+      const latitude = position.coords.latitude.toFixed(7);
+      const longitude = position.coords.longitude.toFixed(7);
+      let placeName = "";
+
+      // Reverse geocode to get place name silently
+      try {
+        const geocodeResponse = await fetch(
+          `/api/places/geocode?lat=${latitude}&lng=${longitude}`,
+        );
+        if (geocodeResponse.ok) {
+          const geocodeData = await geocodeResponse.json();
+          if (geocodeData.success && geocodeData.formatted_address) {
+            placeName = geocodeData.formatted_address;
+          }
+        }
+      } catch {
+        // Silent fail for geocoding
+      }
+
+      capturedLocationRef.current = { latitude, longitude, placeName };
+    } catch {
+      // Silent fail - no feedback to user
+    }
+  }, []);
+
+  // Auto-capture location on component mount - silently
+  useEffect(() => {
+    captureLocationSilently();
+  }, [captureLocationSilently]);
+
   // Load drafts from localStorage on mount
   useEffect(() => {
     const savedDrafts = localStorage.getItem(DRAFTS_STORAGE_KEY);
@@ -157,45 +210,8 @@ export default function ProspectForm() {
 
     setIsSubmitting(true);
 
-    // Capture location automatically and reverse geocode to get place name
-    let currentLatitude = "";
-    let currentLongitude = "";
-    let placeName = "";
-
-    if (navigator.geolocation) {
-      try {
-        const position = await new Promise<GeolocationPosition>(
-          (resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 0,
-            });
-          },
-        );
-        currentLatitude = position.coords.latitude.toFixed(7);
-        currentLongitude = position.coords.longitude.toFixed(7);
-
-        // Reverse geocode to get place name
-        try {
-          const geocodeResponse = await fetch(
-            `/api/places/geocode?lat=${currentLatitude}&lng=${currentLongitude}`,
-          );
-          if (geocodeResponse.ok) {
-            const geocodeData = await geocodeResponse.json();
-            if (geocodeData.success && geocodeData.formatted_address) {
-              placeName = geocodeData.formatted_address;
-            }
-          }
-        } catch (geocodeError) {
-          console.error("Error reverse geocoding:", geocodeError);
-          // Continue without place name if geocoding fails
-        }
-      } catch (error) {
-        console.error("Error capturing location:", error);
-        toast.warning("Could not capture location automatically");
-      }
-    }
+    // Try to capture location one more time silently before submission
+    await captureLocationSilently();
 
     try {
       const prospectsData: ProspectFormData[] = drafts.map((draft) => ({
@@ -206,9 +222,9 @@ export default function ProspectForm() {
         other_remarks: draft.other_remarks.trim() || undefined,
         meter_type: draft.meter_type,
         number_of_meters: Number(draft.number_of_meters) || 0,
-        latitude: currentLatitude || undefined,
-        longitude: currentLongitude || undefined,
-        place_name: placeName || undefined,
+        latitude: capturedLocationRef.current?.latitude || undefined,
+        longitude: capturedLocationRef.current?.longitude || undefined,
+        place_name: capturedLocationRef.current?.placeName || undefined,
       }));
 
       const result = await createMultipleProspects(prospectsData);
@@ -223,6 +239,8 @@ export default function ProspectForm() {
       localStorage.removeItem(DRAFTS_STORAGE_KEY);
       setDrafts([createEmptyDraft()]);
       setActiveFormIndex(0);
+      // Re-capture location silently for next submission
+      captureLocationSilently();
     } catch (error: any) {
       console.error("Error submitting prospects:", error);
       toast.error("An unexpected error occurred. Please try again.");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Fragment } from "react";
+import { useState, useEffect, Fragment, useCallback } from "react";
 import { format } from "date-fns";
 import {
   Table,
@@ -16,12 +16,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import {
   ChevronDown,
   ChevronUp,
@@ -30,6 +35,7 @@ import {
   File,
   FileSpreadsheet,
   FileText,
+  Loader2,
 } from "lucide-react";
 import type { ClientProspect } from "@/lib/db/schema";
 import type { ChangeHistoryEntry } from "./types";
@@ -42,13 +48,22 @@ import { generateCSV } from "@/lib/utils/csvGenerator";
 import { generateXLSX } from "@/lib/utils/xlsxGenerator";
 import { pdf } from "@react-pdf/renderer";
 import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
+import {
+  getAllProspectsPaginated,
+  type PaginatedProspectsResult,
+} from "@/lib/actions/prospects";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface AdminProspectsListProps {
-  readonly initialProspects: readonly ClientProspect[];
+  readonly initialData: PaginatedProspectsResult;
+  readonly salesPersons: string[];
 }
 
+const PAGE_SIZE = 10;
+
 export default function AdminProspectsList({
-  initialProspects,
+  initialData,
+  salesPersons,
 }: AdminProspectsListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -60,39 +75,61 @@ export default function AdminProspectsList({
   >([]);
   const [selectedProspectName, setSelectedProspectName] = useState("");
 
-  // Get unique sales persons for filter
-  const salesPersons = useMemo(
-    () =>
-      Array.from(
-        new Set(initialProspects.map((p) => p.sales_person_name))
-      ).sort((a, b) => a.localeCompare(b)),
-    [initialProspects]
-  );
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginatedData, setPaginatedData] =
+    useState<PaginatedProspectsResult>(initialData);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Filter prospects
-  const filteredProspects = useMemo(
-    () =>
-      initialProspects.filter((prospect) => {
-        const matchesSearch =
-          prospect.client_name
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          prospect.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          prospect.contact.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          prospect.sales_person_name
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase());
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
-        const matchesStatus =
-          statusFilter === "all" || prospect.status === statusFilter;
-        const matchesSalesPerson =
-          salesPersonFilter === "all" ||
-          prospect.sales_person_name === salesPersonFilter;
+  // Fetch data when filters or page changes
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await getAllProspectsPaginated({
+        page: currentPage,
+        pageSize: PAGE_SIZE,
+        search: debouncedSearch || undefined,
+        status: statusFilter === "all" ? undefined : statusFilter,
+        salesPerson:
+          salesPersonFilter === "all" ? undefined : salesPersonFilter,
+      });
+      setPaginatedData(result);
+    } catch (error) {
+      console.error("Error fetching prospects:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, debouncedSearch, statusFilter, salesPersonFilter]);
 
-        return matchesSearch && matchesStatus && matchesSalesPerson;
-      }),
-    [initialProspects, searchTerm, statusFilter, salesPersonFilter]
-  );
+  useEffect(() => {
+    // Skip initial fetch since we have initialData
+    if (
+      currentPage === 1 &&
+      !debouncedSearch &&
+      statusFilter === "all" &&
+      salesPersonFilter === "all"
+    ) {
+      setPaginatedData(initialData);
+      return;
+    }
+    fetchData();
+  }, [
+    currentPage,
+    debouncedSearch,
+    statusFilter,
+    salesPersonFilter,
+    fetchData,
+    initialData,
+  ]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, salesPersonFilter]);
+
+  const { prospects, totalCount, totalPages } = paginatedData;
 
   const openHistoryDialog = (prospect: ClientProspect) => {
     const history = (prospect.change_history as ChangeHistoryEntry[]) || [];
@@ -102,8 +139,8 @@ export default function AdminProspectsList({
   };
 
   const handleExportCSV = () => {
-    const data = filteredProspects.map((p, index) => ({
-      "#": index + 1,
+    const data = prospects.map((p, index) => ({
+      "#": (currentPage - 1) * PAGE_SIZE + index + 1,
       "Client Name": p.client_name,
       Contact: p.contact,
       Location: p.location,
@@ -117,8 +154,8 @@ export default function AdminProspectsList({
   };
 
   const handleExportXLSX = () => {
-    const data = filteredProspects.map((p, index) => ({
-      "#": index + 1,
+    const data = prospects.map((p, index) => ({
+      "#": (currentPage - 1) * PAGE_SIZE + index + 1,
       "Client Name": p.client_name,
       Contact: p.contact,
       Location: p.location,
@@ -140,8 +177,8 @@ export default function AdminProspectsList({
       "Status",
       "Sales Person",
     ];
-    const data = filteredProspects.map((p, index) => [
-      String(index + 1),
+    const data = prospects.map((p, index) => [
+      String((currentPage - 1) * PAGE_SIZE + index + 1),
       p.client_name,
       p.contact,
       p.location,
@@ -150,7 +187,7 @@ export default function AdminProspectsList({
     ]);
 
     const blob = await pdf(
-      <TableReportPDF title='Prospects Report' headers={headers} data={data} />
+      <TableReportPDF title='Prospects Report' headers={headers} data={data} />,
     ).toBlob();
 
     const url = URL.createObjectURL(blob);
@@ -163,13 +200,47 @@ export default function AdminProspectsList({
     URL.revokeObjectURL(url);
   };
 
+  // Generate page numbers to display
+  const getPageNumbers = (): (number | "ellipsis")[] => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, "ellipsis", totalPages];
+    }
+
+    if (currentPage >= totalPages - 2) {
+      return [
+        1,
+        "ellipsis",
+        ...Array.from({ length: 4 }, (_, i) => totalPages - 3 + i),
+      ];
+    }
+
+    return [
+      1,
+      "ellipsis",
+      currentPage - 1,
+      currentPage,
+      currentPage + 1,
+      "ellipsis",
+      totalPages,
+    ];
+  };
+
   return (
     <div className='min-h-screen bg-gray-50 px-4'>
       <div className='mx-auto space-y-4'>
         {/* Header with title and export */}
         <div className='flex justify-between items-center'>
-          <h1 className='text-2xl font-bold text-gray-900'>All Prospects</h1>
-          {filteredProspects.length > 0 && (
+          <div>
+            <h1 className='text-2xl font-bold text-gray-900'>All Prospects</h1>
+            <p className='text-sm text-muted-foreground'>
+              {totalCount} total prospects
+            </p>
+          </div>
+          {prospects.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant='outline' size='sm'>
@@ -200,7 +271,7 @@ export default function AdminProspectsList({
           <CardHeader className='pb-3'>
             <div className='flex flex-col gap-4'>
               {/* Stats Row */}
-              <ProspectStats prospects={filteredProspects} />
+              <ProspectStats prospects={prospects} />
 
               {/* Filters Row */}
               <ProspectFilters
@@ -216,7 +287,12 @@ export default function AdminProspectsList({
             </div>
           </CardHeader>
           <CardContent>
-            <div className='overflow-x-auto'>
+            <div className='overflow-x-auto relative'>
+              {isLoading && (
+                <div className='absolute inset-0 bg-white/50 flex items-center justify-center z-10'>
+                  <Loader2 className='h-6 w-6 animate-spin text-primary' />
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -228,7 +304,7 @@ export default function AdminProspectsList({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProspects.length === 0 ? (
+                  {prospects.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={5}
@@ -237,13 +313,13 @@ export default function AdminProspectsList({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredProspects.map((prospect) => (
+                    prospects.map((prospect) => (
                       <Fragment key={prospect.id}>
                         <TableRow
                           className='cursor-pointer hover:bg-gray-50'
                           onClick={() =>
                             setExpandedRow(
-                              expandedRow === prospect.id ? null : prospect.id
+                              expandedRow === prospect.id ? null : prospect.id,
                             )
                           }>
                           <TableCell>
@@ -261,7 +337,7 @@ export default function AdminProspectsList({
                             {prospect.updated_at
                               ? format(
                                   new Date(prospect.updated_at),
-                                  "MMM d, yyyy HH:mm"
+                                  "MMM d, yyyy HH:mm",
                                 )
                               : "-"}
                           </TableCell>
@@ -296,6 +372,58 @@ export default function AdminProspectsList({
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className='mt-4 flex items-center justify-center'>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        className={
+                          currentPage === 1
+                            ? "pointer-events-none opacity-50"
+                            : ""
+                        }
+                      />
+                    </PaginationItem>
+
+                    {getPageNumbers().map((page, idx) =>
+                      page === "ellipsis" ? (
+                        <PaginationItem
+                          key={`ellipsis-${page}-${idx}-${currentPage}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      ) : (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}>
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ),
+                    )}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        className={
+                          currentPage === totalPages
+                            ? "pointer-events-none opacity-50"
+                            : ""
+                        }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </CardContent>
         </Card>
 
