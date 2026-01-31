@@ -339,11 +339,21 @@ export async function deleteProspect(prospectId: string) {
 // PAGINATED QUERIES
 // ============================================
 
+type ProspectStatus =
+  | "interested"
+  | "not_interested"
+  | "prospect"
+  | "lead"
+  | "presentation"
+  | "quotation_sent"
+  | "closed"
+  | "lost";
+
 export interface PaginatedProspectsParams {
   page: number;
   pageSize: number;
   search?: string;
-  status?: string;
+  status?: ProspectStatus | "all";
   salesPerson?: string;
 }
 
