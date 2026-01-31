@@ -1,9 +1,24 @@
-import { pgTable, index, foreignKey, text, unique, pgPolicy, check, uuid, boolean, timestamp, integer, numeric, jsonb, pgEnum } from "drizzle-orm/pg-core"
+import { pgTable, index, foreignKey, uuid, text, unique, pgPolicy, check, boolean, timestamp, integer, numeric, jsonb, pgEnum } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const prospectStatus = pgEnum("prospect_status", ['interested', 'not_interested', 'prospect', 'lead', 'presentation', 'quotation_sent', 'closed', 'lost'])
 export const updateRequestStatus = pgEnum("update_request_status", ['pending', 'approved', 'rejected'])
 
+
+export const agentTransactionMeters = pgTable("agent_transaction_meters", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	transactionId: uuid("transaction_id").notNull(),
+	meterId: uuid("meter_id").notNull(),
+	serialNumber: text("serial_number").notNull(),
+}, (table) => [
+	index("idx_agent_transaction_meters_meter_id").using("btree", table.meterId.asc().nullsLast().op("uuid_ops")),
+	index("idx_agent_transaction_meters_transaction_id").using("btree", table.transactionId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.transactionId],
+			foreignColumns: [agentTransactions.id],
+			name: "agent_transaction_meters_transaction_id_agent_transactions_id_f"
+		}).onDelete("cascade"),
+]);
 
 export const twoFactor = pgTable("two_factor", {
 	id: text().primaryKey().notNull(),
@@ -13,11 +28,6 @@ export const twoFactor = pgTable("two_factor", {
 }, (table) => [
 	index("two_factor_secret_idx").using("btree", table.secret.asc().nullsLast().op("text_ops")),
 	index("two_factor_user_id_idx").using("btree", table.userId.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "two_factor_user_id_fkey"
-		}).onDelete("cascade"),
 ]);
 
 export const agents = pgTable("agents", {
@@ -96,14 +106,9 @@ export const meterPurchaseBatches = pgTable("meter_purchase_batches", {
 	totalCost: numeric("total_cost").notNull(),
 	unitCost: numeric("unit_cost").generatedAlwaysAs(sql`(total_cost / (quantity)::numeric)`),
 	purchaseDate: timestamp("purchase_date", { withTimezone: true, mode: 'string' }).defaultNow(),
-	addedBy: uuid("added_by"),
+	addedBy: text("added_by"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 }, (table) => [
-	foreignKey({
-			columns: [table.addedBy],
-			foreignColumns: [users.id],
-			name: "meter_purchase_batches_added_by_fkey"
-		}),
 	unique("meter_purchase_batches_batch_number_key").on(table.batchNumber),
 	pgPolicy("Enable delete for admins only", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`((auth.uid() IS NOT NULL) AND (( SELECT user_profiles.role
    FROM user_profiles
@@ -117,7 +122,7 @@ export const meters = pgTable("meters", {
 	id: uuid().default(sql`uuid_generate_v4()`).primaryKey().notNull(),
 	serialNumber: text("serial_number").notNull(),
 	type: text().notNull(),
-	addedBy: uuid("added_by").notNull(),
+	addedBy: text("added_by").notNull(),
 	addedAt: timestamp("added_at", { withTimezone: true, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
 	adderName: text("adder_name").notNull(),
 	batchId: uuid("batch_id"),
@@ -125,11 +130,6 @@ export const meters = pgTable("meters", {
 	index("idx_meters_batch_id").using("btree", table.batchId.asc().nullsLast().op("uuid_ops")),
 	index("idx_meters_serial_number").using("btree", table.serialNumber.asc().nullsLast().op("text_ops")),
 	index("idx_meters_type").using("btree", table.type.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.addedBy],
-			foreignColumns: [users.id],
-			name: "meters_added_by_fkey"
-		}),
 	foreignKey({
 			columns: [table.batchId],
 			foreignColumns: [meterPurchaseBatches.id],
@@ -261,9 +261,75 @@ export const twoFactor = pgTable("twoFactor", {
 		}).onDelete("cascade"),
 ]);
 
+export const saleBatches = pgTable("sale_batches", {
+	id: uuid().default(sql`uuid_generate_v4()`).primaryKey().notNull(),
+	userId: text("user_id").notNull(),
+	userName: text("user_name").notNull(),
+	meterType: text("meter_type").notNull(),
+	batchAmount: integer("batch_amount").notNull(),
+	unitPrice: numeric("unit_price", { precision: 10, scale:  2 }).notNull(),
+	totalPrice: numeric("total_price", { precision: 10, scale:  2 }).notNull(),
+	saleDate: timestamp("sale_date", { withTimezone: true, mode: 'string' }).defaultNow(),
+	destination: text().notNull(),
+	recipient: text().notNull(),
+	customerType: text("customer_type"),
+	customerCounty: text("customer_county"),
+	customerContact: text("customer_contact"),
+	transactionId: uuid("transaction_id"),
+	notes: text(),
+	noteBy: text("note_by"),
+	approved: boolean(),
+	approvedBy: uuid("approved_by"),
+	customerRegion: text("customer_region"),
+	referralUserId: text("referral_user_id"),
+	referralName: text("referral_name"),
+	pickedByType: text("picked_by_type"),
+	pickedByName: text("picked_by_name"),
+	pickedByContact: text("picked_by_contact"),
+}, (table) => [
+	index("idx_sale_batches_customer_region").using("btree", table.customerRegion.asc().nullsLast().op("text_ops")),
+	index("idx_sale_batches_customer_type").using("btree", table.customerType.asc().nullsLast().op("text_ops")),
+	index("idx_sale_batches_meter_type").using("btree", table.meterType.asc().nullsLast().op("text_ops")),
+	index("idx_sale_batches_recipient").using("btree", table.recipient.asc().nullsLast().op("text_ops")),
+	index("idx_sale_batches_recipient_trgm").using("gin", table.recipient.asc().nullsLast().op("gin_trgm_ops")),
+	index("idx_sale_batches_sale_date").using("btree", table.saleDate.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_sale_batches_transaction_id").using("btree", table.transactionId.asc().nullsLast().op("uuid_ops")),
+	index("idx_sale_batches_user_id").using("btree", table.userId.asc().nullsLast().op("text_ops")),
+	index("idx_sale_batches_user_name").using("btree", table.userName.asc().nullsLast().op("text_ops")),
+	index("idx_sale_batches_user_name_trgm").using("gin", table.userName.asc().nullsLast().op("gin_trgm_ops")),
+	foreignKey({
+			columns: [table.approvedBy],
+			foreignColumns: [userProfiles.id],
+			name: "sale_batches_approved_by_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.noteBy],
+			foreignColumns: [user.id],
+			name: "sale_batches_note_by_user_id_fk"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.transactionId],
+			foreignColumns: [salesTransactions.id],
+			name: "sale_batches_transaction_id_fkey"
+		}),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "sale_batches_user_id_user_id_fk"
+		}),
+	pgPolicy("Everyone can create sale batches", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() IS NOT NULL)`  }),
+	pgPolicy("Everyone can view sale batches", { as: "permissive", for: "select", to: ["authenticated"] }),
+	pgPolicy("Only admins can delete sale batches", { as: "permissive", for: "delete", to: ["authenticated"] }),
+	pgPolicy("Only admins can update sale batches", { as: "permissive", for: "update", to: ["authenticated"] }),
+	check("positive_batch_amount", sql`batch_amount > 0`),
+	check("positive_total_price", sql`total_price > (0)::numeric`),
+	check("positive_unit_price", sql`unit_price > (0)::numeric`),
+	check("sale_batches_picked_by_type_check", sql`(picked_by_type IS NULL) OR (picked_by_type = ANY (ARRAY['customer'::text, 'rider'::text]))`),
+]);
+
 export const salesTransactions = pgTable("sales_transactions", {
 	id: uuid().default(sql`uuid_generate_v4()`).primaryKey().notNull(),
-	userId: uuid("user_id").notNull(),
+	userId: text("user_id").notNull(),
 	userName: text("user_name").notNull(),
 	saleDate: timestamp("sale_date", { withTimezone: true, mode: 'string' }).defaultNow(),
 	destination: text().notNull(),
@@ -278,8 +344,8 @@ export const salesTransactions = pgTable("sales_transactions", {
 	index("idx_sales_transactions_reference_number").using("btree", table.referenceNumber.asc().nullsLast().op("text_ops")),
 	foreignKey({
 			columns: [table.userId],
-			foreignColumns: [userProfiles.id],
-			name: "sales_transactions_user_id_fkey"
+			foreignColumns: [user.id],
+			name: "sales_transactions_user_id_user_id_fk"
 		}),
 	pgPolicy("Everyone can view sales transactions", { as: "permissive", for: "select", to: ["authenticated"], using: sql`true` }),
 	pgPolicy("Everyone can create sales transactions", { as: "permissive", for: "insert", to: ["authenticated"] }),
@@ -287,71 +353,10 @@ export const salesTransactions = pgTable("sales_transactions", {
 	pgPolicy("Only admins can delete sales transactions", { as: "permissive", for: "delete", to: ["authenticated"] }),
 ]);
 
-export const saleBatches = pgTable("sale_batches", {
-	id: uuid().default(sql`uuid_generate_v4()`).primaryKey().notNull(),
-	userId: uuid("user_id").notNull(),
-	userName: text("user_name").notNull(),
-	meterType: text("meter_type").notNull(),
-	batchAmount: integer("batch_amount").notNull(),
-	unitPrice: numeric("unit_price", { precision: 10, scale:  2 }).notNull(),
-	totalPrice: numeric("total_price", { precision: 10, scale:  2 }).notNull(),
-	saleDate: timestamp("sale_date", { withTimezone: true, mode: 'string' }).defaultNow(),
-	destination: text().notNull(),
-	recipient: text().notNull(),
-	customerType: text("customer_type"),
-	customerCounty: text("customer_county"),
-	customerContact: text("customer_contact"),
-	transactionId: uuid("transaction_id"),
-	notes: text(),
-	noteBy: uuid("note_by"),
-	approved: boolean(),
-	approvedBy: uuid("approved_by"),
-	customerRegion: text("customer_region"),
-	referralUserId: text("referral_user_id"),
-	referralName: text("referral_name"),
-	pickedByType: text("picked_by_type"),
-	pickedByName: text("picked_by_name"),
-	pickedByContact: text("picked_by_contact"),
-}, (table) => [
-	index("idx_sale_batches_customer_type").using("btree", table.customerType.asc().nullsLast().op("text_ops")),
-	index("idx_sale_batches_meter_type").using("btree", table.meterType.asc().nullsLast().op("text_ops")),
-	index("idx_sale_batches_sale_date").using("btree", table.saleDate.desc().nullsFirst().op("timestamptz_ops")),
-	index("idx_sale_batches_transaction_id").using("btree", table.transactionId.asc().nullsLast().op("uuid_ops")),
-	index("idx_sale_batches_user_id").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
-	foreignKey({
-			columns: [table.approvedBy],
-			foreignColumns: [userProfiles.id],
-			name: "sale_batches_approved_by_fkey"
-		}).onUpdate("cascade").onDelete("set null"),
-	foreignKey({
-			columns: [table.noteBy],
-			foreignColumns: [userProfiles.id],
-			name: "sale_batches_note_by_fkey"
-		}).onUpdate("cascade").onDelete("set null"),
-	foreignKey({
-			columns: [table.transactionId],
-			foreignColumns: [salesTransactions.id],
-			name: "sale_batches_transaction_id_fkey"
-		}),
-	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [userProfiles.id],
-			name: "sale_batches_user_id_fkey"
-		}),
-	pgPolicy("Everyone can create sale batches", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() IS NOT NULL)`  }),
-	pgPolicy("Everyone can view sale batches", { as: "permissive", for: "select", to: ["authenticated"] }),
-	pgPolicy("Only admins can delete sale batches", { as: "permissive", for: "delete", to: ["authenticated"] }),
-	pgPolicy("Only admins can update sale batches", { as: "permissive", for: "update", to: ["authenticated"] }),
-	check("positive_batch_amount", sql`batch_amount > 0`),
-	check("positive_total_price", sql`total_price > (0)::numeric`),
-	check("positive_unit_price", sql`unit_price > (0)::numeric`),
-	check("sale_batches_picked_by_type_check", sql`(picked_by_type IS NULL) OR (picked_by_type = ANY (ARRAY['customer'::text, 'rider'::text]))`),
-]);
-
 export const soldMeters = pgTable("sold_meters", {
 	id: uuid().default(sql`uuid_generate_v4()`).primaryKey().notNull(),
 	meterId: uuid("meter_id").notNull(),
-	soldBy: uuid("sold_by").notNull(),
+	soldBy: text("sold_by").notNull(),
 	soldAt: timestamp("sold_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 	destination: text().notNull(),
 	recipient: text().notNull(),
@@ -364,7 +369,7 @@ export const soldMeters = pgTable("sold_meters", {
 	status: text().default('active').notNull(),
 	replacementSerial: text("replacement_serial"),
 	replacementDate: timestamp("replacement_date", { withTimezone: true, mode: 'string' }),
-	replacementBy: uuid("replacement_by"),
+	replacementBy: text("replacement_by"),
 	customerRegion: text("customer_region"),
 }, (table) => [
 	index("idx_sold_meters_batch_id").using("btree", table.batchId.asc().nullsLast().op("uuid_ops")),
@@ -378,14 +383,9 @@ export const soldMeters = pgTable("sold_meters", {
 			name: "sold_meters_batch_id_fkey"
 		}),
 	foreignKey({
-			columns: [table.replacementBy],
-			foreignColumns: [users.id],
-			name: "sold_meters_replacement_by_fkey"
-		}),
-	foreignKey({
 			columns: [table.soldBy],
-			foreignColumns: [userProfiles.id],
-			name: "sold_meters_sold_by_fkey"
+			foreignColumns: [user.id],
+			name: "sold_meters_sold_by_user_id_fk"
 		}),
 	pgPolicy("Everyone can record sold meters", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() IS NOT NULL)`  }),
 	pgPolicy("Everyone can view sold meters", { as: "permissive", for: "select", to: ["authenticated"] }),
@@ -400,7 +400,7 @@ export const faultyReturns = pgTable("faulty_returns", {
 	id: uuid().default(sql`uuid_generate_v4()`).primaryKey().notNull(),
 	serialNumber: text("serial_number").notNull(),
 	type: text().notNull(),
-	returnedBy: uuid("returned_by"),
+	returnedBy: text("returned_by"),
 	returnedAt: timestamp("returned_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 	returnerName: text("returner_name"),
 	originalSaleId: uuid("original_sale_id"),
@@ -418,11 +418,6 @@ export const faultyReturns = pgTable("faulty_returns", {
 			foreignColumns: [soldMeters.id],
 			name: "faulty_returns_original_sale_id_fkey"
 		}),
-	foreignKey({
-			columns: [table.returnedBy],
-			foreignColumns: [users.id],
-			name: "faulty_returns_returned_by_fkey"
-		}),
 	unique("faulty_returns_serial_number_key").on(table.serialNumber),
 	pgPolicy("Enable delete for admins only", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`((auth.uid() IS NOT NULL) AND (( SELECT user_profiles.role
    FROM user_profiles
@@ -431,30 +426,6 @@ export const faultyReturns = pgTable("faulty_returns", {
 	pgPolicy("Enable read access for all authenticated users", { as: "permissive", for: "select", to: ["authenticated"] }),
 	pgPolicy("Enable update for admins only", { as: "permissive", for: "update", to: ["authenticated"] }),
 	check("faulty_returns_status_check", sql`status = ANY (ARRAY['pending'::text, 'repaired'::text, 'unrepairable'::text])`),
-]);
-
-export const notifications = pgTable("notifications", {
-	id: uuid().defaultRandom().primaryKey().notNull(),
-	type: text().notNull(),
-	message: text().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
-	readBy: uuid("read_by").array().default(["RAY"]),
-	metadata: jsonb().default({}),
-	createdBy: uuid("created_by"),
-	isRead: boolean("is_read").default(false),
-}, (table) => [
-	index("idx_notifications_created_at").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
-	index("idx_notifications_is_read").using("btree", table.isRead.asc().nullsLast().op("bool_ops")),
-	index("notifications_created_at_idx").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
-	index("notifications_type_idx").using("btree", table.type.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "notifications_created_by_fkey"
-		}),
-	pgPolicy("Allow authenticated users to create notifications", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`true`  }),
-	pgPolicy("Allow authenticated users to read notifications", { as: "permissive", for: "select", to: ["authenticated"] }),
-	pgPolicy("Allow users to update notifications", { as: "permissive", for: "update", to: ["authenticated"] }),
 ]);
 
 export const saleBatchAuditLog = pgTable("sale_batch_audit_log", {
@@ -505,6 +476,25 @@ export const saleBatchUpdateRequests = pgTable("sale_batch_update_requests", {
 			foreignColumns: [saleBatches.id],
 			name: "sale_batch_update_requests_sale_batch_id_sale_batches_id_fk"
 		}).onDelete("cascade"),
+]);
+
+export const notifications = pgTable("notifications", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	type: text().notNull(),
+	message: text().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
+	readBy: text("read_by").array().default(["RAY"]),
+	metadata: jsonb().default({}),
+	createdBy: text("created_by"),
+	isRead: boolean("is_read").default(false),
+}, (table) => [
+	index("idx_notifications_created_at").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("idx_notifications_is_read").using("btree", table.isRead.asc().nullsLast().op("bool_ops")),
+	index("notifications_created_at_idx").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
+	index("notifications_type_idx").using("btree", table.type.asc().nullsLast().op("text_ops")),
+	pgPolicy("Allow authenticated users to create notifications", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`true`  }),
+	pgPolicy("Allow authenticated users to read notifications", { as: "permissive", for: "select", to: ["authenticated"] }),
+	pgPolicy("Allow users to update notifications", { as: "permissive", for: "update", to: ["authenticated"] }),
 ]);
 
 export const clientProspects = pgTable("client_prospects", {

@@ -14,6 +14,7 @@ interface User {
   name: string;
   role: string;
   isActive: boolean;
+  phoneNumber?: string;
 }
 
 // Type for initial data from server
@@ -34,7 +35,7 @@ const GC_TIME = STALE_TIME * 2; // 1 hour
 
 export function useUsersData(
   showDeactivated: boolean,
-  initialData?: UsersPageData
+  initialData?: UsersPageData,
 ) {
   const queryClient = useQueryClient();
   const hasInitialData = !!initialData;

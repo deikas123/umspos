@@ -1,29 +1,19 @@
 import { relations } from "drizzle-orm/relations";
-import { user, twoFactor, agents, agentInventory, agentTransactions, usersInAuth, meterPurchaseBatches, meters, userProfiles, session, account, salesTransactions, saleBatches, soldMeters, faultyReturns, notifications, saleBatchAuditLog, saleBatchUpdateRequests, clientProspects } from "./schema";
+import { agentTransactions, agentTransactionMeters, agents, agentInventory, meterPurchaseBatches, meters, usersInAuth, userProfiles, user, session, account, twoFactor, saleBatches, salesTransactions, soldMeters, faultyReturns, saleBatchAuditLog, saleBatchUpdateRequests, clientProspects } from "./schema";
 
-export const twoFactorRelations = relations(twoFactor, ({one}) => ({
-	user_userId: one(user, {
-		fields: [twoFactor.userId],
-		references: [user.id],
-		relationName: "twoFactor_userId_user_id"
-	}),
-	user_userId: one(user, {
-		fields: [twoFactor.userId],
-		references: [user.id],
-		relationName: "twoFactor_userId_user_id"
+export const agentTransactionMetersRelations = relations(agentTransactionMeters, ({one}) => ({
+	agentTransaction: one(agentTransactions, {
+		fields: [agentTransactionMeters.transactionId],
+		references: [agentTransactions.id]
 	}),
 }));
 
-export const userRelations = relations(user, ({many}) => ({
-	twoFactors_userId: many(twoFactor, {
-		relationName: "twoFactor_userId_user_id"
+export const agentTransactionsRelations = relations(agentTransactions, ({one, many}) => ({
+	agentTransactionMeters: many(agentTransactionMeters),
+	agent: one(agents, {
+		fields: [agentTransactions.agentId],
+		references: [agents.id]
 	}),
-	sessions: many(session),
-	accounts: many(account),
-	twoFactors_userId: many(twoFactor, {
-		relationName: "twoFactor_userId_user_id"
-	}),
-	clientProspects: many(clientProspects),
 }));
 
 export const agentInventoryRelations = relations(agentInventory, ({one}) => ({
@@ -38,39 +28,15 @@ export const agentsRelations = relations(agents, ({many}) => ({
 	agentTransactions: many(agentTransactions),
 }));
 
-export const agentTransactionsRelations = relations(agentTransactions, ({one}) => ({
-	agent: one(agents, {
-		fields: [agentTransactions.agentId],
-		references: [agents.id]
-	}),
-}));
-
-export const meterPurchaseBatchesRelations = relations(meterPurchaseBatches, ({one, many}) => ({
-	usersInAuth: one(usersInAuth, {
-		fields: [meterPurchaseBatches.addedBy],
-		references: [usersInAuth.id]
-	}),
-	meters: many(meters),
-}));
-
-export const usersInAuthRelations = relations(usersInAuth, ({many}) => ({
-	meterPurchaseBatches: many(meterPurchaseBatches),
-	meters: many(meters),
-	userProfiles: many(userProfiles),
-	soldMeters: many(soldMeters),
-	faultyReturns: many(faultyReturns),
-	notifications: many(notifications),
-}));
-
 export const metersRelations = relations(meters, ({one}) => ({
-	usersInAuth: one(usersInAuth, {
-		fields: [meters.addedBy],
-		references: [usersInAuth.id]
-	}),
 	meterPurchaseBatch: one(meterPurchaseBatches, {
 		fields: [meters.batchId],
 		references: [meterPurchaseBatches.id]
 	}),
+}));
+
+export const meterPurchaseBatchesRelations = relations(meterPurchaseBatches, ({many}) => ({
+	meters: many(meters),
 }));
 
 export const userProfilesRelations = relations(userProfiles, ({one, many}) => ({
@@ -78,17 +44,11 @@ export const userProfilesRelations = relations(userProfiles, ({one, many}) => ({
 		fields: [userProfiles.id],
 		references: [usersInAuth.id]
 	}),
-	salesTransactions: many(salesTransactions),
-	saleBatches_approvedBy: many(saleBatches, {
-		relationName: "saleBatches_approvedBy_userProfiles_id"
-	}),
-	saleBatches_noteBy: many(saleBatches, {
-		relationName: "saleBatches_noteBy_userProfiles_id"
-	}),
-	saleBatches_userId: many(saleBatches, {
-		relationName: "saleBatches_userId_userProfiles_id"
-	}),
-	soldMeters: many(soldMeters),
+	saleBatches: many(saleBatches),
+}));
+
+export const usersInAuthRelations = relations(usersInAuth, ({many}) => ({
+	userProfiles: many(userProfiles),
 }));
 
 export const sessionRelations = relations(session, ({one}) => ({
@@ -98,6 +58,21 @@ export const sessionRelations = relations(session, ({one}) => ({
 	}),
 }));
 
+export const userRelations = relations(user, ({many}) => ({
+	sessions: many(session),
+	accounts: many(account),
+	twoFactors: many(twoFactor),
+	saleBatches_noteBy: many(saleBatches, {
+		relationName: "saleBatches_noteBy_user_id"
+	}),
+	saleBatches_userId: many(saleBatches, {
+		relationName: "saleBatches_userId_user_id"
+	}),
+	salesTransactions: many(salesTransactions),
+	soldMeters: many(soldMeters),
+	clientProspects: many(clientProspects),
+}));
+
 export const accountRelations = relations(account, ({one}) => ({
 	user: one(user, {
 		fields: [account.userId],
@@ -105,37 +80,43 @@ export const accountRelations = relations(account, ({one}) => ({
 	}),
 }));
 
-export const salesTransactionsRelations = relations(salesTransactions, ({one, many}) => ({
-	userProfile: one(userProfiles, {
-		fields: [salesTransactions.userId],
-		references: [userProfiles.id]
+export const twoFactorRelations = relations(twoFactor, ({one}) => ({
+	user: one(user, {
+		fields: [twoFactor.userId],
+		references: [user.id]
 	}),
-	saleBatches: many(saleBatches),
 }));
 
 export const saleBatchesRelations = relations(saleBatches, ({one, many}) => ({
-	userProfile_approvedBy: one(userProfiles, {
+	userProfile: one(userProfiles, {
 		fields: [saleBatches.approvedBy],
-		references: [userProfiles.id],
-		relationName: "saleBatches_approvedBy_userProfiles_id"
+		references: [userProfiles.id]
 	}),
-	userProfile_noteBy: one(userProfiles, {
+	user_noteBy: one(user, {
 		fields: [saleBatches.noteBy],
-		references: [userProfiles.id],
-		relationName: "saleBatches_noteBy_userProfiles_id"
+		references: [user.id],
+		relationName: "saleBatches_noteBy_user_id"
 	}),
 	salesTransaction: one(salesTransactions, {
 		fields: [saleBatches.transactionId],
 		references: [salesTransactions.id]
 	}),
-	userProfile_userId: one(userProfiles, {
+	user_userId: one(user, {
 		fields: [saleBatches.userId],
-		references: [userProfiles.id],
-		relationName: "saleBatches_userId_userProfiles_id"
+		references: [user.id],
+		relationName: "saleBatches_userId_user_id"
 	}),
 	soldMeters: many(soldMeters),
 	saleBatchAuditLogs: many(saleBatchAuditLog),
 	saleBatchUpdateRequests: many(saleBatchUpdateRequests),
+}));
+
+export const salesTransactionsRelations = relations(salesTransactions, ({one, many}) => ({
+	saleBatches: many(saleBatches),
+	user: one(user, {
+		fields: [salesTransactions.userId],
+		references: [user.id]
+	}),
 }));
 
 export const soldMetersRelations = relations(soldMeters, ({one, many}) => ({
@@ -143,13 +124,9 @@ export const soldMetersRelations = relations(soldMeters, ({one, many}) => ({
 		fields: [soldMeters.batchId],
 		references: [saleBatches.id]
 	}),
-	usersInAuth: one(usersInAuth, {
-		fields: [soldMeters.replacementBy],
-		references: [usersInAuth.id]
-	}),
-	userProfile: one(userProfiles, {
+	user: one(user, {
 		fields: [soldMeters.soldBy],
-		references: [userProfiles.id]
+		references: [user.id]
 	}),
 	faultyReturns: many(faultyReturns),
 }));
@@ -158,17 +135,6 @@ export const faultyReturnsRelations = relations(faultyReturns, ({one}) => ({
 	soldMeter: one(soldMeters, {
 		fields: [faultyReturns.originalSaleId],
 		references: [soldMeters.id]
-	}),
-	usersInAuth: one(usersInAuth, {
-		fields: [faultyReturns.returnedBy],
-		references: [usersInAuth.id]
-	}),
-}));
-
-export const notificationsRelations = relations(notifications, ({one}) => ({
-	usersInAuth: one(usersInAuth, {
-		fields: [notifications.createdBy],
-		references: [usersInAuth.id]
 	}),
 }));
 

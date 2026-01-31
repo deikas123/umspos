@@ -1,9 +1,11 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
 @layer base {
   :root {
+    --font-sans: 'Geist Mono', monospace;
     --background: #000080;
     --foreground: 222.2 84% 4.9%;
     --text: #000080;
@@ -145,5 +147,6 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-family: var(--font-sans), monospace;
   }
 }

@@ -16,7 +16,7 @@ import { UserActionsMenu } from "./UserActionsMenu";
 interface UsersMobileListProps {
   users: any[];
   currentUser: any;
-  onEditName: (user: any) => void;
+  onEditUser: (user: any) => void;
   onChangePassword: (userId: string, userName: string) => void;
   onChangeRole: (user: any, role: string) => void;
   onToggleStatus: (user: any) => void;
@@ -25,7 +25,7 @@ interface UsersMobileListProps {
 export function UsersMobileList({
   users,
   currentUser,
-  onEditName,
+  onEditUser,
   onChangePassword,
   onChangeRole,
   onToggleStatus,
@@ -66,7 +66,7 @@ export function UsersMobileList({
                 <UserActionsMenu
                   user={user}
                   currentUser={currentUser}
-                  onEditName={onEditName}
+                  onEditUser={onEditUser}
                   onChangePassword={onChangePassword}
                   onChangeRole={onChangeRole}
                   onToggleStatus={onToggleStatus}

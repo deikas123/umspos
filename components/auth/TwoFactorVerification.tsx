@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -18,13 +17,7 @@ import {
   InputOTPSlot,
   InputOTPSeparator,
 } from "@/components/ui/input-otp";
-import {
-  Loader2,
-  ShieldCheck,
-  Smartphone,
-  RefreshCw,
-  ArrowLeft,
-} from "lucide-react";
+import { Loader2, ShieldCheck, RefreshCw, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 
@@ -114,48 +107,31 @@ export default function TwoFactorVerification() {
   }, [otp]);
 
   return (
-    <div className='flex flex-col items-center justify-center h-screen bg-background px-4 overflow-hidden'>
-      {/* Logo */}
-      <div className='flex flex-col items-center space-y-2 mb-6'>
-        <Image
-          src='/logo.png'
-          alt='UMS POS Logo'
-          width={72}
-          height={72}
-          className='object-contain'
-          priority
-        />
-      </div>
+    <div className='flex flex-col items-center justify-center min-h-screen bg-background px-4 py-6'>
+      {/* Logo above the card */}
+      <Image
+        src='/logo.png'
+        alt='UMS POS'
+        width={80}
+        height={80}
+        className='object-contain mb-4'
+        priority
+      />
 
-      {/* Verification Card */}
-      <Card className='w-full max-w-md border shadow-lg'>
-        <CardHeader className='space-y-3 pb-2'>
-          {/* Icon */}
-          <div className='mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center'>
-            <ShieldCheck className='h-7 w-7 text-primary' />
-          </div>
-
-          <div className='text-center space-y-1'>
-            <CardTitle className='text-xl font-bold'>
-              Two-Factor Authentication
-            </CardTitle>
-            <CardDescription className='text-sm'>
-              We sent a 6-digit code to your phone
-            </CardDescription>
-          </div>
-
-          {/* Phone Indicator */}
-          <div className='flex items-center justify-center gap-2 py-2.5 px-4 bg-muted rounded-lg'>
-            <Smartphone className='h-4 w-4 text-muted-foreground' />
-            <span className='text-sm text-muted-foreground'>
-              Check your SMS messages
-            </span>
-          </div>
+      <Card className='w-full max-w-sm border shadow-lg'>
+        <CardHeader className='pb-3 pt-5 px-5 text-center'>
+          <CardTitle className='text-xl font-bold flex items-center justify-center gap-2'>
+            <ShieldCheck className='h-5 w-5 text-primary' />
+            Verify Your Identity
+          </CardTitle>
+          <p className='text-sm text-muted-foreground mt-1'>
+            Enter the 6-digit code
+          </p>
         </CardHeader>
 
-        <CardContent className='space-y-5 pt-2'>
+        <CardContent className='space-y-4 px-5 pb-4'>
           {/* OTP Input */}
-          <div className='flex flex-col items-center space-y-4'>
+          <div className='flex flex-col items-center space-y-3'>
             <InputOTP
               maxLength={6}
               value={otp}
@@ -164,114 +140,111 @@ export default function TwoFactorVerification() {
                 setError(null);
               }}
               disabled={isVerifying}
-              className='gap-2'>
+              className='gap-1.5'>
               <InputOTPGroup>
                 <InputOTPSlot
                   index={0}
-                  className='h-14 w-12 text-2xl font-semibold border-2 rounded-lg focus:ring-2 focus:ring-primary/20'
+                  className='h-11 w-10 text-lg font-semibold border-2 rounded-md'
                 />
                 <InputOTPSlot
                   index={1}
-                  className='h-14 w-12 text-2xl font-semibold border-2 rounded-lg focus:ring-2 focus:ring-primary/20'
+                  className='h-11 w-10 text-lg font-semibold border-2 rounded-md'
                 />
                 <InputOTPSlot
                   index={2}
-                  className='h-14 w-12 text-2xl font-semibold border-2 rounded-lg focus:ring-2 focus:ring-primary/20'
+                  className='h-11 w-10 text-lg font-semibold border-2 rounded-md'
                 />
               </InputOTPGroup>
               <InputOTPSeparator />
               <InputOTPGroup>
                 <InputOTPSlot
                   index={3}
-                  className='h-14 w-12 text-2xl font-semibold border-2 rounded-lg focus:ring-2 focus:ring-primary/20'
+                  className='h-11 w-10 text-lg font-semibold border-2 rounded-md'
                 />
                 <InputOTPSlot
                   index={4}
-                  className='h-14 w-12 text-2xl font-semibold border-2 rounded-lg focus:ring-2 focus:ring-primary/20'
+                  className='h-11 w-10 text-lg font-semibold border-2 rounded-md'
                 />
                 <InputOTPSlot
                   index={5}
-                  className='h-14 w-12 text-2xl font-semibold border-2 rounded-lg focus:ring-2 focus:ring-primary/20'
+                  className='h-11 w-10 text-lg font-semibold border-2 rounded-md'
                 />
               </InputOTPGroup>
             </InputOTP>
 
             {/* Error Message */}
             {error && (
-              <div className='w-full py-2.5 px-4 bg-red-50 border border-red-100 rounded-lg'>
-                <p className='text-sm text-red-600 text-center font-medium'>
-                  {error}
-                </p>
-              </div>
+              <p className='text-sm text-red-600 text-center font-medium'>
+                {error}
+              </p>
             )}
           </div>
 
           {/* Verify Button */}
           <Button
-            className='w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90 cursor-pointer'
+            className='w-full h-10 font-semibold bg-primary hover:bg-primary/90 cursor-pointer'
             onClick={handleVerifyOtp}
             disabled={otp.length !== 6 || isVerifying}>
             {isVerifying ? (
               <>
-                <Loader2 className='mr-2 h-5 w-5 animate-spin' />
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                 Verifying...
               </>
             ) : (
               <>
-                <ShieldCheck className='mr-2 h-5 w-5' />
+                <ShieldCheck className='mr-2 h-4 w-4' />
                 Verify Code
               </>
             )}
           </Button>
 
           {/* Resend Section */}
-          <div className='flex flex-col items-center space-y-2'>
-            <p className='text-sm text-muted-foreground'>
-              Didn&apos;t receive the code?
-            </p>
+          <div className='flex items-center justify-center gap-2'>
+            <span className='text-xs text-muted-foreground'>
+              Didn&apos;t receive it?
+            </span>
             <Button
-              variant='outline'
-              className='h-9 px-5 cursor-pointer'
+              variant='link'
+              size='sm'
+              className='h-auto p-0 text-xs font-medium cursor-pointer'
               onClick={handleSendOtp}
               disabled={countdown > 0 || isSendingOtp}>
               {isSendingOtp && (
                 <>
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  <Loader2 className='mr-1 h-3 w-3 animate-spin' />
                   Sending...
                 </>
               )}
               {!isSendingOtp && countdown > 0 && (
                 <>
-                  <RefreshCw className='mr-2 h-4 w-4' />
+                  <RefreshCw className='mr-1 h-3 w-3' />
                   Resend in {countdown}s
                 </>
               )}
               {!isSendingOtp && countdown <= 0 && (
                 <>
-                  <RefreshCw className='mr-2 h-4 w-4' />
-                  Resend Code
+                  <RefreshCw className='mr-1 h-3 w-3' />
+                  Resend
                 </>
               )}
             </Button>
           </div>
         </CardContent>
 
-        <CardFooter className='pt-0 pb-4'>
+        <CardFooter className='pt-0 pb-4 px-5 flex-col gap-2'>
           <Button
             variant='ghost'
-            className='w-full text-muted-foreground hover:text-foreground cursor-pointer'
+            size='sm'
+            className='w-full text-muted-foreground hover:text-foreground cursor-pointer h-8'
             onClick={handleBackToSignIn}>
-            <ArrowLeft className='mr-2 h-4 w-4' />
+            <ArrowLeft className='mr-1.5 h-3.5 w-3.5' />
             Back to Sign In
           </Button>
+          <p className='text-[10px] text-muted-foreground text-center'>
+            Code expires in 5 minutes. Never share it with anyone.
+          </p>
         </CardFooter>
       </Card>
-
-      {/* Security Note */}
-      <p className='text-xs text-muted-foreground text-center max-w-sm mt-4'>
-        For your security, this code expires in 5 minutes. Never share your
-        verification code with anyone.
-      </p>
     </div>
   );
 }

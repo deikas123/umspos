@@ -48,6 +48,7 @@ export async function updateUserProfile(
   userId: string,
   updates: {
     name?: string;
+    phoneNumber?: string;
     role?: UserRole;
     is_active?: boolean;
   },
@@ -89,6 +90,15 @@ export async function updateUserProfile(
       await db.execute(sql`
         UPDATE "user" 
         SET "isActive" = ${updates.is_active}
+        WHERE id = ${userId}
+      `);
+    }
+
+    // Update phoneNumber directly in the database
+    if (updates.phoneNumber !== undefined) {
+      await db.execute(sql`
+        UPDATE "user" 
+        SET "phoneNumber" = ${updates.phoneNumber}
         WHERE id = ${userId}
       `);
     }
@@ -147,7 +157,8 @@ export async function getUsersList() {
             name,
             "displayName",
             "appRole",
-            "isActive"
+            "isActive",
+            "phoneNumber"
           FROM "user" 
           ORDER BY "createdAt" ASC
         `);
@@ -171,6 +182,7 @@ export async function getUsersList() {
       name: user.displayName || user.name || "N/A",
       role: (user.appRole || "user") as UserRole,
       isActive: user.isActive ?? true,
+      phoneNumber: user.phoneNumber || "",
     }));
   } catch (error) {
     console.error(

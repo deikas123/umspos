@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
-import { EditNameDialog } from "./components/EditNameDialog";
+import { EditUserDialog } from "./components/EditUserDialog";
 import { UsersTable } from "./components/UsersTable";
 import { UsersMobileList } from "./components/UsersMobileList";
 import { UsersFilters } from "./components/UsersFilters";
@@ -39,7 +39,7 @@ export default function UsersPage({ initialData }: UsersProps) {
   const [showDeactivated, setShowDeactivated] = useState(false);
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
-  const [showEditNameDialog, setShowEditNameDialog] = useState(false);
+  const [showEditUserDialog, setShowEditUserDialog] = useState(false);
   const [passwordChangeUserId, setPasswordChangeUserId] = useState<
     string | null
   >(null);
@@ -56,18 +56,27 @@ export default function UsersPage({ initialData }: UsersProps) {
     refetch,
   } = useUsersData(showDeactivated, initialData);
 
-  const handleUpdateName = async (userId: string, newName: string) => {
+  const handleUpdateUser = async (
+    userId: string,
+    updates: {
+      name?: string;
+      phoneNumber?: string;
+      role?: string;
+      is_active?: boolean;
+    },
+  ) => {
     try {
       await updateUser({
         userId: userId,
-        updates: { name: newName },
+        updates: updates,
       });
 
-      toast.success("User name updated successfully");
+      toast.success("User updated successfully");
       setEditingUser(null);
-      setShowEditNameDialog(false);
+      setShowEditUserDialog(false);
     } catch (error) {
-      toast.error("Failed to update user name");
+      console.error("Error updating user:", error);
+      toast.error("Failed to update user");
     }
   };
 
@@ -80,6 +89,7 @@ export default function UsersPage({ initialData }: UsersProps) {
 
       toast.success(`User role updated to ${newRole}`);
     } catch (error) {
+      console.error("Error changing user role:", error);
       toast.error("Failed to update user role");
     }
   };
@@ -93,11 +103,12 @@ export default function UsersPage({ initialData }: UsersProps) {
       });
 
       toast.success(
-        `User ${newStatus ? "activated" : "deactivated"} successfully`
+        `User ${newStatus ? "activated" : "deactivated"} successfully`,
       );
 
       await refetch({ throwOnError: true });
     } catch (error) {
+      console.error("Error toggling user status:", error);
       toast.error("Failed to update user status");
     }
   };
@@ -108,9 +119,9 @@ export default function UsersPage({ initialData }: UsersProps) {
     setShowChangePasswordDialog(true);
   };
 
-  const openEditNameDialog = (user: any) => {
+  const openEditUserDialog = (user: any) => {
     setEditingUser(user);
-    setShowEditNameDialog(true);
+    setShowEditUserDialog(true);
   };
 
   // Filter and pagination logic
@@ -129,7 +140,7 @@ export default function UsersPage({ initialData }: UsersProps) {
       filtered = filtered.filter(
         (user) =>
           user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.role.toLowerCase().includes(searchTerm.toLowerCase())
+          user.role.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
@@ -187,7 +198,7 @@ export default function UsersPage({ initialData }: UsersProps) {
     ]);
 
     const blob = await pdf(
-      <TableReportPDF title='Users Report' headers={headers} data={data} />
+      <TableReportPDF title='Users Report' headers={headers} data={data} />,
     ).toBlob();
 
     const url = URL.createObjectURL(blob);
@@ -228,11 +239,13 @@ export default function UsersPage({ initialData }: UsersProps) {
         currentUser={currentUser}
       />
 
-      <EditNameDialog
-        isOpen={showEditNameDialog}
-        onOpenChange={setShowEditNameDialog}
+      <EditUserDialog
+        isOpen={showEditUserDialog}
+        onOpenChange={setShowEditUserDialog}
         user={editingUser}
-        onSave={handleUpdateName}
+        currentUser={currentUser}
+        onSave={handleUpdateUser}
+        onChangePassword={openChangePasswordDialog}
       />
 
       <div className='flex justify-between items-center mb-6'>
@@ -281,7 +294,7 @@ export default function UsersPage({ initialData }: UsersProps) {
           <UsersTable
             users={paginatedUsers}
             currentUser={currentUser}
-            onEditName={openEditNameDialog}
+            onEditUser={openEditUserDialog}
             onChangePassword={openChangePasswordDialog}
             onChangeRole={handleChangeRole}
             onToggleStatus={handleToggleStatus}
@@ -289,7 +302,7 @@ export default function UsersPage({ initialData }: UsersProps) {
           <UsersMobileList
             users={paginatedUsers}
             currentUser={currentUser}
-            onEditName={openEditNameDialog}
+            onEditUser={openEditUserDialog}
             onChangePassword={openChangePasswordDialog}
             onChangeRole={handleChangeRole}
             onToggleStatus={handleToggleStatus}
