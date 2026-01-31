@@ -51,6 +51,7 @@ import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
 import {
   getAllProspectsPaginated,
   type PaginatedProspectsResult,
+  type ProspectStatus,
 } from "@/lib/actions/prospects";
 import { useDebounce } from "@/hooks/use-debounce";
 
@@ -66,7 +67,9 @@ export default function AdminProspectsList({
   salesPersons,
 }: AdminProspectsListProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ProspectStatus | "all">(
+    "all",
+  );
   const [salesPersonFilter, setSalesPersonFilter] = useState("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);

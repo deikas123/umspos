@@ -11,12 +11,13 @@ import {
 } from "@/components/ui/select";
 import { Search, Filter } from "lucide-react";
 import { STATUS_LABELS } from "./types";
+import { type ProspectStatus } from "@/lib/actions/prospects";
 
 interface ProspectFiltersProps {
   readonly searchTerm: string;
   readonly onSearchChange: (value: string) => void;
-  readonly statusFilter: string;
-  readonly onStatusChange: (value: string) => void;
+  readonly statusFilter: ProspectStatus | "all";
+  readonly onStatusChange: (value: ProspectStatus | "all") => void;
   readonly salesPersonFilter?: string;
   readonly onSalesPersonChange?: (value: string) => void;
   readonly salesPersons?: readonly string[];
@@ -55,7 +56,11 @@ export function ProspectFilters({
         />
       </div>
       <div className='flex gap-2'>
-        <Select value={statusFilter} onValueChange={onStatusChange}>
+        <Select
+          value={statusFilter}
+          onValueChange={(value) =>
+            onStatusChange(value as ProspectStatus | "all")
+          }>
           <SelectTrigger className='w-[160px]'>
             <Filter className='h-4 w-4 mr-2' />
             <SelectValue placeholder='Status' />

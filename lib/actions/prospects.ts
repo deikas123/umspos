@@ -339,7 +339,7 @@ export async function deleteProspect(prospectId: string) {
 // PAGINATED QUERIES
 // ============================================
 
-type ProspectStatus =
+export type ProspectStatus =
   | "interested"
   | "not_interested"
   | "prospect"
