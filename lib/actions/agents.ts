@@ -32,7 +32,6 @@ interface CurrentUser {
 
 export async function getAgentsList(options?: { isStore?: boolean }) {
   const startTime = Date.now();
-  console.log("[getAgentsList] Starting query...");
 
   try {
     // Build where clause based on options
@@ -43,12 +42,8 @@ export async function getAgentsList(options?: { isStore?: boolean }) {
 
     // Get agents with their meter counts using LEFT JOIN and GROUP BY
     // Wrapped with timeout to prevent hung queries
-    console.log("[getAgentsList] Executing Drizzle query with LEFT JOIN...");
     const agentsData = await withTimeout(
       async () => {
-        const queryStart = Date.now();
-        console.log("[getAgentsList] Inside withTimeout, query starting...");
-
         const query = db
           .select({
             id: agents.id,
@@ -80,33 +75,27 @@ export async function getAgentsList(options?: { isStore?: boolean }) {
             agents.agent_type,
             agents.is_active,
             agents.is_store,
-            agents.created_at
+            agents.created_at,
           )
           .orderBy(desc(agents.created_at));
-        console.log(
-          `[getAgentsList] Query completed in ${Date.now() - queryStart}ms, got ${result.length} agents`
-        );
         return result;
       },
       15000, // 15 second timeout (reduced)
-      null // Return null to indicate timeout
+      null, // Return null to indicate timeout
     );
 
     if (agentsData === null) {
       console.error(
-        `[getAgentsList] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+        `[getAgentsList] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`,
       );
       return [];
     }
 
-    console.log(
-      `[getAgentsList] Success! Returning ${agentsData.length} agents (total time: ${Date.now() - startTime}ms)`
-    );
     return agentsData;
   } catch (error) {
     console.error(
       `[getAgentsList] Error after ${Date.now() - startTime}ms:`,
-      error
+      error,
     );
     return [];
   }
@@ -134,7 +123,7 @@ export async function updateAgentDetails(
     location?: string;
     county?: KenyaCounty;
     agent_type?: "cash" | "credit";
-  }
+  },
 ) {
   try {
     // Validate county if it's being updated
@@ -177,11 +166,14 @@ export async function createAgent(agentData: {
   county: KenyaCounty;
   agent_type?: "cash" | "credit";
   is_store?: boolean;
-}) {
+}): Promise<
+  | { success: true; data: typeof agents.$inferSelect }
+  | { success: false; error: string }
+> {
   try {
     // Validate county
     if (!KENYA_COUNTIES.includes(agentData.county)) {
-      throw new Error("Invalid county selected");
+      return { success: false, error: "Invalid county selected" };
     }
 
     // Validate agent_type if provided
@@ -189,7 +181,10 @@ export async function createAgent(agentData: {
       agentData.agent_type &&
       !["cash", "credit"].includes(agentData.agent_type)
     ) {
-      throw new Error("Invalid agent type. Must be 'cash' or 'credit'");
+      return {
+        success: false,
+        error: "Invalid agent type. Must be 'cash' or 'credit'",
+      };
     }
 
     const [data] = await db
@@ -202,13 +197,16 @@ export async function createAgent(agentData: {
       })
       .returning();
 
-    return data;
+    return { success: true, data };
   } catch (error: any) {
     if (error.code === "23505") {
-      throw new Error("Phone number already registered");
+      return {
+        success: false,
+        error: "An agent with this phone number already exists",
+      };
     }
     console.error("Error creating agent:", error);
-    throw error;
+    return { success: false, error: error.message || "Failed to create agent" };
   }
 }
 
@@ -255,13 +253,13 @@ export async function assignMetersToAgent({
 
   if (duplicateIds.size > 0) {
     throw new Error(
-      `Duplicate meter IDs detected: ${Array.from(duplicateIds).join(", ")}`
+      `Duplicate meter IDs detected: ${Array.from(duplicateIds).join(", ")}`,
     );
   }
 
   if (duplicateSerials.size > 0) {
     throw new Error(
-      `Duplicate serial numbers detected: ${Array.from(duplicateSerials).join(", ")}`
+      `Duplicate serial numbers detected: ${Array.from(duplicateSerials).join(", ")}`,
     );
   }
 
@@ -282,7 +280,7 @@ export async function assignMetersToAgent({
         const foundIds = new Set(availableMeters.map((m) => m.id));
         const missingIds = meterIds.filter((id) => !foundIds.has(id));
         throw new Error(
-          `Some meters are no longer available for assignment. Missing IDs: ${missingIds.join(", ")}`
+          `Some meters are no longer available for assignment. Missing IDs: ${missingIds.join(", ")}`,
         );
       }
 
@@ -309,7 +307,7 @@ export async function assignMetersToAgent({
           transaction_type: "assignment" as const,
           meter_type: type,
           quantity,
-        })
+        }),
       );
 
       if (transactionsPayload.length > 0) {
@@ -324,7 +322,7 @@ export async function assignMetersToAgent({
 
         // Create a map of meter_type to transaction_id
         const typeToTransactionId = new Map(
-          insertedTransactions.map((t) => [t.meter_type, t.id])
+          insertedTransactions.map((t) => [t.meter_type, t.id]),
         );
 
         // Insert individual meter details into junction table
@@ -346,7 +344,7 @@ export async function assignMetersToAgent({
 
       if (removedMeters.length !== meterList.length) {
         throw new Error(
-          "Failed to remove all meters from stock during assignment"
+          "Failed to remove all meters from stock during assignment",
         );
       }
 
@@ -379,7 +377,7 @@ export async function getAgentInventory(agentId: string) {
 
 export async function getAgentInventoryBySerial(
   serialNumber: string,
-  agentId: string
+  agentId: string,
 ) {
   try {
     const normalizedSerial = serialNumber.toUpperCase();
@@ -390,8 +388,8 @@ export async function getAgentInventoryBySerial(
       .where(
         and(
           eq(agentInventory.agent_id, agentId),
-          ilike(agentInventory.serial_number, normalizedSerial)
-        )
+          ilike(agentInventory.serial_number, normalizedSerial),
+        ),
       )
       .limit(1);
 
@@ -438,8 +436,8 @@ export async function returnMetersFromAgent({
           .where(
             and(
               eq(agentInventory.agent_id, agentId),
-              inArray(agentInventory.serial_number, serialNumbersToDelete)
-            )
+              inArray(agentInventory.serial_number, serialNumbersToDelete),
+            ),
           );
       }
 
@@ -460,7 +458,7 @@ export async function returnMetersFromAgent({
             transaction_type: "return" as const,
             meter_type: type,
             quantity: metersOfType.length,
-          })
+          }),
         );
 
         const insertedTransactions = await tx
@@ -473,7 +471,7 @@ export async function returnMetersFromAgent({
 
         // Create a map of meter_type to transaction_id
         const typeToTransactionId = new Map(
-          insertedTransactions.map((t) => [t.meter_type, t.id])
+          insertedTransactions.map((t) => [t.meter_type, t.id]),
         );
 
         // Insert individual meter details into junction table
@@ -530,7 +528,7 @@ export async function deleteAgent(
   agentId: string,
   currentUser: CurrentUser,
   scannedMeters: string[] = [],
-  unscannedMeters: string[] = []
+  unscannedMeters: string[] = [],
 ) {
   try {
     await db.transaction(async (tx) => {
@@ -642,7 +640,7 @@ export async function getAgentTransactions(
     agentId?: string;
     startDate?: Date;
     endDate?: Date;
-  }
+  },
 ) {
   try {
     const offset = (page - 1) * limit;
@@ -658,14 +656,14 @@ export async function getAgentTransactions(
       const validTransactionTypes = ["assignment", "return"] as const;
       if (
         validTransactionTypes.includes(
-          filters.transactionType as (typeof validTransactionTypes)[number]
+          filters.transactionType as (typeof validTransactionTypes)[number],
         )
       ) {
         conditions.push(
           eq(
             agentTransactions.transaction_type,
-            filters.transactionType as "assignment" | "return"
-          )
+            filters.transactionType as "assignment" | "return",
+          ),
         );
       }
     }
@@ -680,7 +678,7 @@ export async function getAgentTransactions(
 
     if (filters?.startDate) {
       conditions.push(
-        gte(agentTransactions.transaction_date, filters.startDate)
+        gte(agentTransactions.transaction_date, filters.startDate),
       );
     }
 
@@ -704,7 +702,7 @@ export async function getAgentTransactions(
         meter_type: agentTransactions.meter_type,
         transaction_date: agentTransactions.transaction_date,
         total_quantity: sql<number>`sum(${agentTransactions.quantity})`.as(
-          "total_quantity"
+          "total_quantity",
         ),
         row_count: sql<number>`count(*) over ()`.as("row_count"),
       })
@@ -716,7 +714,7 @@ export async function getAgentTransactions(
         agents.name,
         agentTransactions.transaction_type,
         agentTransactions.meter_type,
-        agentTransactions.transaction_date
+        agentTransactions.transaction_date,
       )
       .as("aggregated_agent_transactions");
 
@@ -794,12 +792,12 @@ export async function getTransactionMeters(params: {
           eq(agentTransactions.agent_id, agentId),
           eq(
             agentTransactions.transaction_type,
-            transactionType as "assignment" | "return"
+            transactionType as "assignment" | "return",
           ),
           eq(agentTransactions.meter_type, meterType),
           gte(agentTransactions.transaction_date, startOfDay),
-          lte(agentTransactions.transaction_date, endOfDay)
-        )
+          lte(agentTransactions.transaction_date, endOfDay),
+        ),
       );
 
     if (matchingTransactions.length === 0) {
@@ -854,7 +852,7 @@ export async function getAgentsPageData(options?: { isStore?: boolean }) {
  */
 export async function getAgentSalesAnalytics(
   agentIds?: string[],
-  days: number = 30
+  days: number = 30,
 ) {
   try {
     // Get agents with their created_at dates
@@ -973,7 +971,7 @@ export async function getAgentSalesAnalytics(
         createdAt: a.created_at,
         totalSales:
           Number(
-            totalsArray.find((t) => t.agent_name === a.name)?.total_meters
+            totalsArray.find((t) => t.agent_name === a.name)?.total_meters,
           ) || 0,
       })),
       salesData: chartData,

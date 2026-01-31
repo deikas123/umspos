@@ -178,9 +178,9 @@ export async function getFaultyMetersByType(): Promise<
           eq(faultyReturns.status, "pending"),
           or(
             eq(faultyReturns.is_binned, false),
-            sql`${faultyReturns.is_binned} IS NULL`
-          )
-        )
+            sql`${faultyReturns.is_binned} IS NULL`,
+          ),
+        ),
       )
       .groupBy(faultyReturns.type);
 
@@ -277,7 +277,7 @@ export async function getFaultyMeters(): Promise<
 export async function binFaultyMeter(
   meterId: string,
   userId: string,
-  userName: string
+  userName: string,
 ): Promise<{ success: boolean }> {
   try {
     // Verify the user has admin privileges
@@ -315,7 +315,7 @@ export async function binFaultyMeter(
  */
 export async function restoreBinnedMeter(
   meterId: string,
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean }> {
   try {
     // Verify the user has admin privileges
@@ -386,8 +386,8 @@ export async function getMeterReplacements(): Promise<
       new Set(
         replacementsData
           .map((r) => r.replacement_by)
-          .filter(Boolean) as string[]
-      )
+          .filter(Boolean) as string[],
+      ),
     );
 
     if (userIds.length === 0) {
@@ -432,8 +432,8 @@ export async function getSalesByDateRange(startDate: Date, endDate: Date) {
       .where(
         and(
           gte(saleBatches.sale_date, startDate),
-          lte(saleBatches.sale_date, endDate)
-        )
+          lte(saleBatches.sale_date, endDate),
+        ),
       )
       .orderBy(desc(saleBatches.sale_date));
 
@@ -449,7 +449,7 @@ export async function getSalesByDateRange(startDate: Date, endDate: Date) {
  */
 export async function getDetailedSalesByDateRange(
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ) {
   try {
     // Get all sale batches in the date range
@@ -459,8 +459,8 @@ export async function getDetailedSalesByDateRange(
       .where(
         and(
           gte(saleBatches.sale_date, startDate),
-          lte(saleBatches.sale_date, endDate)
-        )
+          lte(saleBatches.sale_date, endDate),
+        ),
       )
       .orderBy(desc(saleBatches.sale_date));
 
@@ -495,7 +495,7 @@ export async function getDetailedSalesByDateRange(
         acc[meter.batch_id].push(meter);
         return acc;
       },
-      {} as Record<string, typeof meters>
+      {} as Record<string, typeof meters>,
     );
 
     // Combine batches with their meters
@@ -618,7 +618,7 @@ export async function getPurchaseBatches(): Promise<
     created_at: Date | null;
     batch_number: string;
     remaining_meters: number;
-    user_profiles: {
+    user: {
       name: string | null;
     };
   }>
@@ -632,7 +632,7 @@ export async function getPurchaseBatches(): Promise<
         })
         .from(meters)
         .where(isNotNull(meters.batch_id))
-        .groupBy(meters.batch_id)
+        .groupBy(meters.batch_id),
     );
 
     const batches = await db
@@ -645,18 +645,18 @@ export async function getPurchaseBatches(): Promise<
       .from(meterPurchaseBatches)
       .leftJoin(
         betterAuthUser,
-        sql`${meterPurchaseBatches.added_by}::text = ${betterAuthUser.id}`
+        sql`${meterPurchaseBatches.added_by}::text = ${betterAuthUser.id}`,
       )
       .leftJoin(
         meterCounts,
-        sql`${meterPurchaseBatches.id}::text = ${meterCounts.batch_id}`
+        sql`${meterPurchaseBatches.id}::text = ${meterCounts.batch_id}`,
       )
       .orderBy(desc(meterCounts.count), desc(meterPurchaseBatches.created_at));
 
     return batches.map((batch) => ({
       ...batch,
       remaining_meters: Number(batch.remaining_meters || 0),
-      user_profiles: {
+      user: {
         name: batch.user_name || null,
       },
     }));
@@ -686,7 +686,7 @@ export interface AggregatedSales {
  * Aggregates sales data for reporting
  */
 export async function aggregateSalesData(
-  sales: SaleBatch[]
+  sales: SaleBatch[],
 ): Promise<AggregatedSales> {
   const aggregated = sales.reduce(
     (acc, sale) => {
@@ -716,7 +716,7 @@ export async function aggregateSalesData(
       totalRevenue: "0",
       averagePrice: "0",
       byType: {},
-    } as AggregatedSales
+    } as AggregatedSales,
   );
 
   // Calculate average price
@@ -751,37 +751,33 @@ export async function getDailySalesSummary(days: number = 7): Promise<
       return [];
     }
 
-    const sales = await getSalesByDateRange(startDate, endDate);
+    const summaryRows = await db
+      .select({
+        date: sql<string>`DATE(${saleBatches.sale_date})`.as("date"),
+        total_sales: sql<string>`SUM(${saleBatches.total_price})`.as(
+          "total_sales",
+        ),
+        total_meters: sql<number>`SUM(${saleBatches.batch_amount})`.as(
+          "total_meters",
+        ),
+        transactions: sql<number>`COUNT(*)`.as("transactions"),
+      })
+      .from(saleBatches)
+      .where(
+        and(
+          gte(saleBatches.sale_date, startDate),
+          lte(saleBatches.sale_date, endDate),
+        ),
+      )
+      .groupBy(sql`DATE(${saleBatches.sale_date})`)
+      .orderBy(sql`DATE(${saleBatches.sale_date})`);
 
-    // Group sales by date
-    const salesByDate = sales.reduce(
-      (acc, sale) => {
-        const date = new Date(sale.sale_date || "").toISOString().split("T")[0];
-        if (!acc[date]) {
-          acc[date] = {
-            totalSales: "0",
-            totalMeters: 0,
-            transactions: 0,
-          };
-        }
-        acc[date].totalSales = (
-          Number.parseFloat(acc[date].totalSales) +
-          Number.parseFloat(sale.total_price)
-        ).toString();
-        acc[date].totalMeters += sale.batch_amount;
-        acc[date].transactions++;
-        return acc;
-      },
-      {} as Record<
-        string,
-        { totalSales: string; totalMeters: number; transactions: number }
-      >
-    );
-
-    // Convert to array and sort by date
-    return Object.entries(salesByDate)
-      .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+    return summaryRows.map((row) => ({
+      date: row.date,
+      totalSales: row.total_sales?.toString() || "0",
+      totalMeters: Number(row.total_meters) || 0,
+      transactions: Number(row.transactions) || 0,
+    }));
   } catch (error) {
     console.error("Error fetching daily sales summary:", error);
     throw error;
@@ -804,9 +800,29 @@ export async function getMonthlySalesTrend(year?: number): Promise<
     const startDate = new Date(currentYear, 0, 1);
     const endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-    const sales = await getSalesByDateRange(startDate, endDate);
+    const monthlyRows = await db
+      .select({
+        month: sql<string>`DATE_TRUNC('month', ${saleBatches.sale_date})`.as(
+          "month",
+        ),
+        total_sales: sql<string>`SUM(${saleBatches.total_price})`.as(
+          "total_sales",
+        ),
+        total_meters: sql<number>`SUM(${saleBatches.batch_amount})`.as(
+          "total_meters",
+        ),
+        transactions: sql<number>`COUNT(*)`.as("transactions"),
+      })
+      .from(saleBatches)
+      .where(
+        and(
+          gte(saleBatches.sale_date, startDate),
+          lte(saleBatches.sale_date, endDate),
+        ),
+      )
+      .groupBy(sql`DATE_TRUNC('month', ${saleBatches.sale_date})`)
+      .orderBy(sql`DATE_TRUNC('month', ${saleBatches.sale_date})`);
 
-    // Initialize all months with zero values
     const monthNames = [
       "Jan",
       "Feb",
@@ -829,15 +845,19 @@ export async function getMonthlySalesTrend(year?: number): Promise<
       transactions: 0,
     }));
 
-    // Group sales by month
-    for (const sale of sales) {
-      const monthIndex = new Date(sale.sale_date || "").getMonth();
-      monthlyData[monthIndex].totalSales = (
-        Number.parseFloat(monthlyData[monthIndex].totalSales) +
-        Number.parseFloat(sale.total_price)
-      ).toString();
-      monthlyData[monthIndex].totalMeters += sale.batch_amount;
-      monthlyData[monthIndex].transactions++;
+    for (const row of monthlyRows) {
+      const dateValue = new Date(row.month);
+      const monthIndex = Number.isNaN(dateValue.getTime())
+        ? null
+        : dateValue.getMonth();
+      if (monthIndex === null) continue;
+
+      monthlyData[monthIndex] = {
+        month: monthNames[monthIndex],
+        totalSales: row.total_sales?.toString() || "0",
+        totalMeters: Number(row.total_meters) || 0,
+        transactions: Number(row.transactions) || 0,
+      };
     }
 
     return monthlyData;
@@ -940,8 +960,8 @@ export async function getInventorySummary(): Promise<{
           .where(
             and(
               eq(soldMeters.status, "active"),
-              isNotNull(saleBatches.meter_type)
-            )
+              isNotNull(saleBatches.meter_type),
+            ),
           )
           .groupBy(saleBatches.meter_type),
         db
@@ -1021,7 +1041,7 @@ export async function getReportsPageData() {
       earningsByMeterType,
       totalEarnings: earningsByMeterType.reduce(
         (sum, item) => sum + item.total_earnings,
-        0
+        0,
       ),
     };
   } catch (error) {

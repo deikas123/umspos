@@ -53,6 +53,9 @@ interface MeterSalesFilterBarProps {
   onExportCSV: () => void;
   onExportXLSX: () => void;
   onExportPDF: () => void;
+  onExportCSVWithDetails: () => void;
+  onExportXLSXWithDetails: () => void;
+  onExportPDFWithDetails: () => void;
 }
 
 export function MeterSalesFilterBar({
@@ -72,7 +75,10 @@ export function MeterSalesFilterBar({
   onExportCSV,
   onExportXLSX,
   onExportPDF,
-}: MeterSalesFilterBarProps) {
+  onExportCSVWithDetails,
+  onExportXLSXWithDetails,
+  onExportPDFWithDetails,
+}: Readonly<MeterSalesFilterBarProps>) {
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     onSearchUserChange(event.target.value);
   };
@@ -195,9 +201,9 @@ export function MeterSalesFilterBar({
                   {isExporting ? "Exporting..." : "Export"}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-44'>
+              <DropdownMenuContent align='end' className='w-56'>
                 <DropdownMenuLabel className='text-xs text-gray-500'>
-                  Export Format
+                  Summary Export
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -220,6 +226,32 @@ export function MeterSalesFilterBar({
                   className='cursor-pointer'>
                   <FileText className='mr-2 h-4 w-4 text-red-600' />
                   PDF (.pdf)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className='text-xs text-gray-500'>
+                  With Details (Serial Numbers)
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={onExportCSVWithDetails}
+                  disabled={isExporting}
+                  className='cursor-pointer'>
+                  <File className='mr-2 h-4 w-4 text-green-600' />
+                  CSV with Details
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={onExportXLSXWithDetails}
+                  disabled={isExporting}
+                  className='cursor-pointer'>
+                  <FileSpreadsheet className='mr-2 h-4 w-4 text-emerald-600' />
+                  Excel with Details
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={onExportPDFWithDetails}
+                  disabled={isExporting}
+                  className='cursor-pointer'>
+                  <FileText className='mr-2 h-4 w-4 text-red-600' />
+                  PDF with Details
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

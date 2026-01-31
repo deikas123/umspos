@@ -1,7 +1,7 @@
 import MeterSales from "@/components/sales/MeterSales";
 import { getSaleBatches } from "@/lib/actions/sales";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const ITEMS_PER_PAGE = 10;
 

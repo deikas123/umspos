@@ -4,7 +4,10 @@ import { pdf } from "@react-pdf/renderer";
 import { toast } from "sonner";
 
 import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
-import { getAllSaleBatchesForExport } from "@/lib/actions/sales";
+import {
+  getAllSaleBatchesForExport,
+  getSaleBatchesWithDetailsForExport,
+} from "@/lib/actions/sales";
 import { generateCSV } from "@/lib/utils/csvGenerator";
 import { generateXLSX } from "@/lib/utils/xlsxGenerator";
 
@@ -23,7 +26,7 @@ interface UseMeterSalesExportOptions {
 
 export function useMeterSalesExport(
   batches: SaleBatch[],
-  { formatDate, filters }: UseMeterSalesExportOptions
+  { formatDate, filters }: UseMeterSalesExportOptions,
 ) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -70,7 +73,7 @@ export function useMeterSalesExport(
           title: "Meter Sales Report",
           headers,
           data,
-        })
+        }),
       ).toBlob();
 
       const url = URL.createObjectURL(blob);
@@ -96,13 +99,10 @@ export function useMeterSalesExport(
   const handleExportCSV = useCallback(async () => {
     if (isExporting) return;
 
-    console.log("[EXPORT] Starting CSV export with filters:", filters);
-
     setIsExporting(true);
     try {
       // Fetch all filtered data for export
       const allBatches = await getAllSaleBatchesForExport(filters);
-      console.log("[EXPORT] Received batches count:", allBatches.length);
 
       if (!allBatches.length) {
         toast.error("No data to export");
@@ -177,10 +177,148 @@ export function useMeterSalesExport(
     }
   }, [filters, formatDate, isExporting]);
 
+  // --- With Details Export Handlers ---
+
+  const handleExportPDFWithDetails = useCallback(async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    try {
+      const detailedSales = await getSaleBatchesWithDetailsForExport(filters);
+
+      if (!detailedSales.length) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const headers = [
+        "Date",
+        "Customer Name",
+        "Type",
+        "Serial Number",
+        "Amount",
+        "County",
+      ];
+
+      const data = detailedSales.map((sale) => [
+        formatDate(sale.sale_date),
+        sale.customer_name,
+        sale.meter_type
+          ?.split(" ")
+          .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ") || "N/A",
+        sale.serial_number,
+        `KES ${Math.round(sale.unit_price).toLocaleString()}`,
+        sale.customer_county || "N/A",
+      ]);
+
+      const blob = await pdf(
+        createElement(TableReportPDF, {
+          title: "Meter Sales Detailed Report",
+          headers,
+          data,
+        }),
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `meter-sales-detailed-${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${detailedSales.length} records to PDF`);
+    } catch (error) {
+      console.error("Failed to export PDF with details:", error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filters, formatDate, isExporting]);
+
+  const handleExportCSVWithDetails = useCallback(async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    try {
+      const detailedSales = await getSaleBatchesWithDetailsForExport(filters);
+
+      if (!detailedSales.length) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const csvData = detailedSales.map((sale) => ({
+        Date: formatDate(sale.sale_date),
+        "Customer Name": sale.customer_name,
+        Type:
+          sale.meter_type
+            ?.split(" ")
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ") || "N/A",
+        "Serial Number": sale.serial_number,
+        Amount: sale.unit_price.toString(),
+        County: sale.customer_county || "N/A",
+      }));
+
+      generateCSV(csvData, "meter_sales_detailed");
+
+      toast.success(`Exported ${detailedSales.length} records to CSV`);
+    } catch (error) {
+      console.error("Failed to export CSV with details:", error);
+      toast.error("Failed to export CSV");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filters, formatDate, isExporting]);
+
+  const handleExportXLSXWithDetails = useCallback(async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    try {
+      const detailedSales = await getSaleBatchesWithDetailsForExport(filters);
+
+      if (!detailedSales.length) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const xlsxData = detailedSales.map((sale) => ({
+        Date: formatDate(sale.sale_date),
+        "Customer Name": sale.customer_name,
+        Type:
+          sale.meter_type
+            ?.split(" ")
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ") || "N/A",
+        "Serial Number": sale.serial_number,
+        Amount: sale.unit_price,
+        County: sale.customer_county || "N/A",
+      }));
+
+      generateXLSX(xlsxData, "meter_sales_detailed", "Sales Details");
+
+      toast.success(`Exported ${detailedSales.length} records to Excel`);
+    } catch (error) {
+      console.error("Failed to export XLSX with details:", error);
+      toast.error("Failed to export Excel file");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filters, formatDate, isExporting]);
+
   return {
     handleExportPDF,
     handleExportCSV,
     handleExportXLSX,
+    handleExportPDFWithDetails,
+    handleExportCSVWithDetails,
+    handleExportXLSXWithDetails,
     isExporting,
   };
 }

@@ -88,7 +88,7 @@ function NotificationList({
 
     // Get the actual scroll viewport from Radix ScrollArea
     const scrollViewport = scrollContainerRef.current.querySelector(
-      "[data-radix-scroll-area-viewport]"
+      "[data-radix-scroll-area-viewport]",
     );
 
     if (!scrollViewport) return;
@@ -103,7 +103,7 @@ function NotificationList({
         root: scrollViewport,
         threshold: 0.1,
         rootMargin: "100px",
-      }
+      },
     );
 
     observer.observe(loadMoreRef.current);
@@ -209,15 +209,18 @@ function NotificationList({
 type HeaderContentProps = Readonly<{
   unreadCount: number;
   onMarkAllAsRead: () => Promise<void>;
+  onRefresh: () => Promise<void>;
   queryClient: ReturnType<typeof useQueryClient>;
 }>;
 
 function HeaderContent({
   unreadCount,
   onMarkAllAsRead,
+  onRefresh,
   queryClient,
 }: HeaderContentProps) {
   const [isMarkingAsRead, setIsMarkingAsRead] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleMarkAllAsRead = async () => {
     setIsMarkingAsRead(true);
@@ -234,9 +237,28 @@ function HeaderContent({
     }
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } catch (error) {
+      console.error("Error refreshing notifications:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className='flex items-center gap-3 pr-8'>
       <span className='text-lg font-semibold text-gray-900'>Notifications</span>
+      <Button
+        variant='outline'
+        size='sm'
+        onClick={handleRefresh}
+        disabled={isRefreshing}
+        className='text-xs bg-white hover:bg-gray-100 text-gray-700 border-gray-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50'>
+        {isRefreshing ? "Refreshing..." : "Refresh"}
+      </Button>
       {unreadCount > 0 && (
         <Button
           variant='outline'
@@ -271,7 +293,7 @@ export function NotificationBell() {
         const notifications = await getNotifications(
           user.id,
           NOTIFICATIONS_PER_PAGE,
-          pageParam
+          pageParam,
         );
 
         // Process notifications to add is_read flag
@@ -293,18 +315,19 @@ export function NotificationBell() {
       enabled: !!user?.id && isOpen,
       staleTime: 1000 * 60 * 5, // 5 minutes
       refetchOnWindowFocus: false, // Don't refetch on window focus to reduce requests
+      refetchInterval: isOpen ? 60 * 1000 : false, // Poll while open
     });
 
   // Flatten all pages into a single array and remove duplicates
   const allNotifications =
     data?.pages.flatMap((page) => page.notifications) ?? [];
   const uniqueNotifications = Array.from(
-    new Map(allNotifications.map((n) => [n.id, n])).values()
+    new Map(allNotifications.map((n) => [n.id, n])).values(),
   );
 
   const handleScrollToTop = useCallback(() => {
     const scrollArea = scrollContainerRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]"
+      "[data-radix-scroll-area-viewport]",
     );
     if (scrollArea) {
       scrollArea.scrollTo({
@@ -313,6 +336,13 @@ export function NotificationBell() {
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !user?.id) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["notifications", user.id],
+    });
+  }, [isOpen, user?.id, queryClient]);
 
   if (!user) return null;
 
@@ -330,10 +360,10 @@ export function NotificationBell() {
           {unreadCount > 0 && (
             <Badge
               variant='destructive'
-              className={`absolute h-5 w-5 flex items-center justify-center p-0 ${
+              className={`absolute h-5 min-w-5 flex items-center justify-center px-1 ${
                 isMobile ? "top-1 right-1" : "-top-2 -right-2"
               }`}>
-              {unreadCount}
+              {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>
           )}
         </Button>
@@ -348,6 +378,11 @@ export function NotificationBell() {
             <HeaderContent
               unreadCount={unreadCount}
               onMarkAllAsRead={markAllAsRead}
+              onRefresh={async () => {
+                await queryClient.invalidateQueries({
+                  queryKey: ["notifications", user.id],
+                });
+              }}
               queryClient={queryClient}
             />
           </SheetTitle>

@@ -59,7 +59,7 @@ export async function addSoldMeter(soldMeter: Omit<SoldMeterData, "id">) {
 
     if (existing) {
       throw new Error(
-        `Meter ${soldMeter.serial_number} is already in sold_meters table`
+        `Meter ${soldMeter.serial_number} is already in sold_meters table`,
       );
     }
 
@@ -72,7 +72,7 @@ export async function addSoldMeter(soldMeter: Omit<SoldMeterData, "id">) {
 
     if (existingSerial) {
       throw new Error(
-        `Serial number ${soldMeter.serial_number} already exists in sold_meters`
+        `Serial number ${soldMeter.serial_number} already exists in sold_meters`,
       );
     }
 
@@ -161,12 +161,9 @@ export async function getSaleBatches(
     customerType?: string;
     dateRange?: { start: Date; end: Date };
     specificDate?: Date;
-  }
+  },
 ) {
   const startTime = Date.now();
-  console.log(
-    `[getSaleBatches] Starting query (page=${page}, limit=${limit})...`
-  );
 
   const offset = (page - 1) * limit;
 
@@ -177,8 +174,8 @@ export async function getSaleBatches(
     conditions.push(
       or(
         ilike(saleBatches.user_name, `%${filters.searchUser}%`),
-        ilike(saleBatches.recipient, `%${filters.searchUser}%`)
-      )
+        ilike(saleBatches.recipient, `%${filters.searchUser}%`),
+      ),
     );
   }
 
@@ -198,8 +195,8 @@ export async function getSaleBatches(
       conditions.push(
         and(
           gte(saleBatches.sale_date, rangeStart),
-          lte(saleBatches.sale_date, rangeEnd)
-        )
+          lte(saleBatches.sale_date, rangeEnd),
+        ),
       );
     }
   }
@@ -213,8 +210,8 @@ export async function getSaleBatches(
       conditions.push(
         and(
           gte(saleBatches.sale_date, startOfDay),
-          lte(saleBatches.sale_date, endOfDay)
-        )
+          lte(saleBatches.sale_date, endOfDay),
+        ),
       );
     }
   }
@@ -223,11 +220,9 @@ export async function getSaleBatches(
 
   // Run count and data queries in parallel for better performance
   // Wrapped with timeout to prevent hung queries
-  console.log("[getSaleBatches] Executing parallel count + data queries...");
   const result = await withTimeout(
     async () => {
       const queryStart = Date.now();
-      console.log("[getSaleBatches] Inside withTimeout, queries starting...");
       const res = await Promise.all([
         db.select({ count: count() }).from(saleBatches).where(whereClause),
         db
@@ -238,18 +233,15 @@ export async function getSaleBatches(
           .limit(limit)
           .offset(offset),
       ]);
-      console.log(
-        `[getSaleBatches] Queries completed in ${Date.now() - queryStart}ms`
-      );
       return res;
     },
     15000,
-    null
+    null,
   );
 
   if (result === null) {
     console.error(
-      `[getSaleBatches] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+      `[getSaleBatches] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`,
     );
     return {
       batches: [],
@@ -264,9 +256,6 @@ export async function getSaleBatches(
 
   const [countResult, data] = result;
   const total = Number(countResult[0]?.count || 0);
-  console.log(
-    `[getSaleBatches] Success! Got ${data.length} batches, total=${total} (total time: ${Date.now() - startTime}ms)`
-  );
 
   // Convert numeric fields to numbers and cast to our custom SaleBatch type
   const batches = data.map((batch) => ({
@@ -316,11 +305,6 @@ export async function getAllSaleBatchesForExport(filters?: {
   dateRange?: { start: Date; end: Date };
   specificDate?: Date;
 }) {
-  console.log(
-    "[EXPORT] getAllSaleBatchesForExport called with filters:",
-    JSON.stringify(filters, null, 2)
-  );
-
   // Build where conditions (same as getSaleBatches)
   const conditions = [];
 
@@ -328,8 +312,8 @@ export async function getAllSaleBatchesForExport(filters?: {
     conditions.push(
       or(
         ilike(saleBatches.user_name, `%${filters.searchUser}%`),
-        ilike(saleBatches.recipient, `%${filters.searchUser}%`)
-      )
+        ilike(saleBatches.recipient, `%${filters.searchUser}%`),
+      ),
     );
   }
 
@@ -349,8 +333,8 @@ export async function getAllSaleBatchesForExport(filters?: {
       conditions.push(
         and(
           gte(saleBatches.sale_date, rangeStart),
-          lte(saleBatches.sale_date, rangeEnd)
-        )
+          lte(saleBatches.sale_date, rangeEnd),
+        ),
       );
     }
   }
@@ -364,16 +348,13 @@ export async function getAllSaleBatchesForExport(filters?: {
       conditions.push(
         and(
           gte(saleBatches.sale_date, startOfDay),
-          lte(saleBatches.sale_date, endOfDay)
-        )
+          lte(saleBatches.sale_date, endOfDay),
+        ),
       );
     }
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  console.log("[EXPORT] Number of conditions:", conditions.length);
-  console.log("[EXPORT] Has whereClause:", !!whereClause);
 
   // Get ALL data without pagination
   const data = await db
@@ -382,8 +363,6 @@ export async function getAllSaleBatchesForExport(filters?: {
     .where(whereClause)
     .orderBy(desc(saleBatches.sale_date));
 
-  console.log("[EXPORT] Raw data count from DB:", data.length);
-
   // Convert numeric fields to numbers
   const batches = data.map((batch) => ({
     ...batch,
@@ -391,13 +370,94 @@ export async function getAllSaleBatchesForExport(filters?: {
     total_price: Number(batch.total_price),
   }));
 
-  console.log("[EXPORT] Returning batches count:", batches.length);
   return batches;
+}
+
+export async function getSaleBatchesWithDetailsForExport(filters?: {
+  searchUser?: string;
+  meterType?: string;
+  customerType?: string;
+  dateRange?: { start: Date; end: Date };
+  specificDate?: Date;
+}) {
+  // Build where conditions (same as getAllSaleBatchesForExport)
+  const conditions = [];
+
+  if (filters?.searchUser) {
+    conditions.push(
+      or(
+        ilike(saleBatches.user_name, `%${filters.searchUser}%`),
+        ilike(saleBatches.recipient, `%${filters.searchUser}%`),
+      ),
+    );
+  }
+
+  if (filters?.meterType) {
+    conditions.push(ilike(saleBatches.meter_type, filters.meterType));
+  }
+
+  if (filters?.customerType) {
+    conditions.push(eq(saleBatches.customer_type, filters.customerType));
+  }
+
+  if (filters?.dateRange) {
+    const rangeStart = getStartOfDayInAppTimezone(filters.dateRange.start);
+    const rangeEnd = getEndOfDayInAppTimezone(filters.dateRange.end);
+    if (rangeStart && rangeEnd) {
+      conditions.push(
+        and(
+          gte(saleBatches.sale_date, rangeStart),
+          lte(saleBatches.sale_date, rangeEnd),
+        ),
+      );
+    }
+  }
+
+  if (filters?.specificDate) {
+    const startOfDay = getStartOfDayInAppTimezone(filters.specificDate);
+    const endOfDay = getEndOfDayInAppTimezone(filters.specificDate);
+    if (startOfDay && endOfDay) {
+      conditions.push(
+        and(
+          gte(saleBatches.sale_date, startOfDay),
+          lte(saleBatches.sale_date, endOfDay),
+        ),
+      );
+    }
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Join saleBatches with soldMeters to get individual meter details
+  const data = await db
+    .select({
+      sale_date: saleBatches.sale_date,
+      customer_name: saleBatches.recipient,
+      meter_type: saleBatches.meter_type,
+      serial_number: soldMeters.serial_number,
+      unit_price: soldMeters.unit_price,
+      customer_county: saleBatches.customer_county,
+    })
+    .from(saleBatches)
+    .innerJoin(soldMeters, eq(soldMeters.batch_id, saleBatches.id))
+    .where(whereClause)
+    .orderBy(desc(saleBatches.sale_date), soldMeters.serial_number);
+
+  // Convert numeric fields to numbers
+  const detailedSales = data.map((row) => ({
+    sale_date: row.sale_date,
+    customer_name: row.customer_name,
+    meter_type: row.meter_type,
+    serial_number: row.serial_number,
+    unit_price: Number(row.unit_price),
+    customer_county: row.customer_county,
+  }));
+
+  return detailedSales;
 }
 
 export async function getSalesChartData(days: number = 30) {
   const startTime = Date.now();
-  console.log(`[getSalesChartData] Starting query (days=${days})...`);
 
   try {
     const cutoffDate = new Date();
@@ -405,45 +465,38 @@ export async function getSalesChartData(days: number = 30) {
 
     // Aggregate sales data by date and meter type directly in the database
     // Wrapped with timeout to prevent hung queries
-    console.log("[getSalesChartData] Executing aggregation query...");
     const data = await withTimeout(
       async () => {
         const queryStart = Date.now();
-        console.log(
-          "[getSalesChartData] Inside withTimeout, query starting..."
-        );
         const res = await db
           .select({
             date: sql<string>`DATE(${saleBatches.sale_date})`.as("date"),
             meter_type: saleBatches.meter_type,
             total_amount: sql<number>`SUM(${saleBatches.batch_amount})`.as(
-              "total_amount"
+              "total_amount",
             ),
             user_names:
               sql<string>`ARRAY_AGG(DISTINCT ${saleBatches.user_name})`.as(
-                "user_names"
+                "user_names",
               ),
             user_amounts:
               sql<string>`ARRAY_AGG(${saleBatches.user_name} || ':' || ${saleBatches.batch_amount})`.as(
-                "user_amounts"
+                "user_amounts",
               ),
           })
           .from(saleBatches)
           .where(gte(saleBatches.sale_date, cutoffDate))
           .groupBy(sql`DATE(${saleBatches.sale_date})`, saleBatches.meter_type)
           .orderBy(desc(sql`DATE(${saleBatches.sale_date})`));
-        console.log(
-          `[getSalesChartData] Query completed in ${Date.now() - queryStart}ms, got ${res.length} rows`
-        );
         return res;
       },
       15000, // 15 second timeout (reduced)
-      null // Return null on timeout
+      null, // Return null on timeout
     );
 
     if (data === null) {
       console.error(
-        `[getSalesChartData] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+        `[getSalesChartData] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`,
       );
       return [];
     }
@@ -482,14 +535,11 @@ export async function getSalesChartData(days: number = 30) {
       };
     });
 
-    console.log(
-      `[getSalesChartData] Success! Returning ${transformedData.length} chart data points (total time: ${Date.now() - startTime}ms)`
-    );
     return transformedData;
   } catch (error) {
     console.error(
       `[getSalesChartData] Error after ${Date.now() - startTime}ms:`,
-      error instanceof Error ? error.message : error
+      error instanceof Error ? error.message : error,
     );
     return [];
   }
@@ -526,7 +576,7 @@ export async function getSaleBatchMeterDetails(batchId: string) {
         .from(saleBatches)
         .leftJoin(
           salesTransactions,
-          eq(saleBatches.transaction_id, salesTransactions.id)
+          eq(saleBatches.transaction_id, salesTransactions.id),
         )
         .where(eq(saleBatches.id, batchId))
         .limit(1),
@@ -594,7 +644,7 @@ export async function getSoldMeterBySerial(serialNumber: string) {
 
   if (soldMeter.status !== "active") {
     throw new Error(
-      `Meter ${normalizedSerial} is already marked as ${soldMeter.status}`
+      `Meter ${normalizedSerial} is already marked as ${soldMeter.status}`,
     );
   }
 
@@ -633,7 +683,7 @@ export async function returnSoldMeter({
     const faultyMeters = metersToReturn.filter((m) => m.status === "faulty");
 
     const replacementMap = new Map(
-      replacements.map((replacement) => [replacement.original_id, replacement])
+      replacements.map((replacement) => [replacement.original_id, replacement]),
     );
 
     const { invalidateStock } = await db.transaction(async (tx) => {
@@ -655,8 +705,8 @@ export async function returnSoldMeter({
         await tx.delete(soldMeters).where(
           inArray(
             soldMeters.id,
-            healthyMeters.map((meter) => meter.id)
-          )
+            healthyMeters.map((meter) => meter.id),
+          ),
         );
       }
 
@@ -674,7 +724,7 @@ export async function returnSoldMeter({
         await tx.insert(faultyReturns).values(faultyReturnsData);
 
         const faultyWithReplacements = faultyMeters.filter((meter) =>
-          replacementMap.has(meter.id)
+          replacementMap.has(meter.id),
         );
 
         if (faultyWithReplacements.length > 0) {
@@ -682,9 +732,9 @@ export async function returnSoldMeter({
           const replacementSerials = Array.from(
             new Set(
               faultyWithReplacements.map((meter) =>
-                replacementMap.get(meter.id)!.new_serial.trim().toUpperCase()
-              )
-            )
+                replacementMap.get(meter.id)!.new_serial.trim().toUpperCase(),
+              ),
+            ),
           );
 
           await tx
@@ -786,7 +836,7 @@ export async function createSalesTransaction(
     customer_contact: string;
     total_amount: number;
   },
-  client: DrizzleClient
+  client: DrizzleClient,
 ): Promise<typeof salesTransactions.$inferSelect>;
 export async function createSalesTransaction(
   {
@@ -812,7 +862,7 @@ export async function createSalesTransaction(
     customer_contact: string;
     total_amount: number;
   },
-  client: DrizzleClient = db
+  client: DrizzleClient = db,
 ) {
   try {
     const year = sale_date.getFullYear();
@@ -865,12 +915,12 @@ export async function createSalesTransaction(
 
 export async function linkBatchToTransaction(
   batchId: string,
-  transactionId: string
+  transactionId: string,
 ) {
   try {
     if (!batchId || !transactionId) {
       throw new Error(
-        "Missing required parameters: batch ID or transaction ID"
+        "Missing required parameters: batch ID or transaction ID",
       );
     }
 
@@ -966,8 +1016,8 @@ export async function getSalesTransactions({
         or(
           ilike(salesTransactions.reference_number, searchLower),
           ilike(salesTransactions.recipient, searchLower),
-          ilike(salesTransactions.destination, searchLower)
-        )
+          ilike(salesTransactions.destination, searchLower),
+        ),
       );
     }
 
@@ -1034,7 +1084,7 @@ export async function getSalesTransactionDetails(transactionId: string) {
         acc[meter.batch_id].push(meter);
         return acc;
       },
-      {} as Record<string, typeof meters>
+      {} as Record<string, typeof meters>,
     );
 
     const batchesWithMeters = batches.map((batch) => ({
@@ -1224,7 +1274,7 @@ export async function processMeterSale({
   // Validate all meter types have unit prices
   const uniqueTypes = Array.from(new Set(meters.map((m) => m.type)));
   const missingPrices = uniqueTypes.filter(
-    (type) => !saleDetails.unitPrices[type]
+    (type) => !saleDetails.unitPrices[type],
   );
   if (missingPrices.length > 0) {
     throw new Error(`Missing unit prices for: ${missingPrices.join(", ")}`);
@@ -1249,23 +1299,23 @@ export async function processMeterSale({
           const foundIds = new Set(availableMeters.map((m) => m.id));
           const missingIds = meterIds.filter((id) => !foundIds.has(id));
           throw new Error(
-            `Some meters are no longer available. Missing meter IDs: ${missingIds.join(", ")}`
+            `Some meters are no longer available. Missing meter IDs: ${missingIds.join(", ")}`,
           );
         }
 
         // Check for duplicates in the input
         const serialNumbers = meters.map((m) => m.serialNumber.toLowerCase());
         const duplicates = serialNumbers.filter(
-          (sn, idx) => serialNumbers.indexOf(sn) !== idx
+          (sn, idx) => serialNumbers.indexOf(sn) !== idx,
         );
         if (duplicates.length > 0) {
           throw new Error(
-            `Duplicate meters detected: ${Array.from(new Set(duplicates)).join(", ")}`
+            `Duplicate meters detected: ${Array.from(new Set(duplicates)).join(", ")}`,
           );
         }
 
         const normalizedSerials = meters.map((m) =>
-          m.serialNumber.trim().toUpperCase()
+          m.serialNumber.trim().toUpperCase(),
         );
 
         const alreadySoldSerials = await tx
@@ -1277,7 +1327,7 @@ export async function processMeterSale({
           throw new Error(
             `Meters already sold: ${alreadySoldSerials
               .map((m) => m.serial_number)
-              .join(", ")}`
+              .join(", ")}`,
           );
         }
 
@@ -1293,7 +1343,7 @@ export async function processMeterSale({
               `Meters already sold: ${alreadySoldById
                 .map((m) => m.meter_id)
                 .filter(Boolean)
-                .join(", ")}`
+                .join(", ")}`,
             );
           }
         }
@@ -1304,7 +1354,7 @@ export async function processMeterSale({
             acc[meter.type].push(meter);
             return acc;
           },
-          {}
+          {},
         );
 
         const totalAmount = Object.entries(metersByType).reduce(
@@ -1312,7 +1362,7 @@ export async function processMeterSale({
             total +
             typeMeters.length *
               Number.parseFloat(saleDetails.unitPrices[type] || "0"),
-          0
+          0,
         );
 
         const transactionData = await createSalesTransaction(
@@ -1327,14 +1377,14 @@ export async function processMeterSale({
             customer_contact: saleDetails.customerContact,
             total_amount: totalAmount,
           },
-          tx as unknown as DrizzleClient
+          tx as unknown as DrizzleClient,
         );
 
         const batchInputs = Object.entries(metersByType).map(
           ([type, typeMeters]) => {
             const batchAmount = typeMeters.length;
             const typeUnitPrice = Number.parseFloat(
-              saleDetails.unitPrices[type]
+              saleDetails.unitPrices[type],
             );
             const totalPrice = typeUnitPrice * batchAmount;
 
@@ -1359,7 +1409,7 @@ export async function processMeterSale({
               picked_by_name: saleDetails.pickedByName,
               picked_by_contact: saleDetails.pickedByContact,
             } satisfies Omit<SaleBatchData, "id">;
-          }
+          },
         );
 
         const batchInsertValues = batchInputs.map(
@@ -1367,7 +1417,7 @@ export async function processMeterSale({
             ...rest,
             unit_price: unit_price.toString(),
             total_price: total_price.toString(),
-          })
+          }),
         );
 
         const insertedBatches = batchInsertValues.length
@@ -1411,7 +1461,7 @@ export async function processMeterSale({
 
         if (removedMeters.length !== meterIds.length) {
           throw new Error(
-            `Failed to remove all meters from stock. Expected ${meterIds.length}, removed ${removedMeters.length}.`
+            `Failed to remove all meters from stock. Expected ${meterIds.length}, removed ${removedMeters.length}.`,
           );
         }
 
@@ -1419,12 +1469,12 @@ export async function processMeterSale({
           const batchId = batchIdByType.get(meter.type);
           if (!batchId) {
             throw new Error(
-              `Batch mapping missing for meter type ${meter.type}`
+              `Batch mapping missing for meter type ${meter.type}`,
             );
           }
 
           const typeUnitPrice = Number.parseFloat(
-            saleDetails.unitPrices[meter.type]
+            saleDetails.unitPrices[meter.type],
           );
 
           return {
@@ -1448,7 +1498,7 @@ export async function processMeterSale({
             ({ unit_price, ...rest }) => ({
               ...rest,
               unit_price: unit_price.toString(),
-            })
+            }),
           );
 
           await tx.insert(soldMeters).values(soldInsertValues);
@@ -1471,8 +1521,8 @@ export async function processMeterSale({
           notificationPayloads.map((payload) =>
             createNotification(payload).catch((error) => {
               console.error("Failed to create sale notification:", error);
-            })
-          )
+            }),
+          ),
         );
       }
 
@@ -1522,7 +1572,7 @@ export async function processAgentMeterSale({
   // Validate all meter types have unit prices
   const uniqueTypes = Array.from(new Set(meters.map((m) => m.type)));
   const missingPrices = uniqueTypes.filter(
-    (type) => !saleDetails.unitPrices[type]
+    (type) => !saleDetails.unitPrices[type],
   );
   if (missingPrices.length > 0) {
     throw new Error(`Missing unit prices for: ${missingPrices.join(", ")}`);
@@ -1531,11 +1581,11 @@ export async function processAgentMeterSale({
   // Check for duplicates in the input
   const serialNumbers = meters.map((m) => m.serial_number.toLowerCase());
   const duplicates = serialNumbers.filter(
-    (sn, idx) => serialNumbers.indexOf(sn) !== idx
+    (sn, idx) => serialNumbers.indexOf(sn) !== idx,
   );
   if (duplicates.length > 0) {
     throw new Error(
-      `Duplicate meters detected: ${Array.from(new Set(duplicates)).join(", ")}`
+      `Duplicate meters detected: ${Array.from(new Set(duplicates)).join(", ")}`,
     );
   }
 
@@ -1563,16 +1613,16 @@ export async function processAgentMeterSale({
           const foundIds = new Set(inventoryRows.map((row) => row.id));
           const missing = meterIds.filter((id) => !foundIds.has(id));
           throw new Error(
-            `Some meters are no longer available in agent inventory. Missing IDs: ${missing.join(", ")}`
+            `Some meters are no longer available in agent inventory. Missing IDs: ${missing.join(", ")}`,
           );
         }
 
         const unauthorized = inventoryRows.find(
-          (row) => row.agent_id !== agentId
+          (row) => row.agent_id !== agentId,
         );
         if (unauthorized) {
           throw new Error(
-            "One or more meters no longer belong to the selected agent"
+            "One or more meters no longer belong to the selected agent",
           );
         }
 
@@ -1584,7 +1634,7 @@ export async function processAgentMeterSale({
             acc[row.type].push(row);
             return acc;
           },
-          {} as Record<string, Array<(typeof inventoryRows)[number]>>
+          {} as Record<string, Array<(typeof inventoryRows)[number]>>,
         );
 
         const unitPriceByType = new Map<string, number>();
@@ -1614,7 +1664,7 @@ export async function processAgentMeterSale({
             customer_contact: saleDetails.customerContact,
             total_amount: totalAmount,
           },
-          tx as unknown as DrizzleClient
+          tx as unknown as DrizzleClient,
         );
 
         const batchInputs = Object.entries(inventoryByType).map(
@@ -1643,7 +1693,7 @@ export async function processAgentMeterSale({
               sale_date: saleDetails.saleDate,
               transaction_id: transactionData.id,
             } satisfies Omit<SaleBatchData, "id">;
-          }
+          },
         );
 
         const batchInsertValues = batchInputs.map(
@@ -1651,7 +1701,7 @@ export async function processAgentMeterSale({
             ...rest,
             unit_price: unit_price.toString(),
             total_price: total_price.toString(),
-          })
+          }),
         );
 
         const insertedBatches = batchInsertValues.length
@@ -1695,7 +1745,7 @@ export async function processAgentMeterSale({
 
         if (removedInventory.length !== meterIds.length) {
           throw new Error(
-            `Failed to remove all meters from agent inventory. Expected ${meterIds.length}, removed ${removedInventory.length}.`
+            `Failed to remove all meters from agent inventory. Expected ${meterIds.length}, removed ${removedInventory.length}.`,
           );
         }
 
@@ -1733,7 +1783,7 @@ export async function processAgentMeterSale({
             ({ unit_price, ...rest }) => ({
               ...rest,
               unit_price: unit_price.toString(),
-            })
+            }),
           );
 
           await tx.insert(soldMeters).values(soldInsertValues);
@@ -1756,8 +1806,8 @@ export async function processAgentMeterSale({
           notificationPayloads.map((payload) =>
             createNotification(payload).catch((error) => {
               console.error("Failed to create sale notification:", error);
-            })
-          )
+            }),
+          ),
         );
       }
 

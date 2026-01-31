@@ -36,7 +36,7 @@ function MobileBatchCard({
   onOpenNoteDialog,
   onOpenEditDialog,
   formatDate,
-}: {
+}: Readonly<{
   batch: SaleBatch;
   isOpen: boolean;
   hasPendingRequest: boolean;
@@ -45,7 +45,7 @@ function MobileBatchCard({
   onOpenNoteDialog: (batch: SaleBatch) => void;
   onOpenEditDialog: (batch: SaleBatch) => void;
   formatDate: (date: Date | null) => string;
-}) {
+}>) {
   return (
     <div className='space-y-2'>
       <div className='relative'>
@@ -130,7 +130,7 @@ function DesktopBatchRow({
   onOpenNoteDialog,
   onOpenEditDialog,
   formatDate,
-}: {
+}: Readonly<{
   batch: SaleBatch;
   isOpen: boolean;
   hasPendingRequest: boolean;
@@ -139,7 +139,7 @@ function DesktopBatchRow({
   onOpenNoteDialog: (batch: SaleBatch) => void;
   onOpenEditDialog: (batch: SaleBatch) => void;
   formatDate: (date: Date | null) => string;
-}) {
+}>) {
   return (
     <React.Fragment key={batch.id}>
       <TableRow
@@ -219,7 +219,7 @@ export function MeterSalesTable({
   onOpenNoteDialog,
   onOpenEditDialog,
   formatDate,
-}: MeterSalesTableProps) {
+}: Readonly<MeterSalesTableProps>) {
   if (!batches.length) {
     return null;
   }
@@ -247,13 +247,13 @@ export function MeterSalesTable({
           <TableHeader>
             <TableRow>
               <TableHead className='w-10'></TableHead>
-              <TableHead className='w-[16%]'>Seller</TableHead>
+              <TableHead className='w-[12%]'>Seller</TableHead>
               <TableHead className='w-[6%]'>Type</TableHead>
               <TableHead className='w-[7%] text-center'>Quantity</TableHead>
               <TableHead className='w-[14%]'>Sale Amount</TableHead>
               <TableHead className='w-[11%]'>Sale Date</TableHead>
               <TableHead className='w-[15%]'>Recipient</TableHead>
-              <TableHead className='w-[14%]'>Customer Type</TableHead>
+              <TableHead className='w-[18%]'>Customer Type</TableHead>
               <TableHead className='w-[10%]'>County</TableHead>
             </TableRow>
           </TableHeader>

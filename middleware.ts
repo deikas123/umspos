@@ -23,7 +23,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/error");
   const isDeactivatedPage = pathname.startsWith("/deactivated");
 
-  // Get session cookie (optimistic check - full validation happens in pages/routes)
+  // Get session cookie
   const sessionCookie = getSessionCookie(request);
 
   // If no session and not on auth/deactivated page, redirect to signin
@@ -36,8 +36,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If has session and on auth page, redirect to dashboard
-  // This ensures authenticated users are redirected away from signin page
   if (isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";

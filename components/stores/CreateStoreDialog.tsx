@@ -57,15 +57,21 @@ export default function CreateStoreDialog({ trigger }: CreateStoreDialogProps) {
       // Validate phone number format
       const phoneRegex = /^\+?\d{10,15}$/;
       if (!phoneRegex.test(formData.phone_number)) {
-        throw new Error("Invalid phone number format");
+        toast.error("Invalid phone number format");
+        return;
       }
 
       // Create as a store (is_store = true)
-      await createAgent({
+      const result = await createAgent({
         ...formData,
         is_store: true,
         agent_type: "cash", // Stores default to cash
       });
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
 
       toast.success("Store created successfully");
 
@@ -80,7 +86,7 @@ export default function CreateStoreDialog({ trigger }: CreateStoreDialogProps) {
         county: "Nairobi",
       });
     } catch (error: any) {
-      toast.error(error.message || "Failed to create store");
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -185,7 +191,7 @@ export default function CreateStoreDialog({ trigger }: CreateStoreDialogProps) {
                                 "mr-2 h-4 w-4",
                                 formData.county === county
                                   ? "opacity-100"
-                                  : "opacity-0"
+                                  : "opacity-0",
                               )}
                             />
                             {county}

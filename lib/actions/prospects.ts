@@ -55,12 +55,18 @@ export async function createProspect(formData: ProspectFormData) {
   });
 
   if (!session?.user) {
-    throw new Error("Unauthorized: You must be logged in");
+    return {
+      success: false as const,
+      error: "Unauthorized: You must be logged in",
+    };
   }
 
   const userRole = (session.user as any).appRole;
   if (userRole !== "sales_person") {
-    throw new Error("Unauthorized: Only sales persons can create prospects");
+    return {
+      success: false as const,
+      error: "Unauthorized: Only sales persons can create prospects",
+    };
   }
 
   try {
@@ -86,27 +92,36 @@ export async function createProspect(formData: ProspectFormData) {
     revalidatePath("/prospects");
     revalidatePath("/prospects/new");
 
-    return { success: true, prospect: newProspect[0] };
+    return { success: true as const, prospect: newProspect[0] };
   } catch (error: any) {
     console.error("Error creating prospect:", error);
-    throw new Error(`Failed to create prospect: ${error.message}`);
+    return {
+      success: false as const,
+      error: error.message || "Failed to create prospect",
+    };
   }
 }
 
 export async function createMultipleProspects(
-  prospectsData: ProspectFormData[]
+  prospectsData: ProspectFormData[],
 ) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   if (!session?.user) {
-    throw new Error("Unauthorized: You must be logged in");
+    return {
+      success: false as const,
+      error: "Unauthorized: You must be logged in",
+    };
   }
 
   const userRole = (session.user as any).appRole;
   if (userRole !== "sales_person") {
-    throw new Error("Unauthorized: Only sales persons can create prospects");
+    return {
+      success: false as const,
+      error: "Unauthorized: Only sales persons can create prospects",
+    };
   }
 
   try {
@@ -135,26 +150,32 @@ export async function createMultipleProspects(
     revalidatePath("/prospects/new");
 
     return {
-      success: true,
+      success: true as const,
       prospects: newProspects,
       count: newProspects.length,
     };
   } catch (error: any) {
     console.error("Error creating prospects:", error);
-    throw new Error(`Failed to create prospects: ${error.message}`);
+    return {
+      success: false as const,
+      error: error.message || "Failed to create prospects",
+    };
   }
 }
 
 export async function updateProspect(
   prospectId: string,
-  formData: Partial<ProspectFormData>
+  formData: Partial<ProspectFormData>,
 ) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   if (!session?.user) {
-    throw new Error("Unauthorized: You must be logged in");
+    return {
+      success: false as const,
+      error: "Unauthorized: You must be logged in",
+    };
   }
 
   const userRole = (session.user as any).appRole;
@@ -167,17 +188,23 @@ export async function updateProspect(
     .limit(1);
 
   if (existingProspect.length === 0) {
-    throw new Error("Prospect not found");
+    return { success: false as const, error: "Prospect not found" };
   }
 
   const prospect = existingProspect[0];
 
   if (isSalesPerson(userRole) && prospect.sales_person_id !== session.user.id) {
-    throw new Error("Unauthorized: You can only update your own prospects");
+    return {
+      success: false as const,
+      error: "Unauthorized: You can only update your own prospects",
+    };
   }
 
   if (!canManageProspects(userRole)) {
-    throw new Error("Unauthorized: Insufficient permissions");
+    return {
+      success: false as const,
+      error: "Unauthorized: Insufficient permissions",
+    };
   }
 
   // Build change history entry
@@ -207,7 +234,7 @@ export async function updateProspect(
   }
 
   if (changes.length === 0) {
-    return { success: true, prospect, message: "No changes detected" };
+    return { success: true as const, prospect, message: "No changes detected" };
   }
 
   const changeHistoryEntry: ChangeHistoryEntry = {
@@ -234,10 +261,13 @@ export async function updateProspect(
     revalidatePath("/prospects");
     revalidatePath("/prospects/new");
 
-    return { success: true, prospect: updated[0] };
+    return { success: true as const, prospect: updated[0] };
   } catch (error: any) {
     console.error("Error updating prospect:", error);
-    throw new Error(`Failed to update prospect: ${error.message}`);
+    return {
+      success: false as const,
+      error: error.message || "Failed to update prospect",
+    };
   }
 }
 

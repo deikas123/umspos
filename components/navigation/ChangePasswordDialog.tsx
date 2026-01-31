@@ -40,7 +40,13 @@ export function ChangePasswordDialog({
     }
 
     try {
-      await changePassword(userId, newPassword);
+      const result = await changePassword(userId, newPassword);
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+
       toast.success("Password changed successfully. Please sign in again.");
 
       queryClient.clear();
@@ -49,7 +55,7 @@ export function ChangePasswordDialog({
         globalThis.window.location.href = "/signin";
       }, 1500);
     } catch (error: any) {
-      toast.error(error.message || "Failed to change password");
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       onOpenChange(false);
       setNewPassword("");

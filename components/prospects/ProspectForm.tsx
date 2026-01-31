@@ -99,7 +99,7 @@ export default function ProspectForm() {
         return updated;
       });
     },
-    []
+    [],
   );
 
   const addNewForm = useCallback(() => {
@@ -124,7 +124,7 @@ export default function ProspectForm() {
       }
       toast.success("Form removed");
     },
-    [drafts.length, activeFormIndex]
+    [drafts.length, activeFormIndex],
   );
 
   // Removed getGeolocation function as it is now handled automatically in handleSubmitAll
@@ -171,7 +171,7 @@ export default function ProspectForm() {
               timeout: 10000,
               maximumAge: 0,
             });
-          }
+          },
         );
         currentLatitude = position.coords.latitude.toFixed(7);
         currentLongitude = position.coords.longitude.toFixed(7);
@@ -179,7 +179,7 @@ export default function ProspectForm() {
         // Reverse geocode to get place name
         try {
           const geocodeResponse = await fetch(
-            `/api/places/geocode?lat=${currentLatitude}&lng=${currentLongitude}`
+            `/api/places/geocode?lat=${currentLatitude}&lng=${currentLongitude}`,
           );
           if (geocodeResponse.ok) {
             const geocodeData = await geocodeResponse.json();
@@ -213,16 +213,19 @@ export default function ProspectForm() {
 
       const result = await createMultipleProspects(prospectsData);
 
-      if (result.success) {
-        toast.success(`Successfully submitted ${result.count} prospect(s)`);
-        // Clear all drafts and start fresh
-        localStorage.removeItem(DRAFTS_STORAGE_KEY);
-        setDrafts([createEmptyDraft()]);
-        setActiveFormIndex(0);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
       }
+
+      toast.success(`Successfully submitted ${result.count} prospect(s)`);
+      // Clear all drafts and start fresh
+      localStorage.removeItem(DRAFTS_STORAGE_KEY);
+      setDrafts([createEmptyDraft()]);
+      setActiveFormIndex(0);
     } catch (error: any) {
       console.error("Error submitting prospects:", error);
-      toast.error(error.message || "Failed to submit prospects");
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -406,7 +409,7 @@ export default function ProspectForm() {
                   updateDraft(
                     activeFormIndex,
                     "number_of_meters",
-                    e.target.value
+                    e.target.value,
                   )
                 }
               />

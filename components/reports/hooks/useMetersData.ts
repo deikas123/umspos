@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAllMetersWithStatus, MeterWithStatus } from "@/lib/actions/exports";
+import { getAllMetersWithStatus } from "@/lib/actions/exports";
+import { CalendarDate } from "@internationalized/date";
 
 // Define query keys
 const QUERY_KEYS = {
@@ -17,6 +18,11 @@ export type MeterStatusFilter =
   | "faulty";
 export type MeterTypeFilter = string | null;
 
+export type DateRangeValue = {
+  start: CalendarDate | null;
+  end: CalendarDate | null;
+} | null;
+
 export function useMetersData(initialPageSize: number = 20) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -25,6 +31,27 @@ export function useMetersData(initialPageSize: number = 20) {
     useState<MeterStatusFilter>("in_stock");
   const [typeFilter, setTypeFilter] = useState<MeterTypeFilter>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState<DateRangeValue>(null);
+  const [selectedDate, setSelectedDate] = useState<CalendarDate | null>(null);
+
+  const effectiveDateRange: DateRangeValue = selectedDate
+    ? { start: selectedDate, end: selectedDate }
+    : dateRange;
+
+  const formatCalendarDate = (date: CalendarDate) => {
+    const year = String(date.year);
+    const month = String(date.month).padStart(2, "0");
+    const day = String(date.day).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const startDateStr = effectiveDateRange?.start
+    ? formatCalendarDate(effectiveDateRange.start)
+    : undefined;
+
+  const endDateStr = effectiveDateRange?.end
+    ? formatCalendarDate(effectiveDateRange.end)
+    : undefined;
 
   // Create a query key that includes all filters
   const queryKey = [
@@ -34,6 +61,8 @@ export function useMetersData(initialPageSize: number = 20) {
     statusFilter,
     typeFilter,
     searchTerm,
+    startDateStr,
+    endDateStr,
   ];
 
   // The main query
@@ -48,7 +77,9 @@ export function useMetersData(initialPageSize: number = 20) {
           pageSize,
           filterStatus,
           typeFilter || undefined,
-          searchTerm || undefined
+          searchTerm || undefined,
+          startDateStr,
+          endDateStr,
         );
 
         return result;
@@ -83,6 +114,8 @@ export function useMetersData(initialPageSize: number = 20) {
         statusFilter,
         typeFilter,
         searchTerm,
+        startDateStr,
+        endDateStr,
       ];
 
       queryClient.prefetchQuery({
@@ -93,7 +126,9 @@ export function useMetersData(initialPageSize: number = 20) {
             pageSize,
             filterStatus,
             typeFilter || undefined,
-            searchTerm || undefined
+            searchTerm || undefined,
+            startDateStr,
+            endDateStr,
           );
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
@@ -110,6 +145,8 @@ export function useMetersData(initialPageSize: number = 20) {
         statusFilter,
         typeFilter,
         searchTerm,
+        startDateStr,
+        endDateStr,
       ];
 
       queryClient.prefetchQuery({
@@ -120,13 +157,25 @@ export function useMetersData(initialPageSize: number = 20) {
             pageSize,
             filterStatus,
             typeFilter || undefined,
-            searchTerm || undefined
+            searchTerm || undefined,
+            startDateStr,
+            endDateStr,
           );
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
       });
     }
-  }, [page, pageSize, statusFilter, typeFilter, searchTerm, data, queryClient]);
+  }, [
+    page,
+    pageSize,
+    statusFilter,
+    typeFilter,
+    searchTerm,
+    startDateStr,
+    endDateStr,
+    data,
+    queryClient,
+  ]);
 
   // Prefetch adjacent pages when current page data is loaded
   useEffect(() => {
@@ -137,7 +186,13 @@ export function useMetersData(initialPageSize: number = 20) {
 
   // Prefetch data for different status filters
   useEffect(() => {
-    if (!isLoading && !searchTerm && !typeFilter) {
+    if (
+      !isLoading &&
+      !searchTerm &&
+      !typeFilter &&
+      !startDateStr &&
+      !endDateStr
+    ) {
       // Only prefetch other status filters when not searching or filtering by type
       const statusesToPrefetch: MeterStatusFilter[] = [
         "in_stock",
@@ -155,6 +210,8 @@ export function useMetersData(initialPageSize: number = 20) {
           status,
           null, // No type filter
           "", // No search term
+          undefined,
+          undefined,
         ];
 
         queryClient.prefetchQuery({
@@ -164,15 +221,22 @@ export function useMetersData(initialPageSize: number = 20) {
               1,
               pageSize,
               status,
-              undefined,
-              undefined
             );
           },
-          staleTime: 1000 * 60 * 5, // 5 minutes
+          staleTime: 1000 * 60 * 5,
         });
       });
     }
-  }, [statusFilter, isLoading, searchTerm, typeFilter, pageSize, queryClient]);
+  }, [
+    statusFilter,
+    isLoading,
+    searchTerm,
+    typeFilter,
+    startDateStr,
+    endDateStr,
+    pageSize,
+    queryClient,
+  ]);
 
   // Function to manually invalidate cache and refetch
   const invalidateAndRefetch = useCallback(
@@ -186,7 +250,7 @@ export function useMetersData(initialPageSize: number = 20) {
         throwOnError: options?.throwOnError ?? false,
       });
     },
-    [queryClient, refetch]
+    [queryClient, refetch],
   );
 
   const handlePageChange = (newPage: number) => {
@@ -213,6 +277,25 @@ export function useMetersData(initialPageSize: number = 20) {
     setPage(1); // Reset to first page when searching
   };
 
+  const handleDateRangeChange = (newRange: DateRangeValue) => {
+    setDateRange(newRange);
+    setSelectedDate(null);
+    setPage(1); // Reset to first page when changing date range
+  };
+
+  const handleSelectedDateChange = (newDate: CalendarDate | null) => {
+    setSelectedDate(newDate);
+    setDateRange(null);
+    setPage(1); // Reset to first page when selecting a date
+  };
+
+  const handleClearFilters = () => {
+    setTypeFilter(null);
+    setDateRange(null);
+    setSelectedDate(null);
+    setPage(1);
+  };
+
   return {
     meters: data?.meters || [],
     totalCount: data?.totalCount || 0,
@@ -231,9 +314,15 @@ export function useMetersData(initialPageSize: number = 20) {
       statusFilter,
       typeFilter,
       searchTerm,
+      dateRange,
+      selectedDate,
+      hasActiveFilters: Boolean(typeFilter || dateRange || selectedDate),
       handleStatusFilterChange,
       handleTypeFilterChange,
       handleSearchChange,
+      handleDateRangeChange,
+      handleSelectedDateChange,
+      handleClearFilters,
     },
   };
 }

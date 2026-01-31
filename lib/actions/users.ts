@@ -50,7 +50,7 @@ export async function updateUserProfile(
     name?: string;
     role?: UserRole;
     is_active?: boolean;
-  }
+  },
 ) {
   try {
     // Require admin role to update user profiles
@@ -133,16 +133,13 @@ export async function deleteUserProfile(userId: string) {
 
 export async function getUsersList() {
   const startTime = Date.now();
-  console.log("[getUsersList] Starting query...");
 
   try {
     // Query Better Auth user table directly
     // Wrapped with timeout to prevent hung queries
-    console.log("[getUsersList] Executing raw SQL query...");
     const result = await withTimeout(
       async () => {
         const queryStart = Date.now();
-        console.log("[getUsersList] Inside withTimeout, query starting...");
         const res = await db.execute(sql`
           SELECT 
             id, 
@@ -154,26 +151,20 @@ export async function getUsersList() {
           FROM "user" 
           ORDER BY "createdAt" ASC
         `);
-        console.log(
-          `[getUsersList] Query completed in ${Date.now() - queryStart}ms`
-        );
         return res;
       },
       15000, // 15 second timeout
-      null // Return null on timeout
+      null, // Return null on timeout
     );
 
     if (!result) {
       console.error(
-        `[getUsersList] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`
+        `[getUsersList] Query timed out after 15 seconds (total time: ${Date.now() - startTime}ms)`,
       );
       return [];
     }
 
     const rows = result as unknown as any[];
-    console.log(
-      `[getUsersList] Success! Returning ${rows.length} users (total time: ${Date.now() - startTime}ms)`
-    );
     return rows.map((user) => ({
       id: user.id,
       email: user.email,
@@ -184,7 +175,7 @@ export async function getUsersList() {
   } catch (error) {
     console.error(
       `[getUsersList] Error after ${Date.now() - startTime}ms:`,
-      error
+      error,
     );
     return [];
   }
@@ -195,8 +186,11 @@ export async function createUser(
   password: string,
   role: string,
   name: string,
-  phoneNumber: string
-) {
+  phoneNumber: string,
+): Promise<
+  | { success: true; message: string; user: any }
+  | { success: false; error: string }
+> {
   try {
     // Require admin role to create users
     await requireAdmin();
@@ -206,8 +200,23 @@ export async function createUser(
       const session = await getCurrentSession();
       const currentUserRole = (session?.user as any)?.appRole;
       if (!isSuperAdmin(currentUserRole)) {
-        throw new Error("Only super admins can create super admin users");
+        return {
+          success: false,
+          error: "Only super admins can create super admin users",
+        };
       }
+    }
+
+    // Check if user with this email already exists
+    const existingUser = await db.execute(sql`
+      SELECT id FROM "user" WHERE email = ${email} LIMIT 1
+    `);
+    const existingRows = existingUser as unknown as any[];
+    if (existingRows && existingRows.length > 0) {
+      return {
+        success: false,
+        error: "A user with this email address already exists",
+      };
     }
 
     const betterAuthRole = isAdmin(role) ? "admin" : "user";
@@ -231,7 +240,7 @@ export async function createUser(
 
     if (!result?.user) {
       console.error("Server Action: Failed to create user - no user returned");
-      throw new Error("Failed to create user");
+      return { success: false, error: "Failed to create user" };
     }
 
     return {
@@ -241,14 +250,32 @@ export async function createUser(
     };
   } catch (error: any) {
     console.error("Server Action: Error creating user:", error);
-    throw new Error(error.message || "Failed to create user");
+    // Parse common error messages for better UX
+    const errorMessage = error.message || "Failed to create user";
+    if (
+      errorMessage.includes("unique constraint") ||
+      errorMessage.includes("already exists") ||
+      errorMessage.includes("duplicate")
+    ) {
+      return {
+        success: false,
+        error: "A user with this email address already exists",
+      };
+    }
+    return { success: false, error: errorMessage };
   }
 }
 
-export async function changePassword(userId: string, newPassword: string) {
+export async function changePassword(
+  userId: string,
+  newPassword: string,
+): Promise<{ success: true } | { success: false; error: string }> {
   try {
     if (newPassword.length < 6) {
-      throw new Error("Password must be at least 6 characters long");
+      return {
+        success: false,
+        error: "Password must be at least 6 characters long",
+      };
     }
 
     // Use Better Auth to change password
@@ -264,17 +291,26 @@ export async function changePassword(userId: string, newPassword: string) {
     return { success: true };
   } catch (error: any) {
     console.error("Error changing password:", error);
-    throw new Error(error.message || "Failed to change password");
+    return {
+      success: false,
+      error: error.message || "Failed to change password",
+    };
   }
 }
 
 /**
  * Change a user's password using admin privileges (service role)
  */
-export async function adminChangePassword(userId: string, newPassword: string) {
+export async function adminChangePassword(
+  userId: string,
+  newPassword: string,
+): Promise<{ success: true } | { success: false; error: string }> {
   try {
     if (newPassword.length < 6) {
-      throw new Error("Password must be at least 6 characters long");
+      return {
+        success: false,
+        error: "Password must be at least 6 characters long",
+      };
     }
 
     // Use Better Auth Admin API to set user password
@@ -289,7 +325,10 @@ export async function adminChangePassword(userId: string, newPassword: string) {
     return { success: true };
   } catch (error: any) {
     console.error("Admin password change error:", error);
-    throw new Error(error.message || "Failed to change password");
+    return {
+      success: false,
+      error: error.message || "Failed to change password",
+    };
   }
 }
 

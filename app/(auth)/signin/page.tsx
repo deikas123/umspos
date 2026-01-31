@@ -1,7 +1,7 @@
 import Signin from "@/components/auth/Signin";
 
-// Force dynamic rendering to avoid static generation issues with auth
-export const dynamic = "force-dynamic";
+// Use revalidate to allow caching but ensure periodic updates
+export const revalidate = 3600;
 
 const SigninPage = () => {
   return <Signin />;

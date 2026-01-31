@@ -65,10 +65,16 @@ export default function CreateAgentDialog({
       // Validate phone number format
       const phoneRegex = /^\+?[0-9]{10,15}$/;
       if (!phoneRegex.test(formData.phone_number)) {
-        throw new Error("Invalid phone number format");
+        toast.error("Invalid phone number format");
+        return;
       }
 
-      await createAgent(formData);
+      const result = await createAgent(formData);
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
 
       toast.success("Agent created successfully");
 
@@ -82,7 +88,7 @@ export default function CreateAgentDialog({
         agent_type: "cash",
       });
     } catch (error: any) {
-      toast.error(error.message || "Failed to create agent");
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -172,7 +178,7 @@ export default function CreateAgentDialog({
                               "mr-2 h-4 w-4",
                               formData.county === county
                                 ? "opacity-100"
-                                : "opacity-0"
+                                : "opacity-0",
                             )}
                           />
                           {county}

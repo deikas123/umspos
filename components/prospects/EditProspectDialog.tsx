@@ -86,14 +86,17 @@ export function EditProspectDialog({
         number_of_meters: formData.number_of_meters,
       });
 
-      if (result.success) {
-        toast.success(result.message || "Prospect updated successfully");
-        onSuccess();
-        onOpenChange(false);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
       }
+
+      toast.success(result.message || "Prospect updated successfully");
+      onSuccess();
+      onOpenChange(false);
     } catch (error: any) {
       console.error("Error updating prospect:", error);
-      toast.error(error.message || "Failed to update prospect");
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

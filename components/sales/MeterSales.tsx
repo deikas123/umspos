@@ -68,7 +68,7 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedEditBatch, setSelectedEditBatch] = useState<SaleBatch | null>(
-    null
+    null,
   );
 
   const handleOpenEditDialog = useCallback((batch: SaleBatch) => {
@@ -110,11 +110,18 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
   const currentBatches = saleBatches;
   const totalPages = pagination.totalPages;
 
-  const { handleExportPDF, handleExportCSV, handleExportXLSX, isExporting } =
-    useMeterSalesExport(currentBatches, {
-      formatDate,
-      filters,
-    });
+  const {
+    handleExportPDF,
+    handleExportCSV,
+    handleExportXLSX,
+    handleExportPDFWithDetails,
+    handleExportCSVWithDetails,
+    handleExportXLSXWithDetails,
+    isExporting,
+  } = useMeterSalesExport(currentBatches, {
+    formatDate,
+    filters,
+  });
 
   const handleOpenNoteDialog = (batch: SaleBatch) => {
     noteDialog.openDialog(batch);
@@ -164,6 +171,9 @@ export default function MeterSales({ initialData }: MeterSalesProps) {
         onExportCSV={handleExportCSV}
         onExportXLSX={handleExportXLSX}
         onExportPDF={handleExportPDF}
+        onExportCSVWithDetails={handleExportCSVWithDetails}
+        onExportXLSXWithDetails={handleExportXLSXWithDetails}
+        onExportPDFWithDetails={handleExportPDFWithDetails}
       />
 
       <Card className='w-full transition-all duration-200 ease-linear'>

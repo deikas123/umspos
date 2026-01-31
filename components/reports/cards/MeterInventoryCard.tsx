@@ -233,7 +233,7 @@ export function MeterInventoryCard({
               </Badge>
             </SheetTrigger>
             <SheetContent
-              className='min-w-[90vw] md:min-w-[70vw] bg-gray-50 border-l border-gray-200'
+              className='min-w-[90vw] md:min-w-[82vw] bg-gray-50 border-l border-gray-200'
               side='right'>
               <VisuallyHidden.Root>
                 <SheetTitle>All Meters</SheetTitle>

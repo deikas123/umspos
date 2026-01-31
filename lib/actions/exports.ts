@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, ilike, and, inArray, sql, desc } from "drizzle-orm";
+import { eq, ilike, and, inArray, sql, desc, gte, lte } from "drizzle-orm";
 import { db } from "../db";
 import {
   meters,
@@ -94,12 +94,29 @@ export async function getAllMetersWithStatus(
   pageSize: number = 20,
   filterStatus?: string,
   filterType?: string,
-  searchTerm?: string
+  searchTerm?: string,
+  startDate?: string,
+  endDate?: string,
 ): Promise<{ meters: MeterWithStatus[]; totalCount: number }> {
   try {
     const offset = (page - 1) * pageSize;
     let allMeters: MeterWithStatus[] = [];
     let totalCount = 0;
+    const startDateObj = startDate
+      ? new Date(`${startDate}T00:00:00`)
+      : undefined;
+    const endDateObj = endDate
+      ? new Date(`${endDate}T23:59:59.999`)
+      : undefined;
+
+    const addDateRangeConditions = (conditions: any[], column: any) => {
+      if (startDateObj) {
+        conditions.push(gte(column, startDateObj));
+      }
+      if (endDateObj) {
+        conditions.push(lte(column, endDateObj));
+      }
+    };
 
     // For each status, get filtered data and count
     const statuses = ["in_stock", "with_agent", "sold", "replaced", "faulty"];
@@ -122,8 +139,11 @@ export async function getAllMetersWithStatus(
           }
           if (searchTerm) {
             stockWhereConditions.push(
-              ilike(meters.serial_number, `%${searchTerm}%`)
+              ilike(meters.serial_number, `%${searchTerm}%`),
             );
+          }
+          if (startDateObj || endDateObj) {
+            addDateRangeConditions(stockWhereConditions, meters.added_at);
           }
 
           if (stockWhereConditions.length > 0) {
@@ -137,7 +157,7 @@ export async function getAllMetersWithStatus(
             .where(
               stockWhereConditions.length > 0
                 ? and(...stockWhereConditions)
-                : undefined
+                : undefined,
             )
             .then((result) => result[0]?.count || 0);
 
@@ -152,7 +172,7 @@ export async function getAllMetersWithStatus(
               serial_number: meter.serial_number,
               type: meter.type,
               status: "in_stock" as const,
-            }))
+            })),
           );
           break;
         }
@@ -178,7 +198,13 @@ export async function getAllMetersWithStatus(
           }
           if (searchTerm) {
             agentWhereConditions.push(
-              ilike(agentInventory.serial_number, `%${searchTerm}%`)
+              ilike(agentInventory.serial_number, `%${searchTerm}%`),
+            );
+          }
+          if (startDateObj || endDateObj) {
+            addDateRangeConditions(
+              agentWhereConditions,
+              agentInventory.assigned_at,
             );
           }
 
@@ -194,7 +220,7 @@ export async function getAllMetersWithStatus(
             .where(
               agentWhereConditions.length > 0
                 ? and(...agentWhereConditions)
-                : undefined
+                : undefined,
             )
             .then((result) => result[0]?.count || 0);
 
@@ -216,7 +242,7 @@ export async function getAllMetersWithStatus(
                 assigned_at: meter.assigned_at || new Date(),
                 agent_location: meter.agent_location || "Unknown",
               },
-            }))
+            })),
           );
           break;
         }
@@ -245,8 +271,11 @@ export async function getAllMetersWithStatus(
           }
           if (searchTerm) {
             soldWhereConditions.push(
-              ilike(soldMeters.serial_number, `%${searchTerm}%`)
+              ilike(soldMeters.serial_number, `%${searchTerm}%`),
             );
+          }
+          if (startDateObj || endDateObj) {
+            addDateRangeConditions(soldWhereConditions, soldMeters.sold_at);
           }
 
           if (soldWhereConditions.length > 0) {
@@ -269,7 +298,7 @@ export async function getAllMetersWithStatus(
 
           // Get user data for sold meters
           const userIds = Array.from(
-            new Set(statusMeters.map((m) => m.sold_by))
+            new Set(statusMeters.map((m) => m.sold_by)),
           );
           const usersData = await db
             .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
@@ -298,7 +327,7 @@ export async function getAllMetersWithStatus(
                 batch_id: meter.batch_id || "",
                 status: meter.status || "active",
               },
-            }))
+            })),
           );
           break;
         }
@@ -327,12 +356,18 @@ export async function getAllMetersWithStatus(
           let replacedWhereConditions = [eq(soldMeters.status, "replaced")];
           if (filterType && filterType !== "all") {
             replacedWhereConditions.push(
-              eq(saleBatches.meter_type, filterType)
+              eq(saleBatches.meter_type, filterType),
             );
           }
           if (searchTerm) {
             replacedWhereConditions.push(
-              ilike(soldMeters.serial_number, `%${searchTerm}%`)
+              ilike(soldMeters.serial_number, `%${searchTerm}%`),
+            );
+          }
+          if (startDateObj || endDateObj) {
+            addDateRangeConditions(
+              replacedWhereConditions,
+              soldMeters.replacement_date,
             );
           }
 
@@ -361,7 +396,7 @@ export async function getAllMetersWithStatus(
               ...(statusMeters
                 .map((m) => m.replacement_by)
                 .filter(Boolean) as string[]),
-            ])
+            ]),
           );
 
           const replacedUsersData = await db
@@ -399,7 +434,7 @@ export async function getAllMetersWithStatus(
                     meter.replacement_by
                   : "Unknown",
               },
-            }))
+            })),
           );
           break;
         }
@@ -414,7 +449,13 @@ export async function getAllMetersWithStatus(
           }
           if (searchTerm) {
             faultyWhereConditions.push(
-              ilike(faultyReturns.serial_number, `%${searchTerm}%`)
+              ilike(faultyReturns.serial_number, `%${searchTerm}%`),
+            );
+          }
+          if (startDateObj || endDateObj) {
+            addDateRangeConditions(
+              faultyWhereConditions,
+              faultyReturns.returned_at,
             );
           }
 
@@ -429,7 +470,7 @@ export async function getAllMetersWithStatus(
             .where(
               faultyWhereConditions.length > 0
                 ? and(...faultyWhereConditions)
-                : undefined
+                : undefined,
             )
             .then((result) => result[0]?.count || 0);
 
@@ -451,7 +492,7 @@ export async function getAllMetersWithStatus(
                 returner_name: meter.returner_name || "",
                 fault_status: meter.status || "pending",
               },
-            }))
+            })),
           );
 
           // Also query sold_meters with status=faulty
@@ -475,12 +516,18 @@ export async function getAllMetersWithStatus(
           let faultySoldWhereConditions = [eq(soldMeters.status, "faulty")];
           if (filterType && filterType !== "all") {
             faultySoldWhereConditions.push(
-              eq(saleBatches.meter_type, filterType)
+              eq(saleBatches.meter_type, filterType),
             );
           }
           if (searchTerm) {
             faultySoldWhereConditions.push(
-              ilike(soldMeters.serial_number, `%${searchTerm}%`)
+              ilike(soldMeters.serial_number, `%${searchTerm}%`),
+            );
+          }
+          if (startDateObj || endDateObj) {
+            addDateRangeConditions(
+              faultySoldWhereConditions,
+              soldMeters.sold_at,
             );
           }
 
@@ -506,7 +553,7 @@ export async function getAllMetersWithStatus(
 
           // Get user data for faulty sold meters
           const faultySoldUserIds = Array.from(
-            new Set(faultySoldMeters.map((m) => m.sold_by))
+            new Set(faultySoldMeters.map((m) => m.sold_by)),
           );
           const faultySoldUsersData = await db
             .select({ id: betterAuthUser.id, name: betterAuthUser.displayName })
@@ -535,7 +582,7 @@ export async function getAllMetersWithStatus(
                 batch_id: meter.batch_id || "",
                 status: meter.status || "faulty",
               },
-            }))
+            })),
           );
           break;
         }
@@ -564,38 +611,51 @@ export async function getAllMetersWithStatus(
 export async function getAllMetersForExport(
   filterStatus?: string,
   filterType?: string | null,
-  searchTerm?: string
+  searchTerm?: string,
+  startDate?: string,
+  endDate?: string,
 ): Promise<MeterWithStatus[]> {
   try {
     let allMeters: MeterWithStatus[] = [];
+    const startDateObj = startDate
+      ? new Date(`${startDate}T00:00:00`)
+      : undefined;
+    const endDateObj = endDate
+      ? new Date(`${endDate}T23:59:59.999`)
+      : undefined;
+
+    const addDateRangeConditions = (conditions: any[], column: any) => {
+      if (startDateObj) {
+        conditions.push(gte(column, startDateObj));
+      }
+      if (endDateObj) {
+        conditions.push(lte(column, endDateObj));
+      }
+    };
 
     // 1. STOCK METERS - Query from meters table
     if (!filterStatus || filterStatus === "in_stock") {
       try {
         let stockMeters: any[] = [];
 
+        const stockWhereConditions: any[] = [];
         if (filterType && filterType !== "all") {
-          if (searchTerm) {
-            stockMeters = await db
-              .select()
-              .from(meters)
-              .where(
-                and(
-                  eq(meters.type, filterType),
-                  ilike(meters.serial_number, `%${searchTerm}%`)
-                )
-              );
-          } else {
-            stockMeters = await db
-              .select()
-              .from(meters)
-              .where(eq(meters.type, filterType));
-          }
-        } else if (searchTerm) {
+          stockWhereConditions.push(eq(meters.type, filterType));
+        }
+        if (searchTerm) {
+          stockWhereConditions.push(
+            ilike(meters.serial_number, `%${searchTerm}%`),
+          );
+        }
+        if (startDateObj || endDateObj) {
+          addDateRangeConditions(stockWhereConditions, meters.added_at);
+        }
+
+        if (stockWhereConditions.length > 0) {
           stockMeters = await db
             .select()
             .from(meters)
-            .where(ilike(meters.serial_number, `%${searchTerm}%`));
+            .where(and(...stockWhereConditions));
         } else {
           stockMeters = await db.select().from(meters);
         }
@@ -617,75 +677,51 @@ export async function getAllMetersForExport(
     // 2. AGENT METERS - Query from agent_inventory joined with agents
     if (!filterStatus || filterStatus === "with_agent") {
       try {
-        let agentMeters: any[] = [];
-
+        const agentWhereConditions: any[] = [];
         if (filterType && filterType !== "all") {
-          if (searchTerm) {
-            agentMeters = await db
-              .select({
-                id: agentInventory.id,
-                serial_number: agentInventory.serial_number,
-                type: agentInventory.type,
-                assigned_at: agentInventory.assigned_at,
-                agent_id: agentInventory.agent_id,
-                agent_name: agents.name,
-                agent_phone: agents.phone_number,
-                agent_location: agents.location,
-              })
-              .from(agentInventory)
-              .leftJoin(agents, eq(agentInventory.agent_id, agents.id))
-              .where(
-                and(
-                  eq(agentInventory.type, filterType),
-                  ilike(agentInventory.serial_number, `%${searchTerm}%`)
-                )
-              );
-          } else {
-            agentMeters = await db
-              .select({
-                id: agentInventory.id,
-                serial_number: agentInventory.serial_number,
-                type: agentInventory.type,
-                assigned_at: agentInventory.assigned_at,
-                agent_id: agentInventory.agent_id,
-                agent_name: agents.name,
-                agent_phone: agents.phone_number,
-                agent_location: agents.location,
-              })
-              .from(agentInventory)
-              .leftJoin(agents, eq(agentInventory.agent_id, agents.id))
-              .where(eq(agentInventory.type, filterType));
-          }
-        } else if (searchTerm) {
-          agentMeters = await db
-            .select({
-              id: agentInventory.id,
-              serial_number: agentInventory.serial_number,
-              type: agentInventory.type,
-              assigned_at: agentInventory.assigned_at,
-              agent_id: agentInventory.agent_id,
-              agent_name: agents.name,
-              agent_phone: agents.phone_number,
-              agent_location: agents.location,
-            })
-            .from(agentInventory)
-            .leftJoin(agents, eq(agentInventory.agent_id, agents.id))
-            .where(ilike(agentInventory.serial_number, `%${searchTerm}%`));
-        } else {
-          agentMeters = await db
-            .select({
-              id: agentInventory.id,
-              serial_number: agentInventory.serial_number,
-              type: agentInventory.type,
-              assigned_at: agentInventory.assigned_at,
-              agent_id: agentInventory.agent_id,
-              agent_name: agents.name,
-              agent_phone: agents.phone_number,
-              agent_location: agents.location,
-            })
-            .from(agentInventory)
-            .leftJoin(agents, eq(agentInventory.agent_id, agents.id));
+          agentWhereConditions.push(eq(agentInventory.type, filterType));
         }
+        if (searchTerm) {
+          agentWhereConditions.push(
+            ilike(agentInventory.serial_number, `%${searchTerm}%`),
+          );
+        }
+        if (startDateObj || endDateObj) {
+          addDateRangeConditions(
+            agentWhereConditions,
+            agentInventory.assigned_at,
+          );
+        }
+
+        const agentMeters =
+          agentWhereConditions.length > 0
+            ? await db
+                .select({
+                  id: agentInventory.id,
+                  serial_number: agentInventory.serial_number,
+                  type: agentInventory.type,
+                  assigned_at: agentInventory.assigned_at,
+                  agent_id: agentInventory.agent_id,
+                  agent_name: agents.name,
+                  agent_phone: agents.phone_number,
+                  agent_location: agents.location,
+                })
+                .from(agentInventory)
+                .leftJoin(agents, eq(agentInventory.agent_id, agents.id))
+                .where(and(...agentWhereConditions))
+            : await db
+                .select({
+                  id: agentInventory.id,
+                  serial_number: agentInventory.serial_number,
+                  type: agentInventory.type,
+                  assigned_at: agentInventory.assigned_at,
+                  agent_id: agentInventory.agent_id,
+                  agent_name: agents.name,
+                  agent_phone: agents.phone_number,
+                  agent_location: agents.location,
+                })
+                .from(agentInventory)
+                .leftJoin(agents, eq(agentInventory.agent_id, agents.id));
 
         if (agentMeters && agentMeters.length > 0) {
           const processedAgentMeters = agentMeters.map((meter) => ({
@@ -711,104 +747,41 @@ export async function getAllMetersForExport(
     // 3. SOLD METERS - Query from sold_meters joined with sale_batches
     if (!filterStatus || filterStatus === "sold") {
       try {
-        let soldMetersData: any[] = [];
-
+        const soldWhereConditions: any[] = [eq(soldMeters.status, "active")];
         if (filterType && filterType !== "all") {
-          if (searchTerm) {
-            soldMetersData = await db
-              .select({
-                id: soldMeters.id,
-                serial_number: soldMeters.serial_number,
-                sold_by: soldMeters.sold_by,
-                sold_at: soldMeters.sold_at,
-                destination: soldMeters.destination,
-                recipient: soldMeters.recipient,
-                customer_contact: soldMeters.customer_contact,
-                unit_price: soldMeters.unit_price,
-                batch_id: soldMeters.batch_id,
-                status: soldMeters.status,
-                meter_type: saleBatches.meter_type,
-              })
-              .from(soldMeters)
-              .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-              .where(
-                and(
-                  eq(soldMeters.status, "active"),
-                  eq(saleBatches.meter_type, filterType),
-                  ilike(soldMeters.serial_number, `%${searchTerm}%`)
-                )
-              );
-          } else {
-            soldMetersData = await db
-              .select({
-                id: soldMeters.id,
-                serial_number: soldMeters.serial_number,
-                sold_by: soldMeters.sold_by,
-                sold_at: soldMeters.sold_at,
-                destination: soldMeters.destination,
-                recipient: soldMeters.recipient,
-                customer_contact: soldMeters.customer_contact,
-                unit_price: soldMeters.unit_price,
-                batch_id: soldMeters.batch_id,
-                status: soldMeters.status,
-                meter_type: saleBatches.meter_type,
-              })
-              .from(soldMeters)
-              .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-              .where(
-                and(
-                  eq(soldMeters.status, "active"),
-                  eq(saleBatches.meter_type, filterType)
-                )
-              );
-          }
-        } else if (searchTerm) {
-          soldMetersData = await db
-            .select({
-              id: soldMeters.id,
-              serial_number: soldMeters.serial_number,
-              sold_by: soldMeters.sold_by,
-              sold_at: soldMeters.sold_at,
-              destination: soldMeters.destination,
-              recipient: soldMeters.recipient,
-              customer_contact: soldMeters.customer_contact,
-              unit_price: soldMeters.unit_price,
-              batch_id: soldMeters.batch_id,
-              status: soldMeters.status,
-              meter_type: saleBatches.meter_type,
-            })
-            .from(soldMeters)
-            .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-            .where(
-              and(
-                eq(soldMeters.status, "active"),
-                ilike(soldMeters.serial_number, `%${searchTerm}%`)
-              )
-            );
-        } else {
-          soldMetersData = await db
-            .select({
-              id: soldMeters.id,
-              serial_number: soldMeters.serial_number,
-              sold_by: soldMeters.sold_by,
-              sold_at: soldMeters.sold_at,
-              destination: soldMeters.destination,
-              recipient: soldMeters.recipient,
-              customer_contact: soldMeters.customer_contact,
-              unit_price: soldMeters.unit_price,
-              batch_id: soldMeters.batch_id,
-              status: soldMeters.status,
-              meter_type: saleBatches.meter_type,
-            })
-            .from(soldMeters)
-            .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-            .where(eq(soldMeters.status, "active"));
+          soldWhereConditions.push(eq(saleBatches.meter_type, filterType));
         }
+        if (searchTerm) {
+          soldWhereConditions.push(
+            ilike(soldMeters.serial_number, `%${searchTerm}%`),
+          );
+        }
+        if (startDateObj || endDateObj) {
+          addDateRangeConditions(soldWhereConditions, soldMeters.sold_at);
+        }
+
+        const soldMetersData = await db
+          .select({
+            id: soldMeters.id,
+            serial_number: soldMeters.serial_number,
+            sold_by: soldMeters.sold_by,
+            sold_at: soldMeters.sold_at,
+            destination: soldMeters.destination,
+            recipient: soldMeters.recipient,
+            customer_contact: soldMeters.customer_contact,
+            unit_price: soldMeters.unit_price,
+            batch_id: soldMeters.batch_id,
+            status: soldMeters.status,
+            meter_type: saleBatches.meter_type,
+          })
+          .from(soldMeters)
+          .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
+          .where(and(...soldWhereConditions));
 
         if (soldMetersData && soldMetersData.length > 0) {
           // Get user data for sold meters
           const userIds = Array.from(
-            new Set(soldMetersData.map((m) => m.sold_by))
+            new Set(soldMetersData.map((m) => m.sold_by)),
           );
 
           const usersData = await db
@@ -849,111 +822,44 @@ export async function getAllMetersForExport(
     // 4. REPLACED METERS - Query from sold_meters with status=replaced
     if (!filterStatus || filterStatus === "replaced") {
       try {
-        let replacedMeters: any[] = [];
-
+        const replacedWhereConditions: any[] = [
+          eq(soldMeters.status, "replaced"),
+        ];
         if (filterType && filterType !== "all") {
-          if (searchTerm) {
-            replacedMeters = await db
-              .select({
-                id: soldMeters.id,
-                serial_number: soldMeters.serial_number,
-                sold_by: soldMeters.sold_by,
-                sold_at: soldMeters.sold_at,
-                destination: soldMeters.destination,
-                recipient: soldMeters.recipient,
-                customer_contact: soldMeters.customer_contact,
-                unit_price: soldMeters.unit_price,
-                batch_id: soldMeters.batch_id,
-                status: soldMeters.status,
-                replacement_serial: soldMeters.replacement_serial,
-                replacement_date: soldMeters.replacement_date,
-                replacement_by: soldMeters.replacement_by,
-                meter_type: saleBatches.meter_type,
-              })
-              .from(soldMeters)
-              .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-              .where(
-                and(
-                  eq(soldMeters.status, "replaced"),
-                  eq(saleBatches.meter_type, filterType),
-                  ilike(soldMeters.serial_number, `%${searchTerm}%`)
-                )
-              );
-          } else {
-            replacedMeters = await db
-              .select({
-                id: soldMeters.id,
-                serial_number: soldMeters.serial_number,
-                sold_by: soldMeters.sold_by,
-                sold_at: soldMeters.sold_at,
-                destination: soldMeters.destination,
-                recipient: soldMeters.recipient,
-                customer_contact: soldMeters.customer_contact,
-                unit_price: soldMeters.unit_price,
-                batch_id: soldMeters.batch_id,
-                status: soldMeters.status,
-                replacement_serial: soldMeters.replacement_serial,
-                replacement_date: soldMeters.replacement_date,
-                replacement_by: soldMeters.replacement_by,
-                meter_type: saleBatches.meter_type,
-              })
-              .from(soldMeters)
-              .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-              .where(
-                and(
-                  eq(soldMeters.status, "replaced"),
-                  eq(saleBatches.meter_type, filterType)
-                )
-              );
-          }
-        } else if (searchTerm) {
-          replacedMeters = await db
-            .select({
-              id: soldMeters.id,
-              serial_number: soldMeters.serial_number,
-              sold_by: soldMeters.sold_by,
-              sold_at: soldMeters.sold_at,
-              destination: soldMeters.destination,
-              recipient: soldMeters.recipient,
-              customer_contact: soldMeters.customer_contact,
-              unit_price: soldMeters.unit_price,
-              batch_id: soldMeters.batch_id,
-              status: soldMeters.status,
-              replacement_serial: soldMeters.replacement_serial,
-              replacement_date: soldMeters.replacement_date,
-              replacement_by: soldMeters.replacement_by,
-              meter_type: saleBatches.meter_type,
-            })
-            .from(soldMeters)
-            .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-            .where(
-              and(
-                eq(soldMeters.status, "replaced"),
-                ilike(soldMeters.serial_number, `%${searchTerm}%`)
-              )
-            );
-        } else {
-          replacedMeters = await db
-            .select({
-              id: soldMeters.id,
-              serial_number: soldMeters.serial_number,
-              sold_by: soldMeters.sold_by,
-              sold_at: soldMeters.sold_at,
-              destination: soldMeters.destination,
-              recipient: soldMeters.recipient,
-              customer_contact: soldMeters.customer_contact,
-              unit_price: soldMeters.unit_price,
-              batch_id: soldMeters.batch_id,
-              status: soldMeters.status,
-              replacement_serial: soldMeters.replacement_serial,
-              replacement_date: soldMeters.replacement_date,
-              replacement_by: soldMeters.replacement_by,
-              meter_type: saleBatches.meter_type,
-            })
-            .from(soldMeters)
-            .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-            .where(eq(soldMeters.status, "replaced"));
+          replacedWhereConditions.push(eq(saleBatches.meter_type, filterType));
         }
+        if (searchTerm) {
+          replacedWhereConditions.push(
+            ilike(soldMeters.serial_number, `%${searchTerm}%`),
+          );
+        }
+        if (startDateObj || endDateObj) {
+          addDateRangeConditions(
+            replacedWhereConditions,
+            soldMeters.replacement_date,
+          );
+        }
+
+        const replacedMeters = await db
+          .select({
+            id: soldMeters.id,
+            serial_number: soldMeters.serial_number,
+            sold_by: soldMeters.sold_by,
+            sold_at: soldMeters.sold_at,
+            destination: soldMeters.destination,
+            recipient: soldMeters.recipient,
+            customer_contact: soldMeters.customer_contact,
+            unit_price: soldMeters.unit_price,
+            batch_id: soldMeters.batch_id,
+            status: soldMeters.status,
+            replacement_serial: soldMeters.replacement_serial,
+            replacement_date: soldMeters.replacement_date,
+            replacement_by: soldMeters.replacement_by,
+            meter_type: saleBatches.meter_type,
+          })
+          .from(soldMeters)
+          .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
+          .where(and(...replacedWhereConditions));
 
         if (replacedMeters && replacedMeters.length > 0) {
           // Get user data for sold_by and replacement_by
@@ -963,7 +869,7 @@ export async function getAllMetersForExport(
               ...(replacedMeters
                 .map((m) => m.replacement_by)
                 .filter(Boolean) as string[]),
-            ])
+            ]),
           );
 
           const usersData = await db
@@ -1012,33 +918,29 @@ export async function getAllMetersForExport(
     if (!filterStatus || filterStatus === "faulty") {
       // 5.1 First query faulty_returns table
       try {
-        let faultyMeters: any[] = [];
-
+        const faultyWhereConditions: any[] = [];
         if (filterType && filterType !== "all") {
-          if (searchTerm) {
-            faultyMeters = await db
-              .select()
-              .from(faultyReturns)
-              .where(
-                and(
-                  eq(faultyReturns.type, filterType),
-                  ilike(faultyReturns.serial_number, `%${searchTerm}%`)
-                )
-              );
-          } else {
-            faultyMeters = await db
-              .select()
-              .from(faultyReturns)
-              .where(eq(faultyReturns.type, filterType));
-          }
-        } else if (searchTerm) {
-          faultyMeters = await db
-            .select()
-            .from(faultyReturns)
-            .where(ilike(faultyReturns.serial_number, `%${searchTerm}%`));
-        } else {
-          faultyMeters = await db.select().from(faultyReturns);
+          faultyWhereConditions.push(eq(faultyReturns.type, filterType));
         }
+        if (searchTerm) {
+          faultyWhereConditions.push(
+            ilike(faultyReturns.serial_number, `%${searchTerm}%`),
+          );
+        }
+        if (startDateObj || endDateObj) {
+          addDateRangeConditions(
+            faultyWhereConditions,
+            faultyReturns.returned_at,
+          );
+        }
+
+        const faultyMeters =
+          faultyWhereConditions.length > 0
+            ? await db
+                .select()
+                .from(faultyReturns)
+                .where(and(...faultyWhereConditions))
+            : await db.select().from(faultyReturns);
 
         if (faultyMeters && faultyMeters.length > 0) {
           const processedFaultyMeters = faultyMeters.map((meter) => ({
@@ -1062,104 +964,45 @@ export async function getAllMetersForExport(
 
       // 5.2 Then query sold_meters with status=faulty
       try {
-        let faultySoldMeters: any[] = [];
-
+        const faultySoldWhereConditions: any[] = [
+          eq(soldMeters.status, "faulty"),
+        ];
         if (filterType && filterType !== "all") {
-          if (searchTerm) {
-            faultySoldMeters = await db
-              .select({
-                id: soldMeters.id,
-                serial_number: soldMeters.serial_number,
-                sold_by: soldMeters.sold_by,
-                sold_at: soldMeters.sold_at,
-                destination: soldMeters.destination,
-                recipient: soldMeters.recipient,
-                customer_contact: soldMeters.customer_contact,
-                unit_price: soldMeters.unit_price,
-                batch_id: soldMeters.batch_id,
-                status: soldMeters.status,
-                meter_type: saleBatches.meter_type,
-              })
-              .from(soldMeters)
-              .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-              .where(
-                and(
-                  eq(soldMeters.status, "faulty"),
-                  eq(saleBatches.meter_type, filterType),
-                  ilike(soldMeters.serial_number, `%${searchTerm}%`)
-                )
-              );
-          } else {
-            faultySoldMeters = await db
-              .select({
-                id: soldMeters.id,
-                serial_number: soldMeters.serial_number,
-                sold_by: soldMeters.sold_by,
-                sold_at: soldMeters.sold_at,
-                destination: soldMeters.destination,
-                recipient: soldMeters.recipient,
-                customer_contact: soldMeters.customer_contact,
-                unit_price: soldMeters.unit_price,
-                batch_id: soldMeters.batch_id,
-                status: soldMeters.status,
-                meter_type: saleBatches.meter_type,
-              })
-              .from(soldMeters)
-              .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-              .where(
-                and(
-                  eq(soldMeters.status, "faulty"),
-                  eq(saleBatches.meter_type, filterType)
-                )
-              );
-          }
-        } else if (searchTerm) {
-          faultySoldMeters = await db
-            .select({
-              id: soldMeters.id,
-              serial_number: soldMeters.serial_number,
-              sold_by: soldMeters.sold_by,
-              sold_at: soldMeters.sold_at,
-              destination: soldMeters.destination,
-              recipient: soldMeters.recipient,
-              customer_contact: soldMeters.customer_contact,
-              unit_price: soldMeters.unit_price,
-              batch_id: soldMeters.batch_id,
-              status: soldMeters.status,
-              meter_type: saleBatches.meter_type,
-            })
-            .from(soldMeters)
-            .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-            .where(
-              and(
-                eq(soldMeters.status, "faulty"),
-                ilike(soldMeters.serial_number, `%${searchTerm}%`)
-              )
-            );
-        } else {
-          faultySoldMeters = await db
-            .select({
-              id: soldMeters.id,
-              serial_number: soldMeters.serial_number,
-              sold_by: soldMeters.sold_by,
-              sold_at: soldMeters.sold_at,
-              destination: soldMeters.destination,
-              recipient: soldMeters.recipient,
-              customer_contact: soldMeters.customer_contact,
-              unit_price: soldMeters.unit_price,
-              batch_id: soldMeters.batch_id,
-              status: soldMeters.status,
-              meter_type: saleBatches.meter_type,
-            })
-            .from(soldMeters)
-            .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-            .where(eq(soldMeters.status, "faulty"));
+          faultySoldWhereConditions.push(
+            eq(saleBatches.meter_type, filterType),
+          );
         }
+        if (searchTerm) {
+          faultySoldWhereConditions.push(
+            ilike(soldMeters.serial_number, `%${searchTerm}%`),
+          );
+        }
+        if (startDateObj || endDateObj) {
+          addDateRangeConditions(faultySoldWhereConditions, soldMeters.sold_at);
+        }
+
+        const faultySoldMeters = await db
+          .select({
+            id: soldMeters.id,
+            serial_number: soldMeters.serial_number,
+            sold_by: soldMeters.sold_by,
+            sold_at: soldMeters.sold_at,
+            destination: soldMeters.destination,
+            recipient: soldMeters.recipient,
+            customer_contact: soldMeters.customer_contact,
+            unit_price: soldMeters.unit_price,
+            batch_id: soldMeters.batch_id,
+            status: soldMeters.status,
+            meter_type: saleBatches.meter_type,
+          })
+          .from(soldMeters)
+          .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
+          .where(and(...faultySoldWhereConditions));
 
         if (faultySoldMeters && faultySoldMeters.length > 0) {
           // Get user data for sold_by
           const userIds = Array.from(
-            new Set(faultySoldMeters.map((m) => m.sold_by))
+            new Set(faultySoldMeters.map((m) => m.sold_by)),
           );
 
           const usersData = await db

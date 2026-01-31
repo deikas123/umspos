@@ -27,13 +27,13 @@ const CACHE_KEYS = {
 
 export function useMeterCache() {
   const [meters, setMeters] = useState<Meter[]>(() => {
-    if (typeof globalThis.window === "undefined") return [];
+    if (globalThis.window === undefined) return [];
     const cached = localStorage.getItem(CACHE_KEYS.METERS);
     return cached ? JSON.parse(cached) : [];
   });
 
   const [batchDetails, setBatchDetails] = useState<BatchDetails | null>(() => {
-    if (typeof globalThis.window === "undefined") return null;
+    if (globalThis.window === undefined) return null;
     const cached = localStorage.getItem(CACHE_KEYS.BATCH_DETAILS);
     return cached ? JSON.parse(cached) : null;
   });

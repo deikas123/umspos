@@ -45,16 +45,20 @@ export function ChangePasswordDialog({
 
     try {
       // Use different methods based on whether it's the current user or admin changing someone else's password
-      if (userId === currentUser?.id) {
-        await changePassword(userId, newPassword);
-      } else {
-        await adminChangePassword(userId, newPassword);
+      const result =
+        userId === currentUser?.id
+          ? await changePassword(userId, newPassword)
+          : await adminChangePassword(userId, newPassword);
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
       }
 
       toast.success(
         userId === currentUser?.id
           ? "Password changed successfully. Please sign in again."
-          : "User password changed successfully."
+          : "User password changed successfully.",
       );
 
       // If changing own password, clear cache and redirect
@@ -74,7 +78,7 @@ export function ChangePasswordDialog({
       onOpenChange(false);
       setNewPassword("");
     } catch (error: any) {
-      toast.error(error.message || "Failed to change password");
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 

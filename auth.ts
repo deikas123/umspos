@@ -22,7 +22,6 @@ const globalForDb = globalThis as unknown as {
 
 // Create pool with settings compatible with Supabase Transaction Pooler
 function createAuthPool() {
-  console.log("[Auth] Creating new connection pool...");
   return new Pool({
     connectionString,
     max: 3, // Allow a few connections for auth

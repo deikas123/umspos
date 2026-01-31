@@ -68,7 +68,7 @@ interface PurchaseBatch {
   added_by: string | null;
   created_at: Date | null;
   remaining_meters: number;
-  user_profiles: {
+  user: {
     name: string | null;
   } | null;
 }
@@ -165,9 +165,7 @@ export default function PurchaseBatchesView() {
       const matchesSearch =
         searchTerm === "" ||
         batch.batch_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        batch.user_profiles?.name
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase());
+        batch.user?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesType =
         selectedType === "" ||
@@ -181,7 +179,7 @@ export default function PurchaseBatchesView() {
         (batch.purchase_date &&
           isSameDay(
             startOfDay(new Date(batch.purchase_date)),
-            startOfDay(selectedDate)
+            startOfDay(selectedDate),
           ));
 
       return matchesSearch && matchesType && matchesDate;
@@ -198,7 +196,7 @@ export default function PurchaseBatchesView() {
 
   const hasActiveFilters = () => {
     return Boolean(
-      searchTerm || (selectedType && selectedType !== "all") || selectedDate
+      searchTerm || (selectedType && selectedType !== "all") || selectedDate,
     );
   };
 
@@ -218,7 +216,7 @@ export default function PurchaseBatchesView() {
       Quantity: b.quantity,
       Remaining: b.remaining_meters,
       "Total Cost (KES)": b.total_cost,
-      "Added By": b.user_profiles?.name || "-",
+      "Added By": b.user?.name || "-",
       "Purchase Date": b.purchase_date
         ? format(new Date(b.purchase_date), "dd/MM/yyyy")
         : "-",
@@ -235,7 +233,7 @@ export default function PurchaseBatchesView() {
       Quantity: b.quantity,
       Remaining: b.remaining_meters,
       "Total Cost (KES)": b.total_cost,
-      "Added By": b.user_profiles?.name || "-",
+      "Added By": b.user?.name || "-",
       "Purchase Date": b.purchase_date
         ? format(new Date(b.purchase_date), "dd/MM/yyyy")
         : "-",
@@ -261,7 +259,7 @@ export default function PurchaseBatchesView() {
         title='Purchase Batches Report'
         headers={headers}
         data={data}
-      />
+      />,
     ).toBlob();
 
     const url = URL.createObjectURL(blob);
@@ -317,7 +315,7 @@ export default function PurchaseBatchesView() {
               <RefreshCw
                 className={cn(
                   "h-4 w-4 transition-transform",
-                  (isLoading || isRefreshing) && "animate-spin"
+                  (isLoading || isRefreshing) && "animate-spin",
                 )}
               />
             </Button>
@@ -452,8 +450,8 @@ export default function PurchaseBatchesView() {
                                 "min-w-[40px] justify-center",
                                 remainingBadgeClass(
                                   batch.remaining_meters,
-                                  batch.quantity
-                                )
+                                  batch.quantity,
+                                ),
                               )}>
                               {batch.remaining_meters}
                             </Badge>
@@ -463,7 +461,7 @@ export default function PurchaseBatchesView() {
                               <div>
                                 Total:{" "}
                                 {Number.parseFloat(
-                                  batch.total_cost
+                                  batch.total_cost,
                                 ).toLocaleString()}
                               </div>
                               <div className='text-sm text-muted-foreground'>
@@ -481,12 +479,12 @@ export default function PurchaseBatchesView() {
                             {batch.purchase_date
                               ? format(
                                   new Date(batch.purchase_date),
-                                  "dd/MM/yyyy"
+                                  "dd/MM/yyyy",
                                 )
                               : "N/A"}
                           </TableCell>
                           <TableCell>
-                            {batch.user_profiles?.name || "Unknown User"}
+                            {batch.user?.name || "Unknown User"}
                           </TableCell>
                         </TableRow>
                       );
@@ -518,7 +516,7 @@ export default function PurchaseBatchesView() {
                       (page) =>
                         page === 1 ||
                         page === totalPages ||
-                        (page >= currentPage - 1 && page <= currentPage + 1)
+                        (page >= currentPage - 1 && page <= currentPage + 1),
                     )
                     .map((page, i, arr) => (
                       <Fragment key={page}>

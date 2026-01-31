@@ -28,6 +28,7 @@ import {
   getCachedMeterDetails,
   setCachedMeterDetails,
   clearMetersRedisCache,
+  isRedisConfigured,
 } from "@/lib/cache/redis";
 
 type MeterRecord = typeof meters.$inferSelect;
@@ -87,7 +88,7 @@ const statusPriority: Record<MeterStatus, number> = {
 type SearchMode = "exact" | "partial";
 
 function mapStockResults(
-  stockMeters: Array<{ serial_number: string; type: string | null }>
+  stockMeters: Array<{ serial_number: string; type: string | null }>,
 ): SuperSearchResult[] {
   return stockMeters.map((meter) => ({
     serial_number: meter.serial_number,
@@ -105,7 +106,7 @@ function mapAgentResults(
       name: string | null;
       location: string | null;
     } | null;
-  }>
+  }>,
 ): SuperSearchResult[] {
   return agentMeters.map((meter) => ({
     serial_number: meter.serial_number,
@@ -133,7 +134,7 @@ function mapSoldResults(
     replacement_by: string | null;
     replacement_by_name: string | null;
     replacement_by_role: string | null;
-  }>
+  }>,
 ): SuperSearchResult[] {
   return soldMetersData.map((meter) => {
     const hasReplacement = Boolean(meter.replacement_serial);
@@ -180,7 +181,7 @@ function mapFaultyResults(
     returner_name: string | null;
     fault_description: string | null;
     status: string | null;
-  }>
+  }>,
 ): SuperSearchResult[] {
   return faultyMeters.map((meter) => ({
     serial_number: meter.serial_number,
@@ -197,7 +198,7 @@ function mapFaultyResults(
 
 function attachFaultDetails(
   target: SuperSearchResult,
-  faultDetails?: FaultDetails | undefined
+  faultDetails?: FaultDetails | undefined,
 ) {
   if (faultDetails) {
     target.fault_details = faultDetails;
@@ -206,14 +207,14 @@ function attachFaultDetails(
 
 function shouldReplaceResult(
   existing: SuperSearchResult,
-  candidate: SuperSearchResult
+  candidate: SuperSearchResult,
 ) {
   return statusPriority[candidate.status] < statusPriority[existing.status];
 }
 
 function mergeResult(
   uniqueResults: Map<string, SuperSearchResult>,
-  result: SuperSearchResult
+  result: SuperSearchResult,
 ) {
   const normalizedSerial = normalizeSerialNumber(result.serial_number);
   const existing = uniqueResults.get(normalizedSerial);
@@ -247,7 +248,7 @@ function mergeResult(
 }
 
 function mergeResults(
-  transformedResults: SuperSearchResult[]
+  transformedResults: SuperSearchResult[],
 ): SuperSearchResult[] {
   const uniqueResults = new Map<string, SuperSearchResult>();
 
@@ -331,11 +332,11 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
       .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
       .leftJoin(
         soldByUser,
-        sql`${soldMeters.sold_by}::text = ${soldByUser.id}::text`
+        sql`${soldMeters.sold_by}::text = ${soldByUser.id}::text`,
       )
       .leftJoin(
         replacedByUser,
-        sql`${soldMeters.replacement_by}::text = ${replacedByUser.id}::text`
+        sql`${soldMeters.replacement_by}::text = ${replacedByUser.id}::text`,
       )
       .where(soldCondition)
       .limit(limit),
@@ -389,8 +390,21 @@ export async function getAllMeters() {
 
 export async function checkMeterExists(serialNumber: string): Promise<boolean> {
   try {
-    const allMeters = await getAllMeters();
     const normalizedSerial = normalizeSerialNumber(serialNumber);
+    if (!normalizedSerial) return false;
+
+    // Avoid full table scan when Redis cache is unavailable
+    if (!isRedisConfigured) {
+      const [existing] = await db
+        .select({ id: meters.id })
+        .from(meters)
+        .where(eq(meters.serial_number, normalizedSerial))
+        .limit(1);
+
+      return Boolean(existing);
+    }
+
+    const allMeters = await getAllMeters();
     return allMeters.includes(normalizedSerial);
   } catch (error) {
     console.error("Error checking meter existence:", error);
@@ -410,7 +424,7 @@ export async function updateFaultyMeterStatus(
     status: "repaired" | "unrepairable" | "pending";
   },
   updatedBy: string,
-  updaterName: string
+  updaterName: string,
 ) {
   try {
     if (meter.status === "repaired") {
@@ -451,7 +465,7 @@ export async function addMeters(
     added_at: Date;
     adder_name: string;
     batch_id?: string;
-  }>
+  }>,
 ) {
   return withActiveUserCheck(metersData[0].added_by, async () => {
     const data = await db.insert(meters).values(metersData).returning();
@@ -462,7 +476,7 @@ export async function addMeters(
 }
 
 export async function checkMultipleSerialNumbers(
-  serialNumbers: string[]
+  serialNumbers: string[],
 ): Promise<string[]> {
   try {
     const data = await db
@@ -605,7 +619,7 @@ export async function getPurchaseBatches() {
         })
         .from(meters)
         .where(isNotNull(meters.batch_id))
-        .groupBy(meters.batch_id)
+        .groupBy(meters.batch_id),
     );
 
     const batches = await db
@@ -618,11 +632,11 @@ export async function getPurchaseBatches() {
       .from(meterPurchaseBatches)
       .leftJoin(
         betterAuthUser,
-        sql`${meterPurchaseBatches.added_by}::text = ${betterAuthUser.id}`
+        sql`${meterPurchaseBatches.added_by}::text = ${betterAuthUser.id}`,
       )
       .leftJoin(
         meterCounts,
-        sql`${meterPurchaseBatches.id}::text = ${meterCounts.batch_id}`
+        sql`${meterPurchaseBatches.id}::text = ${meterCounts.batch_id}`,
       )
       .orderBy(desc(meterCounts.count), desc(meterPurchaseBatches.created_at));
 
@@ -641,7 +655,7 @@ export async function getPurchaseBatches() {
 
 export async function updateMeterPurchaseBatch(
   serialNumbers: string[],
-  batchId: string
+  batchId: string,
 ) {
   try {
     await db
@@ -655,7 +669,7 @@ export async function updateMeterPurchaseBatch(
 }
 
 export async function checkMeterExistsInSoldMeters(
-  serialNumber: string
+  serialNumber: string,
 ): Promise<boolean> {
   try {
     const normalizedSerial = serialNumber.replace(/^0+/, "").toUpperCase();
@@ -673,7 +687,7 @@ export async function checkMeterExistsInSoldMeters(
 }
 
 export async function checkMeterExistsInAgentInventory(
-  serialNumber: string
+  serialNumber: string,
 ): Promise<boolean> {
   try {
     const normalizedSerial = serialNumber.replace(/^0+/, "").toUpperCase();
@@ -697,12 +711,7 @@ export async function checkMeterExistsAnywhere(serialNumber: string): Promise<{
   existsInStock: boolean;
 }> {
   try {
-    const startTime = performance.now();
     const normalizedSerial = serialNumber.replace(/^0+/, "").toUpperCase();
-
-    console.log(
-      `[checkMeterExistsAnywhere] Checking serial: ${normalizedSerial}`
-    );
 
     // Use raw SQL for the combined EXISTS query
     const result = await db.execute<{
@@ -716,24 +725,13 @@ export async function checkMeterExistsAnywhere(serialNumber: string): Promise<{
         EXISTS(SELECT 1 FROM ${meters} WHERE ${meters.serial_number} = ${normalizedSerial}) as exists_in_stock
     `);
 
-    const endTime = performance.now();
-    const duration = endTime - startTime;
-
-    console.log(
-      `[checkMeterExistsAnywhere] Query completed in ${duration.toFixed(2)}ms`
-    );
-    console.log(`[checkMeterExistsAnywhere] Raw result:`, result);
-
     const row = result[0];
-    console.log(`[checkMeterExistsAnywhere] First row:`, row);
 
     const response = {
       existsInSold: row?.exists_in_sold || false,
       existsInAgent: row?.exists_in_agent || false,
       existsInStock: row?.exists_in_stock || false,
     };
-
-    console.log(`[checkMeterExistsAnywhere] Response:`, response);
 
     return response;
   } catch (error) {

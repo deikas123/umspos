@@ -26,7 +26,7 @@ interface TopSellersCardProps {
   topSellers: TopSeller[];
 }
 
-export function TopSellersCard({ topSellers }: TopSellersCardProps) {
+export function TopSellersCard({ topSellers }: Readonly<TopSellersCardProps>) {
   const handleExportCSV = () => {
     const data = topSellers.map((seller, index) => ({
       "#": index + 1,
@@ -58,7 +58,7 @@ export function TopSellersCard({ topSellers }: TopSellersCardProps) {
         title='Top Sellers Report'
         headers={headers}
         data={data}
-      />
+      />,
     ).toBlob();
 
     const url = URL.createObjectURL(blob);
@@ -107,8 +107,10 @@ export function TopSellersCard({ topSellers }: TopSellersCardProps) {
           <div className='overflow-x-auto'>
             {/* Mobile View */}
             <div className='md:hidden space-y-4'>
-              {topSellers.map((seller, index) => (
-                <div key={index} className='flex justify-between items-center'>
+              {topSellers.map((seller) => (
+                <div
+                  key={seller.user_name}
+                  className='flex justify-between items-center'>
                   <span className='font-medium'>{seller.user_name}</span>
                   <span>KES {seller.total_sales.toLocaleString()}</span>
                 </div>
@@ -125,8 +127,8 @@ export function TopSellersCard({ topSellers }: TopSellersCardProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {topSellers.map((seller, index) => (
-                    <TableRow key={index}>
+                  {topSellers.map((seller) => (
+                    <TableRow key={seller.user_name}>
                       <TableCell>{seller.user_name}</TableCell>
                       <TableCell className='text-right'>
                         KES {seller.total_sales.toLocaleString()}

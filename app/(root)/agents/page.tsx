@@ -1,7 +1,7 @@
 import Agents from "@/components/agents/Agents";
 import { getAgentsPageData } from "@/lib/actions/agents";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function AgentsPage() {
   // Fetch agents data server-side

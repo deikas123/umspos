@@ -81,7 +81,18 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
     const email = `${emailPrefix}@${emailDomain}`;
 
     try {
-      await createUser(email, password, role, name, formattedPhone);
+      const result = await createUser(
+        email,
+        password,
+        role,
+        name,
+        formattedPhone,
+      );
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
 
       toast.success("User created successfully!");
       setName("");
@@ -92,7 +103,7 @@ const CreateUser = ({ onClose }: { onClose: () => void }) => {
       onClose();
     } catch (error: any) {
       console.error("Error in handleCreate:", error);
-      toast.error(`Failed to create user: ${error.message}`);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }

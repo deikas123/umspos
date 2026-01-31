@@ -14,7 +14,7 @@ export const findExistingMeter = (serialNumber: string, meters: Meter[]) => {
   return meters.findIndex(
     (m) =>
       normalizeSerialNumber(m.serialNumber) ===
-      normalizeSerialNumber(serialNumber)
+      normalizeSerialNumber(serialNumber),
   );
 };
 
@@ -31,7 +31,7 @@ export function useMeterValidation(
     title: string;
     description: string;
     variant?: string;
-  }) => void
+  }) => void,
 ) {
   const [isChecking, setIsChecking] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult>({
@@ -52,7 +52,7 @@ export function useMeterValidation(
   const handleViewEntry = useCallback(
     (existingIndex: number) => {
       const element = document.querySelector(
-        `[data-row-index="${existingIndex}"]`
+        `[data-row-index="${existingIndex}"]`,
       );
       element?.scrollIntoView({
         behavior: "smooth",
@@ -61,7 +61,7 @@ export function useMeterValidation(
       element?.classList.add("bg-yellow-100");
       setTimeout(() => handleRemoveHighlight(element), 2000);
     },
-    [handleRemoveHighlight]
+    [handleRemoveHighlight],
   );
 
   useEffect(() => {
@@ -232,7 +232,7 @@ export async function validateMeterBeforeAdd(
     existsInStock: boolean;
     existsInSold: boolean;
     existsInAgent: boolean;
-  }
+  },
 ): Promise<{ isValid: boolean; error?: string }> {
   const normalizedSerial = normalizeSerialNumber(serialNumber);
 
@@ -247,7 +247,7 @@ export async function validateMeterBeforeAdd(
   let existsInSold: boolean;
   let existsInAgent: boolean;
 
-  if (lastCheck && lastCheck.serial === normalizedSerial) {
+  if (lastCheck?.serial === normalizedSerial) {
     ({ existsInStock, existsInSold, existsInAgent } = lastCheck);
   } else {
     ({ existsInStock, existsInSold, existsInAgent } =

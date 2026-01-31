@@ -2,7 +2,7 @@
 
 import { db } from "../db";
 import { notifications } from "../db/schema";
-import { eq, lt, count, desc, sql, arrayContains } from "drizzle-orm";
+import { eq, lt, count, desc, sql } from "drizzle-orm";
 import type { Notification } from "../db/schema";
 
 /**
@@ -74,7 +74,7 @@ export async function createNotification({
 export async function getNotifications(
   userId: string,
   limit: number = 5,
-  lastId?: string | null
+  lastId?: string | null,
 ): Promise<Notification[]> {
   try {
     const queryBuilder = db.select().from(notifications);
@@ -95,7 +95,7 @@ export async function getNotifications(
  */
 export async function markNotificationAsRead(
   notificationId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   try {
     // First get the current notification to read existing read_by array
@@ -135,37 +135,20 @@ export async function markNotificationAsRead(
  * Marks all notifications as read for a specific user
  */
 export async function markAllNotificationsAsRead(
-  userId: string
+  userId: string,
 ): Promise<{ success: boolean }> {
   try {
-    // Get all unread notifications for this user
-    const unreadNotifications = await db
-      .select({ id: notifications.id, read_by: notifications.read_by })
-      .from(notifications)
-      .where(
-        sql`NOT (${arrayContains(notifications.read_by, [userId])} OR ${notifications.read_by} IS NULL)`
-      );
-
-    if (unreadNotifications.length === 0) {
-      return { success: true };
-    }
-
-    // Update each notification
-    const updates = unreadNotifications.map((notification) => {
-      const readBy = (notification.read_by as string[]) || [];
-      const updatedReadBy = Array.from(new Set([...readBy, userId]));
-
-      return db
-        .update(notifications)
-        .set({
-          read_by: updatedReadBy,
-          is_read: true, // Mark as read when user reads it
-        })
-        .where(eq(notifications.id, notification.id));
-    });
-
-    // Execute all updates
-    await Promise.all(updates);
+    await db.execute(sql`
+      UPDATE ${notifications}
+      SET
+        read_by = array_append(
+          array_remove(COALESCE(${notifications.read_by}, '{}'::text[]), ${userId}),
+          ${userId}
+        ),
+        is_read = true
+      WHERE ${notifications.read_by} IS NULL
+        OR NOT (${userId} = ANY(${notifications.read_by}))
+    `);
 
     return { success: true };
   } catch (error) {
@@ -178,7 +161,7 @@ export async function markAllNotificationsAsRead(
  * Gets the count of unread notifications for a user
  */
 export async function getUnreadNotificationsCount(
-  userId: string
+  userId: string,
 ): Promise<number> {
   try {
     const [result] = await db
@@ -248,7 +231,7 @@ export async function createMeterSaleNotification({
  */
 export async function getNotificationsByType(
   type: string,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<Notification[]> {
   try {
     const result = await db
@@ -270,7 +253,7 @@ export async function getNotificationsByType(
  */
 export async function getAllNotifications(
   page: number = 1,
-  pageSize: number = 20
+  pageSize: number = 20,
 ): Promise<{
   notifications: Notification[];
   totalCount: number;
