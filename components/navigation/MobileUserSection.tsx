@@ -8,7 +8,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
-import { getRoleBadgeVariant } from "@/lib/utils/rolePermissions";
+import {
+  getRoleBadgeVariant,
+  isSalesPerson,
+} from "@/lib/utils/rolePermissions";
 
 interface MobileUserSectionProps {
   user: {
@@ -26,21 +29,23 @@ const getRoleBadgeClass = (role: string | null): string => {
 export function MobileUserSection({
   user,
   safeUserRole,
-}: MobileUserSectionProps) {
+}: Readonly<MobileUserSectionProps>) {
   return (
     <>
-      <SidebarGroup className='mt-8'>
-        <SidebarGroupLabel className='px-2 text-sm font-medium text-gray-500 uppercase tracking-wider'>
-          Notifications
-        </SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <NotificationBell />
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
+      {!isSalesPerson(safeUserRole) && (
+        <SidebarGroup className='mt-8'>
+          <SidebarGroupLabel className='px-2 text-sm font-medium text-gray-500 uppercase tracking-wider'>
+            Notifications
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <NotificationBell />
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
 
       <SidebarGroup className='mt-auto'>
         <SidebarGroupContent>

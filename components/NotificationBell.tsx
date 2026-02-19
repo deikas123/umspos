@@ -18,6 +18,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { getNotifications } from "@/lib/actions/notifications";
 import { useAuth } from "@/contexts/AuthContext";
+import { isSalesPerson } from "@/lib/utils/rolePermissions";
 
 // Type for notification metadata
 type MeterSaleMetadata = {
@@ -275,7 +276,7 @@ function HeaderContent({
 
 export function NotificationBell() {
   const { unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const isMobile = useIsMobile();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -344,7 +345,7 @@ export function NotificationBell() {
     });
   }, [isOpen, user?.id, queryClient]);
 
-  if (!user) return null;
+  if (!user || isSalesPerson(userRole)) return null;
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
