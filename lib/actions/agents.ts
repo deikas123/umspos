@@ -214,6 +214,7 @@ export async function assignMetersToAgent({
   agentId,
   meters: meterList,
   assignedBy,
+  assignedByName,
 }: {
   agentId: string;
   meters: Array<{
@@ -222,6 +223,7 @@ export async function assignMetersToAgent({
     type: string;
   }>;
   assignedBy: string;
+  assignedByName: string;
 }) {
   if (!agentId?.trim()) {
     throw new Error("Agent ID is required");
@@ -307,6 +309,8 @@ export async function assignMetersToAgent({
           transaction_type: "assignment" as const,
           meter_type: type,
           quantity,
+          performed_by: assignedBy,
+          performed_by_name: assignedByName,
         }),
       );
 
@@ -458,6 +462,8 @@ export async function returnMetersFromAgent({
             transaction_type: "return" as const,
             meter_type: type,
             quantity: metersOfType.length,
+            performed_by: returnedBy,
+            performed_by_name: returnerName,
           }),
         );
 
@@ -701,6 +707,7 @@ export async function getAgentTransactions(
         transaction_type: agentTransactions.transaction_type,
         meter_type: agentTransactions.meter_type,
         transaction_date: agentTransactions.transaction_date,
+        performed_by_name: agentTransactions.performed_by_name,
         total_quantity: sql<number>`sum(${agentTransactions.quantity})`.as(
           "total_quantity",
         ),
@@ -715,6 +722,7 @@ export async function getAgentTransactions(
         agentTransactions.transaction_type,
         agentTransactions.meter_type,
         agentTransactions.transaction_date,
+        agentTransactions.performed_by_name,
       )
       .as("aggregated_agent_transactions");
 
@@ -736,6 +744,7 @@ export async function getAgentTransactions(
         meter_type: t.meter_type,
         quantity: Number(t.total_quantity),
         transaction_date: t.transaction_date,
+        performed_by_name: t.performed_by_name,
       })),
       pagination: {
         total,
@@ -785,7 +794,10 @@ export async function getTransactionMeters(params: {
 
     // First, get all transaction IDs that match the criteria
     const matchingTransactions = await db
-      .select({ id: agentTransactions.id })
+      .select({
+        id: agentTransactions.id,
+        performed_by_name: agentTransactions.performed_by_name,
+      })
       .from(agentTransactions)
       .where(
         and(
@@ -801,10 +813,11 @@ export async function getTransactionMeters(params: {
       );
 
     if (matchingTransactions.length === 0) {
-      return { meters: [], total: 0 };
+      return { meters: [], total: 0, performedBy: null };
     }
 
     const transactionIds = matchingTransactions.map((t) => t.id);
+    const performedBy = matchingTransactions[0].performed_by_name ?? null;
 
     // Now get all meters for these transactions
     const meterDetails = await db
@@ -819,10 +832,11 @@ export async function getTransactionMeters(params: {
     return {
       meters: meterDetails,
       total: meterDetails.length,
+      performedBy,
     };
   } catch (error) {
     console.error("Error fetching transaction meters:", error);
-    return { meters: [], total: 0 };
+    return { meters: [], total: 0, performedBy: null };
   }
 }
 

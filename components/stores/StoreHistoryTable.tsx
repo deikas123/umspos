@@ -21,6 +21,7 @@ interface Transaction {
   transaction_type: string;
   meter_type: string;
   quantity: number;
+  performed_by_name?: string | null;
 }
 
 interface TransactionInfo {
@@ -120,6 +121,7 @@ const TransactionRow = memo(function TransactionRow({
         {getTransactionTypeBadge(transaction.transaction_type)}
       </TableCell>
       <TableCell>{getMeterTypeBadge(transaction.meter_type)}</TableCell>
+      <TableCell>{transaction.performed_by_name || "—"}</TableCell>
       <TableCell className='text-right'>
         {onQuantityClick && transaction.agent_id ? (
           <Button
@@ -149,6 +151,7 @@ export default function StoreHistoryTable({
             <TableHead className='font-semibold'>Date</TableHead>
             <TableHead className='font-semibold'>Transaction Type</TableHead>
             <TableHead className='font-semibold'>Meter Type</TableHead>
+            <TableHead className='font-semibold'>Performed By</TableHead>
             <TableHead className='font-semibold text-right'>Quantity</TableHead>
           </TableRow>
         </TableHeader>
@@ -163,7 +166,7 @@ export default function StoreHistoryTable({
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={4}>
+              <TableCell colSpan={5}>
                 <EmptyState />
               </TableCell>
             </TableRow>

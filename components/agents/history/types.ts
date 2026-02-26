@@ -13,6 +13,7 @@ export interface Transaction {
   transaction_type: string;
   meter_type: string;
   quantity: number;
+  performed_by_name?: string | null;
 }
 
 export interface TransactionInfo {
@@ -48,7 +49,7 @@ export interface HistoryFiltersBarProps {
   onMeterTypeChange: (value: string | undefined) => void;
   onAgentChange: (value: string | undefined) => void;
   onDateRangeChange: (
-    value: { start: DateValue; end: DateValue } | null
+    value: { start: DateValue; end: DateValue } | null,
   ) => void;
   onSingleDateChange: (value: DateValue | null) => void;
   onClearFilters: () => void;

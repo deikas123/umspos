@@ -102,6 +102,7 @@ const TransactionRow = memo(function TransactionRow({
         {getTransactionTypeBadge(transaction.transaction_type)}
       </TableCell>
       <TableCell>{getMeterTypeBadge(transaction.meter_type)}</TableCell>
+      <TableCell>{transaction.performed_by_name || "—"}</TableCell>
       <TableCell className='text-right'>
         {onQuantityClick && transaction.agent_id ? (
           <Button
@@ -132,6 +133,7 @@ export const HistoryTable = memo(function HistoryTable({
             <TableHead className='font-semibold'>Agent Name</TableHead>
             <TableHead className='font-semibold'>Transaction Type</TableHead>
             <TableHead className='font-semibold'>Meter Type</TableHead>
+            <TableHead className='font-semibold'>Performed By</TableHead>
             <TableHead className='font-semibold text-right'>Quantity</TableHead>
           </TableRow>
         </TableHeader>
@@ -146,7 +148,7 @@ export const HistoryTable = memo(function HistoryTable({
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={5}>
+              <TableCell colSpan={6}>
                 <EmptyState />
               </TableCell>
             </TableRow>

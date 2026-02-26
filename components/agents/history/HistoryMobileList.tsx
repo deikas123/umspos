@@ -71,6 +71,11 @@ const MobileTransactionCard = memo(function MobileTransactionCard({
         {getTransactionTypeBadge(transaction.transaction_type)}
         {getMeterTypeBadge(transaction.meter_type)}
       </div>
+      {transaction.performed_by_name && (
+        <p className='text-xs text-gray-500'>
+          By {transaction.performed_by_name}
+        </p>
+      )}
     </div>
   );
 });

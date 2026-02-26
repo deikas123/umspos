@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,16 +17,23 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps) {
   const { isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+  // Ensure first client render matches the server render (loading skeleton)
+  // to prevent hydration mismatch when useSession resolves from cache instantly
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Redirect to signin if not authenticated after loading completes
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (hasMounted && !isLoading && !isAuthenticated) {
       router.replace("/signin");
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [hasMounted, isLoading, isAuthenticated, router]);
 
-  // Show loading skeleton while auth is loading
-  if (isLoading) {
+  // Show loading skeleton while auth is loading or before hydration completes
+  if (!hasMounted || isLoading) {
     return (
       <div className='p-4 md:p-6 space-y-6'>
         {/* Header skeleton */}

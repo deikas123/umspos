@@ -1,0 +1,1 @@
+-- Migration already applied, file recreated as placeholder

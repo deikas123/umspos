@@ -55,6 +55,7 @@ export default function ReturnSoldMeters({
     }>
   >([]);
   const [replacementSerial, setReplacementSerial] = useState("");
+  const [isVerifyingReplacement, setIsVerifyingReplacement] = useState(false);
 
   useEffect(() => {
     if (serialInputRef.current) {
@@ -73,7 +74,7 @@ export default function ReturnSoldMeters({
     }
 
     const existingIndex = meters.findIndex(
-      (m) => m.serialNumber.toLowerCase() === serialNumber.toLowerCase()
+      (m) => m.serialNumber.toLowerCase() === serialNumber.toLowerCase(),
     );
 
     if (existingIndex !== -1) {
@@ -84,15 +85,14 @@ export default function ReturnSoldMeters({
 
     setIsChecking(true);
     try {
-      const meter = await getSoldMeterBySerial(serialNumber);
-      if (!meter) {
-        setErrorMessage(
-          `Meter ${serialNumber.toUpperCase()} not found in sold meters`
-        );
+      const result = await getSoldMeterBySerial(serialNumber);
+      if (!result.success) {
+        setErrorMessage(result.error);
         setSerialNumber("");
         return;
       }
 
+      const meter = result.data;
       setMeters([
         {
           id: meter.id,
@@ -109,7 +109,7 @@ export default function ReturnSoldMeters({
       toast.success("Meter added to return list");
     } catch (error: any) {
       setErrorMessage(
-        error.message || "Failed to retrieve meter. Please try again."
+        error.message || "Failed to retrieve meter. Please try again.",
       );
       setSerialNumber("");
     } finally {
@@ -125,7 +125,7 @@ export default function ReturnSoldMeters({
 
   const handleStatusChange = (
     serialNumber: string,
-    status: "healthy" | "faulty"
+    status: "healthy" | "faulty",
   ) => {
     setMeters(
       meters.map((meter) =>
@@ -136,21 +136,21 @@ export default function ReturnSoldMeters({
               faultDescription:
                 status === "healthy" ? undefined : meter.faultDescription,
             }
-          : meter
-      )
+          : meter,
+      ),
     );
   };
 
   const handleFaultDescriptionChange = (
     serialNumber: string,
-    description: string
+    description: string,
   ) => {
     setMeters(
       meters.map((meter) =>
         meter.serialNumber === serialNumber
           ? { ...meter, faultDescription: description }
-          : meter
-      )
+          : meter,
+      ),
     );
   };
 
@@ -160,8 +160,14 @@ export default function ReturnSoldMeters({
 
   const handleReplacement = async (
     meter: MeterToReturn,
-    replacementSerial: string
+    replacementSerial: string,
   ) => {
+    if (!replacementSerial.trim()) {
+      toast.error("Please enter a replacement serial number");
+      return;
+    }
+
+    setIsVerifyingReplacement(true);
     try {
       // Use getAvailableReplacementMeters to fetch available meters of the same type
       const availableMeters = await getAvailableReplacementMeters(meter.type);
@@ -169,17 +175,13 @@ export default function ReturnSoldMeters({
       // Find the replacement meter with the matching serial number
       const availableMeter = availableMeters.find(
         (m: { serial_number: string; type: string }) =>
-          m.serial_number.toUpperCase() === replacementSerial.toUpperCase()
+          m.serial_number.toUpperCase() === replacementSerial.toUpperCase(),
       );
 
       if (!availableMeter) {
-        console.error(
-          "Replacement meter not found or wrong type for meter:",
-          meter,
-          "Replacement Serial:",
-          replacementSerial.toUpperCase()
+        toast.error(
+          `Meter ${replacementSerial.toUpperCase()} not found in ${meter.type} stock`,
         );
-        toast.error("Replacement meter not found or wrong type");
         return;
       }
 
@@ -196,14 +198,16 @@ export default function ReturnSoldMeters({
         prev.map((m) =>
           m.id === meter.id
             ? { ...m, replacementSerial: availableMeter.serial_number }
-            : m
-        )
+            : m,
+        ),
       );
 
-      toast.success("Replacement meter added");
+      toast.success("Replacement meter verified and added");
     } catch (error) {
       console.error("Exception in handleReplacement:", error);
-      toast.error("Failed to add replacement meter");
+      toast.error("Failed to verify replacement meter");
+    } finally {
+      setIsVerifyingReplacement(false);
     }
   };
 
@@ -217,7 +221,7 @@ export default function ReturnSoldMeters({
     const invalidFaultyMeter = meters.find(
       (meter) =>
         meter.status === "faulty" &&
-        (!meter.faultDescription || meter.faultDescription.trim() === "")
+        (!meter.faultDescription || meter.faultDescription.trim() === ""),
     );
 
     if (invalidFaultyMeter) {
@@ -227,7 +231,7 @@ export default function ReturnSoldMeters({
 
     setIsSubmitting(true);
     try {
-      await returnSoldMeter({
+      const result = await returnSoldMeter({
         meters: meters.map((meter) => ({
           id: meter.id,
           serial_number: meter.serialNumber,
@@ -240,6 +244,11 @@ export default function ReturnSoldMeters({
         replacements,
       });
 
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+
       // Store return details for receipt
       const returnDetails = {
         meters,
@@ -249,7 +258,7 @@ export default function ReturnSoldMeters({
 
       localStorage.setItem(
         "lastSoldReturnDetails",
-        JSON.stringify(returnDetails)
+        JSON.stringify(returnDetails),
       );
 
       setMeters([]);
@@ -290,11 +299,16 @@ export default function ReturnSoldMeters({
               <Button
                 onClick={handleReturnMeters}
                 className='w-full bg-primary hover:bg-[#000066] text-white cursor-pointer'
-                disabled={isSubmitting}>
+                disabled={isSubmitting || isVerifyingReplacement}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                     Processing Return...
+                  </>
+                ) : isVerifyingReplacement ? (
+                  <>
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    Verifying Replacement...
                   </>
                 ) : (
                   `Return ${meters.length} Meter${
@@ -365,7 +379,7 @@ export default function ReturnSoldMeters({
                                   onChange={(e) =>
                                     handleFaultDescriptionChange(
                                       meter.serialNumber,
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   className='min-h-[80px]'
@@ -383,14 +397,19 @@ export default function ReturnSoldMeters({
                                     onClick={() => {
                                       handleReplacement(
                                         meter,
-                                        replacementSerial
+                                        replacementSerial,
                                       );
                                       setReplacementSerial("");
                                     }}
                                     variant='outline'
                                     size='sm'
+                                    disabled={isVerifyingReplacement}
                                     className='cursor-pointer'>
-                                    Replace
+                                    {isVerifyingReplacement ? (
+                                      <Loader2 className='h-4 w-4 animate-spin' />
+                                    ) : (
+                                      "Replace"
+                                    )}
                                   </Button>
                                 </div>
                                 {meter.replacementSerial && (

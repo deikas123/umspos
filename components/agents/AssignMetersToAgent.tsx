@@ -63,14 +63,14 @@ export default function AssignMetersToAgent({
     return cachedMeters ? JSON.parse(cachedMeters) : [];
   });
   const [selectedAgent, setSelectedAgent] = useState<string>(
-    preSelectedAgent?.id || ""
+    preSelectedAgent?.id || "",
   );
   const [agents, setAgents] = useState<Agent[]>([]);
   const entityName = isStore ? "store" : "agent";
   const EntityName = isStore ? "Store" : "Agent";
 
   const [errorMessage, setErrorMessage] = useState<string | React.ReactNode>(
-    `Select a ${entityName} and scan meters`
+    `Select a ${entityName} and scan meters`,
   );
   const [isSubmitted, setIsSubmitted] = useState(false);
   const serialInputRef = useRef<HTMLInputElement>(null);
@@ -148,7 +148,7 @@ export default function AssignMetersToAgent({
       }
 
       const existingIndex = meters.findIndex(
-        (m) => m.serialNumber.toLowerCase() === serialNumber.toLowerCase()
+        (m) => m.serialNumber.toLowerCase() === serialNumber.toLowerCase(),
       );
 
       if (existingIndex !== -1) {
@@ -219,6 +219,7 @@ export default function AssignMetersToAgent({
           type: meter.type,
         })),
         assignedBy: currentUser.id,
+        assignedByName: currentUser.name || "Unknown",
       });
 
       // Store assignment details for receipt
@@ -231,7 +232,7 @@ export default function AssignMetersToAgent({
 
       localStorage.setItem(
         "lastAssignmentDetails",
-        JSON.stringify(receiptDetails)
+        JSON.stringify(receiptDetails),
       );
 
       // Clear the cached meters
@@ -251,11 +252,11 @@ export default function AssignMetersToAgent({
   const handleDownloadReceipt = async () => {
     try {
       const assignmentDetails = JSON.parse(
-        localStorage.getItem("lastAssignmentDetails") || "{}"
+        localStorage.getItem("lastAssignmentDetails") || "{}",
       );
 
       const blob = await pdf(
-        <AgentAssignmentReceipt {...assignmentDetails} />
+        <AgentAssignmentReceipt {...assignmentDetails} />,
       ).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -344,7 +345,7 @@ export default function AssignMetersToAgent({
                                     "ml-auto h-4 w-4",
                                     selectedAgent === agent.id
                                       ? "opacity-100"
-                                      : "opacity-0"
+                                      : "opacity-0",
                                   )}
                                 />
                               </CommandItem>

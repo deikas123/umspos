@@ -16,6 +16,7 @@ interface Transaction {
   transaction_type: string;
   meter_type: string;
   quantity: number;
+  performed_by_name?: string | null;
 }
 
 interface TransactionInfo {
@@ -85,6 +86,11 @@ const MobileTransactionCard = memo(function MobileTransactionCard({
         {getTransactionTypeBadge(transaction.transaction_type)}
         {getMeterTypeBadge(transaction.meter_type)}
       </div>
+      {transaction.performed_by_name && (
+        <p className='text-xs text-gray-500'>
+          By {transaction.performed_by_name}
+        </p>
+      )}
     </div>
   );
 });

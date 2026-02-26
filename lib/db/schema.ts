@@ -113,6 +113,10 @@ export const meters = pgTable(
     index("idx_meters_type").on(table.type),
     index("idx_meters_batch_id").on(table.batch_id),
     index("idx_meters_serial_number").on(table.serial_number),
+    index("idx_meters_serial_number_trgm").using(
+      "gin",
+      sql`${table.serial_number} gin_trgm_ops`,
+    ),
   ],
 );
 
@@ -148,6 +152,10 @@ export const agentInventory = pgTable(
     index("idx_agent_inventory_agent_id").on(table.agent_id),
     index("idx_agent_inventory_meter_id").on(table.meter_id),
     index("idx_agent_inventory_serial_number").on(table.serial_number),
+    index("idx_agent_inventory_serial_number_trgm").using(
+      "gin",
+      sql`${table.serial_number} gin_trgm_ops`,
+    ),
   ],
 );
 
@@ -162,6 +170,8 @@ export const agentTransactions = pgTable(
     meter_type: text("meter_type").notNull(),
     quantity: integer("quantity").default(1),
     transaction_date: timestamp("transaction_date").defaultNow(),
+    performed_by: text("performed_by").references(() => betterAuthUser.id),
+    performed_by_name: text("performed_by_name"),
   },
   (table) => [
     index("idx_agent_transactions_agent_id").on(table.agent_id),
@@ -296,6 +306,10 @@ export const soldMeters = pgTable(
     index("idx_sold_meters_serial_number").on(table.serial_number),
     index("idx_sold_meters_status").on(table.status),
     index("idx_sold_meters_sold_at").on(table.sold_at),
+    index("idx_sold_meters_serial_number_trgm").using(
+      "gin",
+      sql`${table.serial_number} gin_trgm_ops`,
+    ),
   ],
 );
 
@@ -321,6 +335,10 @@ export const faultyReturns = pgTable(
   (table) => [
     index("idx_faulty_returns_status").on(table.status),
     index("idx_faulty_returns_serial_number").on(table.serial_number),
+    index("idx_faulty_returns_serial_number_trgm").using(
+      "gin",
+      sql`${table.serial_number} gin_trgm_ops`,
+    ),
   ],
 );
 

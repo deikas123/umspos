@@ -9,7 +9,7 @@ import {
   getTableColumns,
   isNotNull,
 } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+
 import { db } from "@/lib/db";
 import {
   meters,
@@ -280,10 +280,8 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
     ? eq(faultyReturns.serial_number, term)
     : ilike(faultyReturns.serial_number, pattern);
 
-  const soldByUser = alias(betterAuthUser, `${mode}_sold_by_user`);
-  const replacedByUser = alias(betterAuthUser, `${mode}_replaced_by_user`);
-
-  const [stock, agent, sold, faulty] = await Promise.all([
+  // Phase 1: Fast index-only lookups in parallel (no expensive user JOINs)
+  const [stock, agent, soldRaw, faulty] = await Promise.all([
     db
       .select({
         serial_number: meters.serial_number,
@@ -314,8 +312,6 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
         serial_number: soldMeters.serial_number,
         sold_at: soldMeters.sold_at,
         sold_by: soldMeters.sold_by,
-        sold_by_name: soldByUser.displayName,
-        sold_by_role: soldByUser.appRole,
         destination: soldMeters.destination,
         recipient: soldMeters.recipient,
         unit_price: soldMeters.unit_price,
@@ -323,21 +319,11 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
         replacement_serial: soldMeters.replacement_serial,
         replacement_date: soldMeters.replacement_date,
         replacement_by: soldMeters.replacement_by,
-        replacement_by_name: replacedByUser.displayName,
-        replacement_by_role: replacedByUser.appRole,
         customer_contact: soldMeters.customer_contact,
         meter_type: saleBatches.meter_type,
       })
       .from(soldMeters)
       .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-      .leftJoin(
-        soldByUser,
-        sql`${soldMeters.sold_by}::text = ${soldByUser.id}::text`,
-      )
-      .leftJoin(
-        replacedByUser,
-        sql`${soldMeters.replacement_by}::text = ${replacedByUser.id}::text`,
-      )
       .where(soldCondition)
       .limit(limit),
 
@@ -354,6 +340,58 @@ async function executeSearchQueries(term: string, mode: SearchMode) {
       .where(faultyCondition)
       .limit(limit),
   ]);
+
+  // Phase 2: Enrich sold results with user details only if we have matches
+  let sold: Array<
+    (typeof soldRaw)[number] & {
+      sold_by_name: string | null;
+      sold_by_role: string | null;
+      replacement_by_name: string | null;
+      replacement_by_role: string | null;
+    }
+  >;
+
+  if (soldRaw.length > 0) {
+    // Collect unique user IDs to fetch in one query
+    const userIds = new Set<string>();
+    for (const s of soldRaw) {
+      if (s.sold_by) userIds.add(s.sold_by);
+      if (s.replacement_by) userIds.add(s.replacement_by);
+    }
+
+    const userMap = new Map<
+      string,
+      { displayName: string | null; appRole: string | null }
+    >();
+    if (userIds.size > 0) {
+      const users = await db
+        .select({
+          id: betterAuthUser.id,
+          displayName: betterAuthUser.displayName,
+          appRole: betterAuthUser.appRole,
+        })
+        .from(betterAuthUser)
+        .where(inArray(betterAuthUser.id, Array.from(userIds)));
+
+      for (const u of users) {
+        userMap.set(u.id, { displayName: u.displayName, appRole: u.appRole });
+      }
+    }
+
+    sold = soldRaw.map((s) => {
+      const seller = s.sold_by ? userMap.get(s.sold_by) : null;
+      const replacer = s.replacement_by ? userMap.get(s.replacement_by) : null;
+      return {
+        ...s,
+        sold_by_name: seller?.displayName ?? null,
+        sold_by_role: seller?.appRole ?? null,
+        replacement_by_name: replacer?.displayName ?? null,
+        replacement_by_role: replacer?.appRole ?? null,
+      };
+    });
+  } else {
+    sold = [];
+  }
 
   return {
     stock,

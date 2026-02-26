@@ -120,7 +120,7 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
       setTransactionType(value);
       setCurrentPage(1);
     },
-    []
+    [],
   );
 
   const handleMeterTypeChange = useCallback((value: string | undefined) => {
@@ -134,7 +134,7 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
       setSingleDate(null);
       setCurrentPage(1);
     },
-    []
+    [],
   );
 
   const handleSingleDateChange = useCallback((value: DateValue | null) => {
@@ -171,7 +171,7 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
     try {
       const allTransactions = await getAllTransactionsForExport(
         searchTerm,
-        queryFilters
+        queryFilters,
       );
       if (allTransactions.length === 0) {
         toast.error("No transactions to export");
@@ -182,12 +182,13 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
         Date: formatDateTimeShort(t.transaction_date),
         Type: t.transaction_type === "assignment" ? "Assigned" : "Returned",
         "Meter Type": capitalizeMeterType(t.meter_type),
+        "Performed By": t.performed_by_name || "—",
         Quantity: t.quantity,
       }));
 
       generateCSV(
         exportData,
-        `store-transactions-${new Date().toISOString().split("T")[0]}`
+        `store-transactions-${new Date().toISOString().split("T")[0]}`,
       );
       toast.success(`Exported ${exportData.length} transactions`);
     } catch (err) {
@@ -203,7 +204,7 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
     try {
       const allTransactions = await getAllTransactionsForExport(
         searchTerm,
-        queryFilters
+        queryFilters,
       );
       if (allTransactions.length === 0) {
         toast.error("No transactions to export");
@@ -214,13 +215,14 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
         Date: formatDateTimeShort(t.transaction_date),
         Type: t.transaction_type === "assignment" ? "Assigned" : "Returned",
         "Meter Type": capitalizeMeterType(t.meter_type),
+        "Performed By": t.performed_by_name || "—",
         Quantity: t.quantity,
       }));
 
       generateXLSX(
         exportData,
         `store-transactions-${new Date().toISOString().split("T")[0]}`,
-        "Transactions"
+        "Transactions",
       );
       toast.success(`Exported ${exportData.length} transactions`);
     } catch (err) {
@@ -236,18 +238,25 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
     try {
       const allTransactions = await getAllTransactionsForExport(
         searchTerm,
-        queryFilters
+        queryFilters,
       );
       if (allTransactions.length === 0) {
         toast.error("No transactions to export");
         return;
       }
 
-      const headers = ["Date", "Type", "Meter Type", "Quantity"];
+      const headers = [
+        "Date",
+        "Type",
+        "Meter Type",
+        "Performed By",
+        "Quantity",
+      ];
       const pdfData = allTransactions.map((t) => [
         formatDateTimeShort(t.transaction_date),
         t.transaction_type === "assignment" ? "Assigned" : "Returned",
         capitalizeMeterType(t.meter_type),
+        t.performed_by_name || "—",
         String(t.quantity),
       ]);
 
@@ -256,7 +265,7 @@ export default function StoreHistory({ storeId }: Readonly<StoreHistoryProps>) {
           title='Store Transaction History'
           headers={headers}
           data={pdfData}
-        />
+        />,
       ).toBlob();
 
       const url = URL.createObjectURL(blob);

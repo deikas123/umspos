@@ -622,39 +622,54 @@ export async function getSaleBatchMeterDetails(batchId: string) {
 }
 
 export async function getSoldMeterBySerial(serialNumber: string) {
-  const normalizedSerial = serialNumber.toUpperCase();
+  try {
+    const normalizedSerial = serialNumber.toUpperCase();
 
-  const [soldMeter] = await db
-    .select({
-      id: soldMeters.id,
-      serial_number: soldMeters.serial_number,
-      sold_at: soldMeters.sold_at,
-      batch_id: soldMeters.batch_id,
-      status: soldMeters.status,
-      meter_type: saleBatches.meter_type,
-    })
-    .from(soldMeters)
-    .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
-    .where(eq(soldMeters.serial_number, normalizedSerial))
-    .limit(1);
+    const [soldMeter] = await db
+      .select({
+        id: soldMeters.id,
+        serial_number: soldMeters.serial_number,
+        sold_at: soldMeters.sold_at,
+        batch_id: soldMeters.batch_id,
+        status: soldMeters.status,
+        meter_type: saleBatches.meter_type,
+      })
+      .from(soldMeters)
+      .leftJoin(saleBatches, eq(soldMeters.batch_id, saleBatches.id))
+      .where(eq(soldMeters.serial_number, normalizedSerial))
+      .limit(1);
 
-  if (!soldMeter) {
-    throw new Error(`Meter ${normalizedSerial} not found in sold meters`);
+    if (!soldMeter) {
+      return {
+        success: false as const,
+        error: `Meter ${normalizedSerial} not found in sold meters`,
+      };
+    }
+
+    if (soldMeter.status !== "active") {
+      return {
+        success: false as const,
+        error: `Meter ${normalizedSerial} is already marked as ${soldMeter.status}`,
+      };
+    }
+
+    return {
+      success: true as const,
+      data: {
+        id: soldMeter.id,
+        serial_number: soldMeter.serial_number,
+        sold_at: soldMeter.sold_at,
+        type: soldMeter.meter_type || "unknown",
+        status: soldMeter.status,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching sold meter by serial:", error);
+    return {
+      success: false as const,
+      error: "Failed to look up meter. Please try again.",
+    };
   }
-
-  if (soldMeter.status !== "active") {
-    throw new Error(
-      `Meter ${normalizedSerial} is already marked as ${soldMeter.status}`,
-    );
-  }
-
-  return {
-    id: soldMeter.id,
-    serial_number: soldMeter.serial_number,
-    sold_at: soldMeter.sold_at,
-    type: soldMeter.meter_type || "unknown",
-    status: soldMeter.status,
-  };
 }
 
 export async function returnSoldMeter({
@@ -780,10 +795,16 @@ export async function returnSoldMeter({
       await clearMetersCache();
     }
 
-    return { success: true };
+    return { success: true as const };
   } catch (error) {
     console.error("Error returning sold meters:", error);
-    throw error;
+    return {
+      success: false as const,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to return meters. Please try again.",
+    };
   }
 }
 

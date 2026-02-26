@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Package } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Search,
+  Package,
+  Download,
+  File,
+  FileSpreadsheet,
+  FileText,
+} from "lucide-react";
 import Loader from "@/components/ui/Loader";
 import { getTransactionMeters } from "@/lib/actions/agents";
+import { generateCSV } from "@/lib/utils/csvGenerator";
+import { generateXLSX } from "@/lib/utils/xlsxGenerator";
+import { pdf } from "@react-pdf/renderer";
+import TableReportPDF from "@/components/sharedcomponents/TableReportPDF";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface TransactionMetersDialogProps {
   open: boolean;
@@ -41,6 +61,7 @@ export default function TransactionMetersDialog({
   const [meters, setMeters] = useState<MeterDetail[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [performedBy, setPerformedBy] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && transactionInfo) {
@@ -49,6 +70,7 @@ export default function TransactionMetersDialog({
       // Reset state when dialog closes
       setMeters([]);
       setSearchTerm("");
+      setPerformedBy(null);
     }
   }, [open, transactionInfo]);
 
@@ -64,17 +86,90 @@ export default function TransactionMetersDialog({
         meterType: transactionInfo.meterType,
       });
       setMeters(result.meters);
+      setPerformedBy(result.performedBy);
     } catch (error) {
       console.error("Failed to fetch transaction meters:", error);
       setMeters([]);
+      setPerformedBy(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   const filteredMeters = meters.filter((meter) =>
-    meter.serial_number.toLowerCase().includes(searchTerm.toLowerCase())
+    meter.serial_number.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  const getExportFilename = useCallback(() => {
+    const agentPart = transactionInfo?.agentName
+      ? transactionInfo.agentName.replaceAll(/\s+/g, "_")
+      : "store";
+    const datePart = transactionInfo?.transactionDate
+      ? format(new Date(transactionInfo.transactionDate), "yyyy-MM-dd")
+      : "unknown";
+    const typePart = transactionInfo?.transactionType ?? "transaction";
+    return `${typePart}_meters_${agentPart}_${datePart}`;
+  }, [transactionInfo]);
+
+  const getExportTitle = useCallback(() => {
+    const agentPart = transactionInfo?.agentName ?? "Store Transaction";
+    const datePart = transactionInfo?.transactionDate
+      ? format(new Date(transactionInfo.transactionDate), "dd/MM/yyyy")
+      : "";
+    const typePart =
+      transactionInfo?.transactionType === "assignment"
+        ? "Assigned"
+        : "Returned";
+    const byPart = performedBy ? ` by ${performedBy}` : "";
+    return `${typePart} Meters - ${agentPart} (${datePart})${byPart}`;
+  }, [transactionInfo, performedBy]);
+
+  const handleExportCSV = useCallback(() => {
+    if (meters.length === 0) return;
+    const csvData = meters.map((meter, index) => ({
+      "#": index + 1,
+      "Serial Number": meter.serial_number,
+    }));
+    generateCSV(csvData, getExportFilename());
+    toast.success(`Exported ${meters.length} meters to CSV`);
+  }, [meters, getExportFilename]);
+
+  const handleExportXLSX = useCallback(() => {
+    if (meters.length === 0) return;
+    const xlsxData = meters.map((meter, index) => ({
+      "#": index + 1,
+      "Serial Number": meter.serial_number,
+    }));
+    generateXLSX(xlsxData, getExportFilename(), "Meter Serials");
+    toast.success(`Exported ${meters.length} meters to XLSX`);
+  }, [meters, getExportFilename]);
+
+  const handleExportPDF = useCallback(async () => {
+    if (meters.length === 0) return;
+    const headers = ["#", "Serial Number"];
+    const pdfData = meters.map((meter, index) => [
+      String(index + 1),
+      meter.serial_number,
+    ]);
+
+    const blob = await pdf(
+      <TableReportPDF
+        title={getExportTitle()}
+        headers={headers}
+        data={pdfData}
+      />,
+    ).toBlob();
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${getExportFilename()}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${meters.length} meters to PDF`);
+  }, [meters, getExportFilename, getExportTitle]);
 
   const getTransactionTypeLabel = (type: string) => {
     return type === "assignment" ? "Assigned" : "Returned";
@@ -126,20 +221,59 @@ export default function TransactionMetersDialog({
                   • {transactionInfo.quantity} meter
                   {transactionInfo.quantity === 1 ? "" : "s"}
                 </span>
+                {performedBy && (
+                  <span className='text-sm font-medium text-gray-700'>
+                    • By {performedBy}
+                  </span>
+                )}
               </div>
             )}
           </DialogDescription>
         </DialogHeader>
 
         <div className='flex-shrink-0 pt-4'>
-          <div className='relative'>
-            <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
-            <Input
-              placeholder='Search serial numbers...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='pl-9 bg-white border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20'
-            />
+          <div className='flex items-center gap-3'>
+            <div className='relative flex-1'>
+              <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
+              <Input
+                placeholder='Search serial numbers...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='pl-9 bg-white border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20'
+              />
+            </div>
+            {meters.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='outline'
+                    className='whitespace-nowrap border-gray-200 hover:bg-gray-50 hover:border-gray-300 cursor-pointer'>
+                    <Download className='h-4 w-4 mr-2' />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem
+                    onClick={handleExportCSV}
+                    className='cursor-pointer'>
+                    <File className='w-4 h-4 mr-2' />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleExportXLSX}
+                    className='cursor-pointer'>
+                    <FileSpreadsheet className='w-4 h-4 mr-2' />
+                    Export as XLSX
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={handleExportPDF}
+                    className='cursor-pointer'>
+                    <FileText className='w-4 h-4 mr-2' />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 

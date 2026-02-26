@@ -106,6 +106,20 @@
       "when": 1769816643945,
       "tag": "0015_update_user_references",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1772070143043,
+      "tag": "0015_nice_jackal",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1772071742876,
+      "tag": "0016_fantastic_silver_fox",
+      "breakpoints": true
     }
   ]
 }

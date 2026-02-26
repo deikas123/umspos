@@ -86,7 +86,7 @@ export default function AgentHistory() {
       currentPage,
       ITEMS_PER_PAGE,
       debouncedSearchTerm,
-      queryFilters
+      queryFilters,
     );
 
   // Combined filters for the UI component
@@ -121,7 +121,7 @@ export default function AgentHistory() {
       setTransactionType(value);
       setCurrentPage(1);
     },
-    []
+    [],
   );
 
   const handleMeterTypeChange = useCallback((value: string | undefined) => {
@@ -141,7 +141,7 @@ export default function AgentHistory() {
       if (value) setSingleDate(null);
       setCurrentPage(1);
     },
-    []
+    [],
   );
 
   const handleSingleDateChange = useCallback((value: DateValue | null) => {
@@ -172,9 +172,10 @@ export default function AgentHistory() {
         transaction.transaction_type.charAt(0).toUpperCase() +
         transaction.transaction_type.slice(1),
       "Meter Type": capitalizeMeterType(transaction.meter_type),
+      "Performed By": transaction.performed_by_name || "—",
       Quantity: transaction.quantity,
     }),
-    []
+    [],
   );
 
   const handleExportCSV = useCallback(async () => {
@@ -182,7 +183,7 @@ export default function AgentHistory() {
     try {
       const allTransactions = await getAllTransactionsForExport(
         debouncedSearchTerm,
-        queryFilters
+        queryFilters,
       );
       if (!allTransactions || allTransactions.length === 0) {
         toast.error("No data to export");
@@ -191,7 +192,7 @@ export default function AgentHistory() {
       const exportData = allTransactions.map(formatTransactionForExport);
       generateCSV(exportData, "agent-history");
       toast.success(
-        `CSV exported successfully (${allTransactions.length} records)`
+        `CSV exported successfully (${allTransactions.length} records)`,
       );
     } catch (err) {
       console.error("Error exporting CSV:", err);
@@ -206,7 +207,7 @@ export default function AgentHistory() {
     try {
       const allTransactions = await getAllTransactionsForExport(
         debouncedSearchTerm,
-        queryFilters
+        queryFilters,
       );
       if (!allTransactions || allTransactions.length === 0) {
         toast.error("No data to export");
@@ -215,7 +216,7 @@ export default function AgentHistory() {
       const exportData = allTransactions.map(formatTransactionForExport);
       generateXLSX(exportData, "agent-history", "Agent History");
       toast.success(
-        `XLSX exported successfully (${allTransactions.length} records)`
+        `XLSX exported successfully (${allTransactions.length} records)`,
       );
     } catch (err) {
       console.error("Error exporting XLSX:", err);
@@ -230,7 +231,7 @@ export default function AgentHistory() {
     try {
       const allTransactions = await getAllTransactionsForExport(
         debouncedSearchTerm,
-        queryFilters
+        queryFilters,
       );
       if (!allTransactions || allTransactions.length === 0) {
         toast.error("No data to export");
@@ -241,6 +242,7 @@ export default function AgentHistory() {
         "Agent Name",
         "Transaction Type",
         "Meter Type",
+        "Performed By",
         "Quantity",
       ];
 
@@ -250,6 +252,7 @@ export default function AgentHistory() {
         t.transaction_type.charAt(0).toUpperCase() +
           t.transaction_type.slice(1),
         capitalizeMeterType(t.meter_type),
+        t.performed_by_name || "—",
         t.quantity.toString(),
       ]);
 
@@ -258,7 +261,7 @@ export default function AgentHistory() {
           title='Agent Transaction History'
           headers={headers}
           data={pdfData}
-        />
+        />,
       ).toBlob();
 
       const url = URL.createObjectURL(blob);
@@ -271,7 +274,7 @@ export default function AgentHistory() {
       URL.revokeObjectURL(url);
 
       toast.success(
-        `PDF exported successfully (${allTransactions.length} records)`
+        `PDF exported successfully (${allTransactions.length} records)`,
       );
     } catch (err) {
       console.error("Error exporting PDF:", err);
