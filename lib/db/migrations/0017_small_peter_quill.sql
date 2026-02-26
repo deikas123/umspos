@@ -1,0 +1,1 @@
+DROP INDEX "two_factor_secret_idx";

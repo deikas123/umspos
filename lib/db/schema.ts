@@ -92,10 +92,7 @@ export const twoFactor = pgTable(
       .notNull()
       .references(() => betterAuthUser.id, { onDelete: "cascade" }),
   },
-  (table) => [
-    index("two_factor_secret_idx").on(table.secret),
-    index("two_factor_user_id_idx").on(table.userId),
-  ],
+  (table) => [index("two_factor_user_id_idx").on(table.userId)],
 );
 
 export const meters = pgTable(

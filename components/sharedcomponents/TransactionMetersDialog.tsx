@@ -146,29 +146,39 @@ export default function TransactionMetersDialog({
 
   const handleExportPDF = useCallback(async () => {
     if (meters.length === 0) return;
-    const headers = ["#", "Serial Number"];
-    const pdfData = meters.map((meter, index) => [
-      String(index + 1),
-      meter.serial_number,
-    ]);
 
-    const blob = await pdf(
-      <TableReportPDF
-        title={getExportTitle()}
-        headers={headers}
-        data={pdfData}
-      />,
-    ).toBlob();
+    let url: string | undefined;
+    let link: HTMLAnchorElement | undefined;
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${getExportFilename()}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    toast.success(`Exported ${meters.length} meters to PDF`);
+    try {
+      const headers = ["#", "Serial Number"];
+      const pdfData = meters.map((meter, index) => [
+        String(index + 1),
+        meter.serial_number,
+      ]);
+
+      const blob = await pdf(
+        <TableReportPDF
+          title={getExportTitle()}
+          headers={headers}
+          data={pdfData}
+        />,
+      ).toBlob();
+
+      url = URL.createObjectURL(blob);
+      link = document.createElement("a");
+      link.href = url;
+      link.download = `${getExportFilename()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      toast.success(`Exported ${meters.length} meters to PDF`);
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      toast.error("Failed to export PDF. Please try again.");
+    } finally {
+      if (link) link.remove();
+      if (url) URL.revokeObjectURL(url);
+    }
   }, [meters, getExportFilename, getExportTitle]);
 
   const getTransactionTypeLabel = (type: string) => {
