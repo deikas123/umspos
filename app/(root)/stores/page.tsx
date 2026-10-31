@@ -1,7 +1,7 @@
 import Stores from "@/components/stores/Stores";
 import { getAgentsPageData } from "@/lib/actions/agents";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function StoresPage() {
   // Fetch stores data server-side (stores are agents with is_store = true)

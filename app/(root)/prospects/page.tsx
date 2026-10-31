@@ -9,6 +9,8 @@ import { auth } from "@/auth";
 import { headers } from "next/headers";
 import { isSalesPerson } from "@/lib/utils/rolePermissions";
 
+export const dynamic = "force-dynamic";
+
 const PAGE_SIZE = 10;
 
 export default async function ProspectsPage() {
