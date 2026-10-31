@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "OTEL_EXPORTER_OTLP_ENDPOINT,OTEL_SERVICE_NAME,NEXT_PUBLIC_SUPABASE_ANON_KEY"
