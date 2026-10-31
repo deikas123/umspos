@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { Pool } from "pg";
 import { admin, anonymous, phoneNumber, twoFactor } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import {
   ac,
