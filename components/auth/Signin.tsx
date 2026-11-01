@@ -67,12 +67,19 @@ const SignIn = () => {
       {
         onSuccess: async (ctx) => {
           try {
-            // Check if 2FA is required - the twoFactorClient plugin handles the redirect
-            // automatically via onTwoFactorRedirect callback
+            // If 2FA is required, better-auth will call onTwoFactorRedirect
+            // and redirect to /two-factor automatically. Do NOT redirect here
+            // in that case — wait for the twoFactorClient plugin to handle it.
+            // Only redirect to dashboard if we have a full session (no 2FA pending).
             const session = await getSession();
             const user = session?.data?.user as any;
-            const isActive = user?.isActive ?? true;
 
+            // If no session yet, 2FA redirect is in progress — do nothing
+            if (!session?.data?.session) {
+              return;
+            }
+
+            const isActive = user?.isActive ?? true;
             if (!isActive) {
               await signOut();
               setIsLoading(false);
@@ -80,7 +87,6 @@ const SignIn = () => {
               return;
             }
 
-            // Use hard navigation to avoid client-side routing issues in production
             globalThis.location.href = "/dashboard";
           } catch (sessionError) {
             setError("Failed to fetch session. Please try again.");
