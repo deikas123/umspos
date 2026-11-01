@@ -36,6 +36,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Allow /two-factor through even with a session — the 2FA pending state
+  // is managed by better-auth cookies separately from the session cookie.
+  // Redirecting away here breaks the OTP flow.
+  if (pathname.startsWith("/two-factor")) {
+    return NextResponse.next();
+  }
+
   if (isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
