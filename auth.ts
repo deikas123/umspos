@@ -44,6 +44,8 @@ export const auth = betterAuth({
   appName: "UMS POS",
   trustedOrigins: [
     "https://pos.umskenya.com",
+    "https://operations.umskenya.com",
+    "https://umsoperations.netlify.app",
     "https://alphaums.vercel.app",
     "https://umspos.netlify.app",
     "http://localhost:3000",
