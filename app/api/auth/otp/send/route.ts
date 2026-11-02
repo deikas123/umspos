@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { redis } from "@/lib/cache/redis";
 import { send2FAOTP } from "@/lib/services/smsService";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { betterAuthUser } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 
@@ -24,7 +24,6 @@ function extractUserIdFromTwoFactorCookie(cookieHeader: string): string | null {
   if (!match) return null;
 
   const raw = decodeURIComponent(match[1] || match[2]);
-  // Format: 2fa-{userId}.{signature}
   if (!raw.startsWith("2fa-")) return null;
 
   const withoutPrefix = raw.slice(4); // remove "2fa-"
@@ -43,23 +42,23 @@ export async function POST(request: Request) {
     let userId: string | null = null;
     let phoneNumber: string | null = null;
 
-    // First try a full session (for resend after verify)
+    // First try a full session
     const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
     if (session?.user) {
       userId = session.user.id;
       phoneNumber = (session.user as any).phoneNumber || null;
     }
 
-    // If no full session, extract from the 2FA pending cookie
+    // If no full session, extract userId from the 2FA pending cookie
     if (!userId) {
       const cookieHeader = request.headers.get("cookie") || "";
       userId = extractUserIdFromTwoFactorCookie(cookieHeader);
 
       if (userId) {
         const userRecord = await db
-          .select({ phoneNumber: users.phoneNumber })
-          .from(users)
-          .where(eq(users.id, userId))
+          .select({ phoneNumber: betterAuthUser.phoneNumber })
+          .from(betterAuthUser)
+          .where(eq(betterAuthUser.id, userId))
           .limit(1);
         phoneNumber = userRecord[0]?.phoneNumber || null;
       }
