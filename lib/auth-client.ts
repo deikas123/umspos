@@ -3,7 +3,6 @@ import {
   adminClient,
   anonymousClient,
   phoneNumberClient,
-  twoFactorClient,
 } from "better-auth/client/plugins";
 import { ac, admin, accountant, user } from "@/lib/auth/permissions";
 
@@ -19,12 +18,6 @@ export const authClient = createAuthClient({
     }),
     anonymousClient(),
     phoneNumberClient(),
-    twoFactorClient({
-      onTwoFactorRedirect() {
-        // Redirect to 2FA verification page
-        globalThis.window.location.href = "/two-factor";
-      },
-    }),
   ],
 });
 

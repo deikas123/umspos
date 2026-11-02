@@ -82,12 +82,6 @@ const SignIn = () => {
               return;
             }
 
-            // Check if user has 2FA enabled — redirect to our custom OTP page
-            if (user?.twoFactorEnabled) {
-              globalThis.location.href = "/two-factor";
-              return;
-            }
-
             globalThis.location.href = "/dashboard";
           } catch (sessionError) {
             setError("Failed to fetch session. Please try again.");
