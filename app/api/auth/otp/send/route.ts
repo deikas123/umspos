@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     if (!userId) {
       const cookieHeader = request.headers.get("cookie") || "";
       userId = extractUserIdFromTwoFactorCookie(cookieHeader);
+      console.log("[OTP send] Extracted userId from cookie:", userId);
 
       if (userId) {
         const userRecord = await db
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
           .from(betterAuthUser)
           .where(eq(betterAuthUser.id, userId))
           .limit(1);
+        console.log("[OTP send] DB lookup result:", userRecord);
         phoneNumber = userRecord[0]?.phoneNumber || null;
       }
     }
