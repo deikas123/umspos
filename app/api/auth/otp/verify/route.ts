@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { redis } from "@/lib/cache/redis";
-import { headers } from "next/headers";
 
 const OTP_PREFIX = "otp:2fa:";
 
 export async function POST(request: Request) {
   try {
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: request.headers,
     });
 
     if (!session?.user) {
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // OTP is correct — delete it so it can't be reused
+    // OTP correct — delete so it can't be reused
     await redis.del(key);
 
     return NextResponse.json({ success: true });

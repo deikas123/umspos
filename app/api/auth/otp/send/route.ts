@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { redis } from "@/lib/cache/redis";
 import { send2FAOTP } from "@/lib/services/smsService";
-import { headers } from "next/headers";
 
 const OTP_TTL = 300; // 5 minutes
 const OTP_PREFIX = "otp:2fa:";
@@ -13,9 +12,9 @@ function generateOTP(): string {
 
 export async function POST(request: Request) {
   try {
-    // Get session - user must be signed in
+    // Pass request headers directly so better-auth can read the session cookie
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: request.headers,
     });
 
     if (!session?.user) {

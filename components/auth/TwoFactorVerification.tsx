@@ -49,7 +49,7 @@ export default function TwoFactorVerification() {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/otp/send", { method: "POST" });
+      const res = await fetch("/api/auth/otp/send", { method: "POST", credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send code");
       setCountdown(60);
@@ -75,6 +75,7 @@ export default function TwoFactorVerification() {
     try {
       const res = await fetch("/api/auth/otp/verify", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: otp }),
       });
