@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -50,7 +49,9 @@ export default function TwoFactorVerification() {
     setError(null);
 
     try {
-      await authClient.twoFactor.sendOtp();
+      const res = await fetch("/api/auth/otp/send", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send code");
       setCountdown(60);
       toast.success("Verification code sent to your phone");
     } catch (err: any) {
@@ -72,17 +73,18 @@ export default function TwoFactorVerification() {
     setError(null);
 
     try {
-      const result = await authClient.twoFactor.verifyOtp({
-        code: otp,
-        trustDevice: true,
+      const res = await fetch("/api/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: otp }),
       });
+      const data = await res.json();
 
-      if (result.error) {
-        setError(result.error.message || "Invalid verification code");
+      if (!res.ok) {
+        setError(data.error || "Invalid verification code");
         setOtp("");
       } else {
         toast.success("Verification successful!");
-        // Navigate to dashboard
         globalThis.location.href = "/dashboard";
       }
     } catch (err: any) {

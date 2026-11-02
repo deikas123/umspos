@@ -67,14 +67,9 @@ const SignIn = () => {
       {
         onSuccess: async (ctx) => {
           try {
-            // If 2FA is required, better-auth will call onTwoFactorRedirect
-            // and redirect to /two-factor automatically. Do NOT redirect here
-            // in that case — wait for the twoFactorClient plugin to handle it.
-            // Only redirect to dashboard if we have a full session (no 2FA pending).
             const session = await getSession();
             const user = session?.data?.user as any;
 
-            // If no session yet, 2FA redirect is in progress — do nothing
             if (!session?.data?.session) {
               return;
             }
@@ -84,6 +79,12 @@ const SignIn = () => {
               await signOut();
               setIsLoading(false);
               globalThis.location.href = "/deactivated";
+              return;
+            }
+
+            // Check if user has 2FA enabled — redirect to our custom OTP page
+            if (user?.twoFactorEnabled) {
+              globalThis.location.href = "/two-factor";
               return;
             }
 
